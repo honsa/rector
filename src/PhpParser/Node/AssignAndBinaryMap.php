@@ -1,8 +1,10 @@
-<?php declare(strict_types=1);
+<?php
 
-namespace Rector\PhpParser\Node;
+declare (strict_types=1);
+namespace Rector\Core\PhpParser\Node;
 
 use PhpParser\Node;
+use PhpParser\Node\Expr;
 use PhpParser\Node\Expr\AssignOp;
 use PhpParser\Node\Expr\AssignOp\BitwiseAnd as AssignBitwiseAnd;
 use PhpParser\Node\Expr\AssignOp\BitwiseOr as AssignBitwiseOr;
@@ -37,70 +39,68 @@ use PhpParser\Node\Expr\BinaryOp\ShiftLeft;
 use PhpParser\Node\Expr\BinaryOp\ShiftRight;
 use PhpParser\Node\Expr\BinaryOp\Smaller;
 use PhpParser\Node\Expr\BinaryOp\SmallerOrEqual;
-
+use PhpParser\Node\Expr\BooleanNot;
+use PhpParser\Node\Expr\Cast\Bool_;
+use Rector\NodeTypeResolver\NodeTypeResolver;
 final class AssignAndBinaryMap
 {
     /**
-     * @var string[]
+     * @readonly
+     * @var \Rector\NodeTypeResolver\NodeTypeResolver
      */
-    private $binaryOpToInverseClasses = [
-        Identical::class => NotIdentical::class,
-        NotIdentical::class => Identical::class,
-        Equal::class => NotEqual::class,
-        NotEqual::class => Equal::class,
-        Greater::class => SmallerOrEqual::class,
-        Smaller::class => GreaterOrEqual::class,
-        GreaterOrEqual::class => Smaller::class,
-        SmallerOrEqual::class => Greater::class,
-    ];
-
+    private $nodeTypeResolver;
     /**
-     * @var string[]
+     * @var array<class-string<BinaryOp>, class-string<BinaryOp>>
      */
-    private $assignOpToBinaryOpClasses = [
-        AssignBitwiseOr::class => BitwiseOr::class,
-        AssignBitwiseAnd::class => BitwiseAnd::class,
-        AssignBitwiseXor::class => BitwiseXor::class,
-        AssignPlus::class => Plus::class,
-        AssignDiv::class => Div::class,
-        AssignMul::class => Mul::class,
-        AssignMinus::class => Minus::class,
-        AssignConcat::class => Concat::class,
-        AssignPow::class => Pow::class,
-        AssignMod::class => Mod::class,
-        AssignShiftLeft::class => ShiftLeft::class,
-        AssignShiftRight::class => ShiftRight::class,
-    ];
-
+    private const BINARY_OP_TO_INVERSE_CLASSES = [Identical::class => NotIdentical::class, NotIdentical::class => Identical::class, Equal::class => NotEqual::class, NotEqual::class => Equal::class, Greater::class => SmallerOrEqual::class, Smaller::class => GreaterOrEqual::class, GreaterOrEqual::class => Smaller::class, SmallerOrEqual::class => Greater::class];
     /**
-     * @var string[]
+     * @var array<class-string<AssignOp>, class-string<BinaryOp>>
+     */
+    private const ASSIGN_OP_TO_BINARY_OP_CLASSES = [AssignBitwiseOr::class => BitwiseOr::class, AssignBitwiseAnd::class => BitwiseAnd::class, AssignBitwiseXor::class => BitwiseXor::class, AssignPlus::class => Plus::class, AssignDiv::class => Div::class, AssignMul::class => Mul::class, AssignMinus::class => Minus::class, AssignConcat::class => Concat::class, AssignPow::class => Pow::class, AssignMod::class => Mod::class, AssignShiftLeft::class => ShiftLeft::class, AssignShiftRight::class => ShiftRight::class];
+    /**
+     * @var array<class-string<BinaryOp>, class-string<BinaryOp>>
      */
     private $binaryOpToAssignClasses = [];
-
-    public function __construct()
+    public function __construct(NodeTypeResolver $nodeTypeResolver)
     {
-        $this->binaryOpToAssignClasses = array_flip($this->assignOpToBinaryOpClasses);
+        $this->nodeTypeResolver = $nodeTypeResolver;
+        $this->binaryOpToAssignClasses = \array_flip(self::ASSIGN_OP_TO_BINARY_OP_CLASSES);
     }
-
-    public function getAlternative(Node $node): ?string
+    /**
+     * @return class-string<BinaryOp>|null
+     */
+    public function getAlternative(Node $node) : ?string
     {
-        $nodeClass = get_class($node);
-
+        $nodeClass = \get_class($node);
         if ($node instanceof AssignOp) {
-            return $this->assignOpToBinaryOpClasses[$nodeClass] ?? null;
+            return self::ASSIGN_OP_TO_BINARY_OP_CLASSES[$nodeClass] ?? null;
         }
-
         if ($node instanceof BinaryOp) {
             return $this->binaryOpToAssignClasses[$nodeClass] ?? null;
         }
-
         return null;
     }
-
-    public function getInversed(BinaryOp $node): ?string
+    /**
+     * @return class-string<BinaryOp>|null
+     */
+    public function getInversed(BinaryOp $binaryOp) : ?string
     {
-        $nodeClass = get_class($node);
-
-        return $this->binaryOpToInverseClasses[$nodeClass] ?? null;
+        $nodeClass = \get_class($binaryOp);
+        return self::BINARY_OP_TO_INVERSE_CLASSES[$nodeClass] ?? null;
+    }
+    public function getTruthyExpr(Expr $expr) : Expr
+    {
+        if ($expr instanceof Bool_) {
+            return $expr;
+        }
+        if ($expr instanceof BooleanNot) {
+            return $expr;
+        }
+        $exprType = $this->nodeTypeResolver->getType($expr);
+        // $type = $scope->getType($expr);
+        if ($exprType->isBoolean()->yes()) {
+            return $expr;
+        }
+        return new Bool_($expr);
     }
 }

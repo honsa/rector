@@ -1,122 +1,49 @@
-<?php declare(strict_types=1);
+<?php
 
-namespace Rector\Autoloading;
+declare (strict_types=1);
+namespace Rector\Core\Autoloading;
 
-use Nette\Loaders\RobotLoader;
-use Rector\Configuration\Option;
-use Rector\FileSystem\FileGuard;
-use Symfony\Component\Console\Input\InputInterface;
-use Symplify\PackageBuilder\FileSystem\FileSystem;
-
+use Rector\Core\Configuration\Option;
+use Rector\Core\Configuration\Parameter\ParameterProvider;
+use Rector\Core\StaticReflection\DynamicSourceLocatorDecorator;
+use RectorPrefix202307\Symfony\Component\Console\Input\InputInterface;
+use RectorPrefix202307\Webmozart\Assert\Assert;
 /**
  * Should it pass autoload files/directories to PHPStan analyzer?
  */
 final class AdditionalAutoloader
 {
     /**
-     * @var string[]
+     * @readonly
+     * @var \Rector\Core\Configuration\Parameter\ParameterProvider
      */
-    private $autoloadPaths = [];
-
+    private $parameterProvider;
     /**
-     * @var string[]
+     * @readonly
+     * @var \Rector\Core\StaticReflection\DynamicSourceLocatorDecorator
      */
-    private $excludePaths = [];
-
-    /**
-     * @var FileGuard
-     */
-    private $fileGuard;
-
-    /**
-     * @var FileSystem
-     */
-    private $fileSystem;
-
-    /**
-     * @param string[] $autoloadPaths
-     * @param string[] $excludePaths
-     */
-    public function __construct(
-        FileGuard $fileGuard,
-        FileSystem $fileSystem,
-        array $autoloadPaths,
-        array $excludePaths
-    ) {
-        $this->fileGuard = $fileGuard;
-        $this->fileSystem = $fileSystem;
-        $this->autoloadPaths = $autoloadPaths;
-        $this->excludePaths = $excludePaths;
-    }
-
-    /**
-     * @param string[] $source
-     */
-    public function autoloadWithInputAndSource(InputInterface $input, array $source): void
+    private $dynamicSourceLocatorDecorator;
+    public function __construct(ParameterProvider $parameterProvider, DynamicSourceLocatorDecorator $dynamicSourceLocatorDecorator)
     {
-        [$autoloadFiles, $autoloadDirectories] = $this->fileSystem->separateFilesAndDirectories($this->autoloadPaths);
-
-        $this->autoloadFileFromInput($input);
-        $this->autoloadDirectories($autoloadDirectories);
-        $this->autoloadFiles($autoloadFiles);
-
-        // the scanned file needs to be autoloaded
-        [$files, $directories] = $this->fileSystem->separateFilesAndDirectories($source);
-
-        foreach ($directories as $directory) {
-            // load project autoload
-            if (file_exists($directory . '/vendor/autoload.php')) {
-                require_once $directory . '/vendor/autoload.php';
-            }
+        $this->parameterProvider = $parameterProvider;
+        $this->dynamicSourceLocatorDecorator = $dynamicSourceLocatorDecorator;
+    }
+    public function autoloadInput(InputInterface $input) : void
+    {
+        if (!$input->hasOption(Option::AUTOLOAD_FILE)) {
+            return;
         }
-
-        $this->autoloadFiles($files);
-    }
-
-    private function autoloadFileFromInput(InputInterface $input): void
-    {
         /** @var string|null $autoloadFile */
-        $autoloadFile = $input->getOption(Option::OPTION_AUTOLOAD_FILE);
+        $autoloadFile = $input->getOption(Option::AUTOLOAD_FILE);
         if ($autoloadFile === null) {
             return;
         }
-
-        $this->autoloadFiles([$autoloadFile]);
+        Assert::fileExists($autoloadFile, \sprintf('Extra autoload file %s was not found', $autoloadFile));
+        require_once $autoloadFile;
     }
-
-    /**
-     * @param string[] $directories
-     */
-    private function autoloadDirectories(array $directories): void
+    public function autoloadPaths() : void
     {
-        if (! count($directories)) {
-            return;
-        }
-
-        $robotLoader = new RobotLoader();
-        $robotLoader->ignoreDirs[] = '*Fixtures';
-        foreach ($this->excludePaths as $excludePath) {
-            $robotLoader->ignoreDirs[] = $excludePath;
-        }
-        // last argument is workaround: https://github.com/nette/robot-loader/issues/12
-        $robotLoader->setTempDirectory(sys_get_temp_dir() . '/_rector_robot_loader');
-
-        foreach ($directories as $autoloadDirectory) {
-            $robotLoader->addDirectory($autoloadDirectory);
-        }
-
-        $robotLoader->register();
-    }
-
-    /**
-     * @param string[] $files
-     */
-    private function autoloadFiles(array $files): void
-    {
-        foreach ($files as $file) {
-            $this->fileGuard->ensureFileExists($file, 'Extra autoload');
-
-            require_once $file;
-        }
+        $autoloadPaths = $this->parameterProvider->provideArrayParameter(Option::AUTOLOAD_PATHS);
+        $this->dynamicSourceLocatorDecorator->addPaths($autoloadPaths);
     }
 }

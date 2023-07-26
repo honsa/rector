@@ -1,10 +1,9 @@
-<?php declare(strict_types=1);
+<?php
 
-namespace Rector\Contract\Rector;
+declare (strict_types=1);
+namespace Rector\Core\Contract\Rector;
 
-use Rector\RectorDefinition\RectorDefinition;
-
-interface RectorInterface
+use Symplify\RuleDocGenerator\Contract\DocumentedRuleInterface;
+interface RectorInterface extends DocumentedRuleInterface
 {
-    public function getDefinition(): RectorDefinition;
 }

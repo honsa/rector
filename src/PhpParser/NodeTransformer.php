@@ -1,9 +1,10 @@
-<?php declare(strict_types=1);
+<?php
 
-namespace Rector\PhpParser;
+declare (strict_types=1);
+namespace Rector\Core\PhpParser;
 
-use Nette\Utils\Strings;
-use PhpParser\Node;
+use PhpParser\BuilderHelpers;
+use PhpParser\Node\Arg;
 use PhpParser\Node\Expr;
 use PhpParser\Node\Expr\Array_;
 use PhpParser\Node\Expr\ArrayItem;
@@ -12,145 +13,138 @@ use PhpParser\Node\Expr\FuncCall;
 use PhpParser\Node\Expr\Yield_;
 use PhpParser\Node\Scalar\String_;
 use PhpParser\Node\Stmt\Expression;
-
+use Rector\Core\Exception\ShouldNotHappenException;
+use Rector\Core\Util\StringUtils;
+use Rector\Core\ValueObject\SprintfStringAndArgs;
+use Rector\NodeTypeResolver\Node\AttributeKey;
+/**
+ * @api used in phpunit
+ */
 final class NodeTransformer
 {
     /**
+     * @var string
+     * @see https://regex101.com/r/XFc3qA/1
+     */
+    private const PERCENT_TEXT_REGEX = '#^%\\w$#';
+    /**
+     * @api used in phpunit symfony
+     *
      * From:
      * - sprintf("Hi %s", $name);
      *
      * to:
      * - ["Hi %s", $name]
      */
-    public function transformSprintfToArray(FuncCall $sprintfFuncCall): ?Array_
+    public function transformSprintfToArray(FuncCall $sprintfFuncCall) : ?Array_
     {
-        [$arrayItems, $stringArgument] = $this->splitMessageAndArgs($sprintfFuncCall);
-        if (! $stringArgument instanceof String_) {
-            // we need to know "%x" parts → nothing we can do
+        $sprintfStringAndArgs = $this->splitMessageAndArgs($sprintfFuncCall);
+        if (!$sprintfStringAndArgs instanceof SprintfStringAndArgs) {
             return null;
         }
-
-        $message = $stringArgument->value;
-        $messageParts = $this->splitBySpace($message);
-
-        foreach ($messageParts as $key => $messagePart) {
-            // is mask
-            if (Strings::match($messagePart, '#^%\w$#')) {
-                $messageParts[$key] = array_shift($arrayItems);
+        $arrayItems = $sprintfStringAndArgs->getArrayItems();
+        $stringValue = $sprintfStringAndArgs->getStringValue();
+        $messageParts = $this->splitBySpace($stringValue);
+        $arrayMessageParts = [];
+        foreach ($messageParts as $messagePart) {
+            if (StringUtils::isMatch($messagePart, self::PERCENT_TEXT_REGEX)) {
+                /** @var Expr $messagePartNode */
+                $messagePartNode = \array_shift($arrayItems);
             } else {
-                $messageParts[$key] = new String_($messagePart);
+                $messagePartNode = new String_($messagePart);
             }
+            $arrayMessageParts[] = new ArrayItem($messagePartNode);
         }
-
-        return new Array_($messageParts);
+        return new Array_($arrayMessageParts);
     }
-
-    /**
-     * @param Yield_[]|Expression[] $yieldNodes
-     */
-    public function transformYieldsToArray(array $yieldNodes): Array_
-    {
-        $arrayItems = [];
-        foreach ($yieldNodes as $yieldNode) {
-            if ($yieldNode instanceof Expression) {
-                $yieldNode = $yieldNode->expr;
-            }
-
-            if (! $yieldNode instanceof Yield_) {
-                continue;
-            }
-
-            $arrayItems[] = new ArrayItem($yieldNode->value, $yieldNode->key);
-        }
-
-        return new Array_($arrayItems);
-    }
-
     /**
      * @return Expression[]
      */
-    public function transformArrayToYields(Array_ $arrayNode): array
+    public function transformArrayToYields(Array_ $array) : array
     {
-        $yieldNodes = [];
-
-        foreach ($arrayNode->items as $arrayItem) {
-            $expressionNode = new Expression(new Yield_($arrayItem->value, $arrayItem->key));
-            if ($arrayItem->getComments()) {
-                $expressionNode->setAttribute('comments', $arrayItem->getComments());
+        $yields = [];
+        foreach ($array->items as $arrayItem) {
+            if (!$arrayItem instanceof ArrayItem) {
+                continue;
             }
-
-            $yieldNodes[] = $expressionNode;
+            $yield = new Yield_($arrayItem->value, $arrayItem->key);
+            $expression = new Expression($yield);
+            $arrayItemComments = $arrayItem->getComments();
+            if ($arrayItemComments !== []) {
+                $expression->setAttribute(AttributeKey::COMMENTS, $arrayItemComments);
+            }
+            $yields[] = $expression;
         }
-
-        return $yieldNodes;
+        return $yields;
     }
-
-    public function transformConcatToStringArray(Concat $concatNode): ?Array_
-    {
-        $arrayItems = $this->transformConcatToItems($concatNode);
-
-        return new Array_($arrayItems);
-    }
-
     /**
-     * @return Node[]|null[]
+     * @api symfony
      */
-    private function splitMessageAndArgs(FuncCall $sprintfFuncCall): array
+    public function transformConcatToStringArray(Concat $concat) : Array_
+    {
+        $arrayItems = $this->transformConcatToItems($concat);
+        $expr = BuilderHelpers::normalizeValue($arrayItems);
+        if (!$expr instanceof Array_) {
+            throw new ShouldNotHappenException();
+        }
+        return $expr;
+    }
+    private function splitMessageAndArgs(FuncCall $sprintfFuncCall) : ?SprintfStringAndArgs
     {
         $stringArgument = null;
         $arrayItems = [];
         foreach ($sprintfFuncCall->args as $i => $arg) {
+            if (!$arg instanceof Arg) {
+                continue;
+            }
             if ($i === 0) {
                 $stringArgument = $arg->value;
             } else {
                 $arrayItems[] = $arg->value;
             }
         }
-
-        return [$arrayItems, $stringArgument];
+        if (!$stringArgument instanceof String_) {
+            return null;
+        }
+        if ($arrayItems === []) {
+            return null;
+        }
+        return new SprintfStringAndArgs($stringArgument, $arrayItems);
     }
-
     /**
      * @return string[]
      */
-    private function splitBySpace(string $value): array
+    private function splitBySpace(string $value) : array
     {
-        $value = str_getcsv($value, ' ');
-
-        return array_filter($value);
+        $value = \str_getcsv($value, ' ');
+        return \array_filter($value);
     }
-
     /**
      * @return mixed[]
      */
-    private function transformConcatToItems(Concat $concatNode): array
+    private function transformConcatToItems(Concat $concat) : array
     {
-        $arrayItems = $this->transformConcatItemToArrayItems($concatNode->left);
-
-        return array_merge($arrayItems, $this->transformConcatItemToArrayItems($concatNode->right));
+        $arrayItems = $this->transformConcatItemToArrayItems($concat->left);
+        return \array_merge($arrayItems, $this->transformConcatItemToArrayItems($concat->right));
     }
-
     /**
-     * @return Node[]|string[]
+     * @return mixed[]|Expr[]|String_[]
      */
-    private function transformConcatItemToArrayItems(Expr $node): array
+    private function transformConcatItemToArrayItems(Expr $expr) : array
     {
-        if ($node instanceof Concat) {
-            return $this->transformConcatToItems($node);
+        if ($expr instanceof Concat) {
+            return $this->transformConcatToItems($expr);
         }
-
-        if (! $node instanceof String_) {
-            return [$node];
+        if (!$expr instanceof String_) {
+            return [$expr];
         }
-
         $arrayItems = [];
-        $parts = $this->splitBySpace($node->value);
+        $parts = $this->splitBySpace($expr->value);
         foreach ($parts as $part) {
-            if (trim($part)) {
+            if (\trim($part) !== '') {
                 $arrayItems[] = new String_($part);
             }
         }
-
         return $arrayItems;
     }
 }

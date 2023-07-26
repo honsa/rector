@@ -1,166 +1,158 @@
-<?php declare(strict_types=1);
+<?php
 
-namespace Rector\Console\Command;
+declare (strict_types=1);
+namespace Rector\Core\Console\Command;
 
-use Rector\Application\ErrorAndDiffCollector;
-use Rector\Application\RectorApplication;
-use Rector\Autoloading\AdditionalAutoloader;
-use Rector\CodingStyle\AfterRectorCodingStyle;
-use Rector\Configuration\Configuration;
-use Rector\Configuration\Option;
-use Rector\Console\Output\ProcessCommandReporter;
-use Rector\Console\Shell;
-use Rector\FileSystem\FilesFinder;
-use Rector\Guard\RectorGuard;
-use Symfony\Component\Console\Command\Command;
-use Symfony\Component\Console\Input\InputArgument;
-use Symfony\Component\Console\Input\InputInterface;
-use Symfony\Component\Console\Input\InputOption;
-use Symfony\Component\Console\Output\OutputInterface;
-use Symfony\Component\Console\Style\SymfonyStyle;
-use Symplify\PackageBuilder\Console\Command\CommandNaming;
-
-final class ProcessCommand extends Command
+use Rector\Caching\Detector\ChangedFilesDetector;
+use Rector\ChangesReporting\Output\JsonOutputFormatter;
+use Rector\Core\Application\ApplicationFileProcessor;
+use Rector\Core\Autoloading\AdditionalAutoloader;
+use Rector\Core\Configuration\ConfigInitializer;
+use Rector\Core\Configuration\Option;
+use Rector\Core\Console\ExitCode;
+use Rector\Core\Console\Output\OutputFormatterCollector;
+use Rector\Core\Contract\Console\OutputStyleInterface;
+use Rector\Core\Exception\ShouldNotHappenException;
+use Rector\Core\StaticReflection\DynamicSourceLocatorDecorator;
+use Rector\Core\Util\MemoryLimiter;
+use Rector\Core\ValueObject\Configuration;
+use Rector\Core\ValueObject\ProcessResult;
+use Rector\Core\ValueObjectFactory\ProcessResultFactory;
+use RectorPrefix202307\Symfony\Component\Console\Application;
+use RectorPrefix202307\Symfony\Component\Console\Input\InputInterface;
+use RectorPrefix202307\Symfony\Component\Console\Output\OutputInterface;
+final class ProcessCommand extends \Rector\Core\Console\Command\AbstractProcessCommand
 {
     /**
-     * @var SymfonyStyle
-     */
-    private $symfonyStyle;
-
-    /**
-     * @var FilesFinder
-     */
-    private $filesFinder;
-
-    /**
-     * @var ProcessCommandReporter
-     */
-    private $processCommandReporter;
-
-    /**
-     * @var AdditionalAutoloader
+     * @readonly
+     * @var \Rector\Core\Autoloading\AdditionalAutoloader
      */
     private $additionalAutoloader;
-
     /**
-     * @var RectorGuard
+     * @readonly
+     * @var \Rector\Caching\Detector\ChangedFilesDetector
      */
-    private $rectorGuard;
-
+    private $changedFilesDetector;
     /**
-     * @var ErrorAndDiffCollector
+     * @readonly
+     * @var \Rector\Core\Configuration\ConfigInitializer
      */
-    private $errorAndDiffCollector;
-
+    private $configInitializer;
     /**
-     * @var AfterRectorCodingStyle
+     * @readonly
+     * @var \Rector\Core\Application\ApplicationFileProcessor
      */
-    private $afterRectorCodingStyle;
-
+    private $applicationFileProcessor;
     /**
-     * @var Configuration
+     * @readonly
+     * @var \Rector\Core\ValueObjectFactory\ProcessResultFactory
      */
-    private $configuration;
-
+    private $processResultFactory;
     /**
-     * @var RectorApplication
+     * @readonly
+     * @var \Rector\Core\StaticReflection\DynamicSourceLocatorDecorator
      */
-    private $rectorApplication;
-
-    public function __construct(
-        SymfonyStyle $symfonyStyle,
-        FilesFinder $phpFilesFinder,
-        ProcessCommandReporter $processCommandReporter,
-        AdditionalAutoloader $additionalAutoloader,
-        RectorGuard $rectorGuard,
-        ErrorAndDiffCollector $errorAndDiffCollector,
-        AfterRectorCodingStyle $afterRectorCodingStyle,
-        Configuration $configuration,
-        RectorApplication $rectorApplication
-    ) {
-        parent::__construct();
-
-        $this->symfonyStyle = $symfonyStyle;
-        $this->filesFinder = $phpFilesFinder;
-        $this->processCommandReporter = $processCommandReporter;
+    private $dynamicSourceLocatorDecorator;
+    /**
+     * @readonly
+     * @var \Rector\Core\Console\Output\OutputFormatterCollector
+     */
+    private $outputFormatterCollector;
+    /**
+     * @readonly
+     * @var \Rector\Core\Contract\Console\OutputStyleInterface
+     */
+    private $rectorOutputStyle;
+    /**
+     * @readonly
+     * @var \Rector\Core\Util\MemoryLimiter
+     */
+    private $memoryLimiter;
+    public function __construct(AdditionalAutoloader $additionalAutoloader, ChangedFilesDetector $changedFilesDetector, ConfigInitializer $configInitializer, ApplicationFileProcessor $applicationFileProcessor, ProcessResultFactory $processResultFactory, DynamicSourceLocatorDecorator $dynamicSourceLocatorDecorator, OutputFormatterCollector $outputFormatterCollector, OutputStyleInterface $rectorOutputStyle, MemoryLimiter $memoryLimiter)
+    {
         $this->additionalAutoloader = $additionalAutoloader;
-        $this->rectorGuard = $rectorGuard;
-        $this->errorAndDiffCollector = $errorAndDiffCollector;
-        $this->afterRectorCodingStyle = $afterRectorCodingStyle;
-        $this->configuration = $configuration;
-        $this->rectorApplication = $rectorApplication;
+        $this->changedFilesDetector = $changedFilesDetector;
+        $this->configInitializer = $configInitializer;
+        $this->applicationFileProcessor = $applicationFileProcessor;
+        $this->processResultFactory = $processResultFactory;
+        $this->dynamicSourceLocatorDecorator = $dynamicSourceLocatorDecorator;
+        $this->outputFormatterCollector = $outputFormatterCollector;
+        $this->rectorOutputStyle = $rectorOutputStyle;
+        $this->memoryLimiter = $memoryLimiter;
+        parent::__construct();
     }
-
-    protected function configure(): void
+    protected function configure() : void
     {
-        $this->setName(CommandNaming::classToName(self::class));
-        $this->setDescription('Reconstruct set of your code.');
-        $this->addArgument(
-            Option::SOURCE,
-            InputArgument::REQUIRED | InputArgument::IS_ARRAY,
-            'Files or directories to be upgraded.'
-        );
-        $this->addOption(
-            Option::OPTION_DRY_RUN,
-            'd',
-            InputOption::VALUE_NONE,
-            'See diff of changes, do not save them to files.'
-        );
-        $this->addOption(
-            Option::OPTION_AUTOLOAD_FILE,
-            'a',
-            InputOption::VALUE_REQUIRED,
-            'File with extra autoload'
-        );
-
-        $this->addOption(
-            Option::OPTION_WITH_STYLE,
-            'w',
-            InputOption::VALUE_NONE,
-            'Apply basic coding style afterwards to make code look nicer'
-        );
-
-        $this->addOption(
-            Option::HIDE_AUTOLOAD_ERRORS,
-            'e',
-            InputOption::VALUE_NONE,
-            'Hide autoload errors for the moment.'
-        );
+        $this->setName('process');
+        $this->setDescription('Upgrades or refactors source code with provided rectors');
+        parent::configure();
     }
-
-    protected function execute(InputInterface $input, OutputInterface $output): int
+    protected function execute(InputInterface $input, OutputInterface $output) : int
     {
-        $this->rectorGuard->ensureSomeRectorsAreRegistered();
-
-        $source = $input->getArgument(Option::SOURCE);
-
-        $this->configuration->resolveFromInput($input);
-
-        $phpFileInfos = $this->filesFinder->findInDirectoriesAndFiles($source, ['php']);
-
-        $this->additionalAutoloader->autoloadWithInputAndSource($input, $source);
-
-        $this->rectorApplication->runOnFileInfos($phpFileInfos);
-
-        $this->processCommandReporter->reportFileDiffs($this->errorAndDiffCollector->getFileDiffs());
-
-        $this->processCommandReporter->reportRemovedFiles();
-
-        if ($this->errorAndDiffCollector->getErrors()) {
-            $this->processCommandReporter->reportErrors($this->errorAndDiffCollector->getErrors());
-            return Shell::CODE_ERROR;
+        // missing config? add it :)
+        if (!$this->configInitializer->areSomeRectorsLoaded()) {
+            $this->configInitializer->createConfig(\getcwd());
+            return self::SUCCESS;
         }
-
-        if ($this->configuration->isWithStyle()) {
-            $this->afterRectorCodingStyle->apply($source);
+        $configuration = $this->configurationFactory->createFromInput($input);
+        $this->memoryLimiter->adjust($configuration);
+        // disable console output in case of json output formatter
+        if ($configuration->getOutputFormat() === JsonOutputFormatter::NAME) {
+            $this->rectorOutputStyle->setVerbosity(OutputInterface::VERBOSITY_QUIET);
         }
-
-        $this->symfonyStyle->success('Rector is done!');
-
-        if ($this->configuration->isDryRun() && count($this->errorAndDiffCollector->getFileDiffs())) {
-            return Shell::CODE_ERROR;
+        $this->additionalAutoloader->autoloadInput($input);
+        $this->additionalAutoloader->autoloadPaths();
+        $paths = $configuration->getPaths();
+        // 1. add files and directories to static locator
+        $this->dynamicSourceLocatorDecorator->addPaths($paths);
+        if ($this->dynamicSourceLocatorDecorator->isPathsEmpty()) {
+            $this->rectorOutputStyle->error('The given paths do not match any files');
+            return ExitCode::FAILURE;
         }
-
-        return Shell::CODE_SUCCESS;
+        // MAIN PHASE
+        // 2. run Rector
+        $systemErrorsAndFileDiffs = $this->applicationFileProcessor->run($configuration, $input);
+        // REPORTING PHASE
+        // 3. reporting phase
+        // report diffs and errors
+        $outputFormat = $configuration->getOutputFormat();
+        $outputFormatter = $this->outputFormatterCollector->getByName($outputFormat);
+        $processResult = $this->processResultFactory->create($systemErrorsAndFileDiffs);
+        $outputFormatter->report($processResult, $configuration);
+        return $this->resolveReturnCode($processResult, $configuration);
+    }
+    protected function initialize(InputInterface $input, OutputInterface $output) : void
+    {
+        $application = $this->getApplication();
+        if (!$application instanceof Application) {
+            throw new ShouldNotHappenException();
+        }
+        $optionDebug = (bool) $input->getOption(Option::DEBUG);
+        if ($optionDebug) {
+            $application->setCatchExceptions(\false);
+        }
+        // clear cache
+        $optionClearCache = (bool) $input->getOption(Option::CLEAR_CACHE);
+        if ($optionDebug || $optionClearCache) {
+            $this->changedFilesDetector->clear();
+        }
+    }
+    /**
+     * @return ExitCode::*
+     */
+    private function resolveReturnCode(ProcessResult $processResult, Configuration $configuration) : int
+    {
+        // some system errors were found → fail
+        if ($processResult->getErrors() !== []) {
+            return ExitCode::FAILURE;
+        }
+        // inverse error code for CI dry-run
+        if (!$configuration->isDryRun()) {
+            return ExitCode::SUCCESS;
+        }
+        if ($processResult->getFileDiffs() !== []) {
+            return ExitCode::CHANGED_CODE;
+        }
+        return ExitCode::SUCCESS;
     }
 }

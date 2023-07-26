@@ -1,41 +1,39 @@
-<?php declare(strict_types=1);
+<?php
 
-namespace Rector\FileSystem;
-
-use Nette\Utils\Strings;
-use Rector\Exception\FileSystem\DirectoryNotFoundException;
-use function Safe\glob;
-use function Safe\sprintf;
+declare (strict_types=1);
+namespace Rector\Core\FileSystem;
 
 final class FilesystemTweaker
 {
     /**
      * This will turn paths like "src/Symfony/Component/*\/Tests" to existing directory paths
      *
-     * @param string[] $directories
+     * @param string[] $paths
+     *
      * @return string[]
      */
-    public function resolveDirectoriesWithFnmatch(array $directories): array
+    public function resolveWithFnmatch(array $paths) : array
     {
-        $absoluteDirectories = [];
-        foreach ($directories as $directory) {
-            if (Strings::contains($directory, '*')) { // is fnmatch for directories
-                $absoluteDirectories = array_merge($absoluteDirectories, glob($directory, GLOB_ONLYDIR));
-            } else { // is classic directory
-                $this->ensureDirectoryExists($directory);
-                $absoluteDirectories[] = $directory;
+        $absolutePathsFound = [];
+        foreach ($paths as $path) {
+            if (\strpos($path, '*') !== \false) {
+                $foundPaths = $this->foundInGlob($path);
+                $absolutePathsFound = \array_merge($absolutePathsFound, $foundPaths);
+            } else {
+                $absolutePathsFound[] = $path;
             }
         }
-
-        return $absoluteDirectories;
+        return $absolutePathsFound;
     }
-
-    private function ensureDirectoryExists(string $directory): void
+    /**
+     * @return string[]
+     */
+    private function foundInGlob(string $path) : array
     {
-        if (file_exists($directory)) {
-            return;
-        }
-
-        throw new DirectoryNotFoundException(sprintf('Directory "%s" was not found.', $directory));
+        /** @var string[] $paths */
+        $paths = (array) \glob($path);
+        return \array_filter($paths, static function (string $path) : bool {
+            return \file_exists($path);
+        });
     }
 }

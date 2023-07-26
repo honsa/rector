@@ -1,45 +1,50 @@
-<?php declare(strict_types=1);
+<?php
 
-namespace Rector\PhpParser\Printer;
+declare (strict_types=1);
+namespace Rector\Core\PhpParser\Printer;
 
-use Nette\Utils\FileSystem;
 use PhpParser\Node;
-use PhpParser\PrettyPrinter\Standard;
-use Symplify\PackageBuilder\FileSystem\SmartFileInfo;
-
+use Rector\Core\ValueObject\Application\File;
+use RectorPrefix202307\Symfony\Component\Filesystem\Filesystem;
+/**
+ * @see \Rector\Core\Tests\PhpParser\Printer\FormatPerservingPrinterTest
+ */
 final class FormatPerservingPrinter
 {
     /**
-     * @var BetterStandardPrinter|Standard
+     * @readonly
+     * @var \Rector\Core\PhpParser\Printer\BetterStandardPrinter
      */
     private $betterStandardPrinter;
-
-    public function __construct(BetterStandardPrinter $betterStandardPrinter)
+    /**
+     * @readonly
+     * @var \Symfony\Component\Filesystem\Filesystem
+     */
+    private $filesystem;
+    public function __construct(\Rector\Core\PhpParser\Printer\BetterStandardPrinter $betterStandardPrinter, Filesystem $filesystem)
     {
         $this->betterStandardPrinter = $betterStandardPrinter;
+        $this->filesystem = $filesystem;
     }
-
     /**
+     * @api tests
+     *
      * @param Node[] $newStmts
      * @param Node[] $oldStmts
      * @param Node[] $oldTokens
      */
-    public function printToFile(SmartFileInfo $fileInfo, array $newStmts, array $oldStmts, array $oldTokens): string
+    public function printToFile(string $filePath, array $newStmts, array $oldStmts, array $oldTokens) : string
     {
-        $newContent = $this->printToString($newStmts, $oldStmts, $oldTokens);
-
-        FileSystem::write($fileInfo->getRealPath(), $newContent);
-
+        $newContent = $this->betterStandardPrinter->printFormatPreserving($newStmts, $oldStmts, $oldTokens);
+        $this->dumpFile($filePath, $newContent);
         return $newContent;
     }
-
-    /**
-     * @param Node[] $newStmts
-     * @param Node[] $oldStmts
-     * @param Node[] $oldTokens
-     */
-    public function printToString(array $newStmts, array $oldStmts, array $oldTokens): string
+    public function printParsedStmstAndTokensToString(File $file) : string
     {
-        return $this->betterStandardPrinter->printFormatPreserving($newStmts, $oldStmts, $oldTokens);
+        return $this->betterStandardPrinter->printFormatPreserving($file->getNewStmts(), $file->getOldStmts(), $file->getOldTokens());
+    }
+    public function dumpFile(string $filePath, string $newContent) : void
+    {
+        $this->filesystem->dumpFile($filePath, $newContent);
     }
 }

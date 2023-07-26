@@ -1,142 +1,140 @@
-<?php declare(strict_types=1);
+<?php
 
-namespace Rector\FileSystem;
+declare (strict_types=1);
+namespace Rector\Core\FileSystem;
 
-use Nette\Utils\Strings;
-use Symfony\Component\Finder\Finder;
-use Symfony\Component\Finder\SplFileInfo;
-use Symplify\PackageBuilder\FileSystem\FileSystem;
-use Symplify\PackageBuilder\FileSystem\FinderSanitizer;
-use Symplify\PackageBuilder\FileSystem\SmartFileInfo;
-
+use Rector\Caching\UnchangedFilesFilter;
+use Rector\Core\Util\StringUtils;
+use Rector\Skipper\SkipCriteriaResolver\SkippedPathsResolver;
+use RectorPrefix202307\Symfony\Component\Finder\Finder;
+use RectorPrefix202307\Symfony\Component\Finder\SplFileInfo;
+/**
+ * @see \Rector\Core\Tests\FileSystem\FilesFinder\FilesFinderTest
+ */
 final class FilesFinder
 {
     /**
-     * @var SmartFileInfo[][]
-     */
-    private $fileInfosBySourceAndSuffixes = [];
-
-    /**
-     * @var string[]
-     */
-    private $excludePaths = [];
-
-    /**
-     * @var FilesystemTweaker
+     * @readonly
+     * @var \Rector\Core\FileSystem\FilesystemTweaker
      */
     private $filesystemTweaker;
-
     /**
-     * @var FinderSanitizer
+     * @readonly
+     * @var \Rector\Skipper\SkipCriteriaResolver\SkippedPathsResolver
      */
-    private $finderSanitizer;
-
+    private $skippedPathsResolver;
     /**
-     * @var FileSystem
+     * @readonly
+     * @var \Rector\Caching\UnchangedFilesFilter
      */
-    private $fileSystem;
-
+    private $unchangedFilesFilter;
     /**
-     * @param string[] $excludePaths
+     * @readonly
+     * @var \Rector\Core\FileSystem\FileAndDirectoryFilter
      */
-    public function __construct(
-        array $excludePaths,
-        FilesystemTweaker $filesystemTweaker,
-        FinderSanitizer $finderSanitizer,
-        FileSystem $fileSystem
-    ) {
-        $this->excludePaths = $excludePaths;
+    private $fileAndDirectoryFilter;
+    public function __construct(\Rector\Core\FileSystem\FilesystemTweaker $filesystemTweaker, SkippedPathsResolver $skippedPathsResolver, UnchangedFilesFilter $unchangedFilesFilter, \Rector\Core\FileSystem\FileAndDirectoryFilter $fileAndDirectoryFilter)
+    {
         $this->filesystemTweaker = $filesystemTweaker;
-        $this->finderSanitizer = $finderSanitizer;
-        $this->fileSystem = $fileSystem;
+        $this->skippedPathsResolver = $skippedPathsResolver;
+        $this->unchangedFilesFilter = $unchangedFilesFilter;
+        $this->fileAndDirectoryFilter = $fileAndDirectoryFilter;
     }
-
     /**
      * @param string[] $source
      * @param string[] $suffixes
-     * @return SmartFileInfo[]
+     * @return string[]
      */
-    public function findInDirectoriesAndFiles(array $source, array $suffixes): array
+    public function findInDirectoriesAndFiles(array $source, array $suffixes = [], bool $sortByName = \true) : array
     {
-        $cacheKey = md5(serialize($source) . serialize($suffixes));
-        if (isset($this->fileInfosBySourceAndSuffixes[$cacheKey])) {
-            return $this->fileInfosBySourceAndSuffixes[$cacheKey];
-        }
-
-        [$files, $directories] = $this->fileSystem->separateFilesAndDirectories($source);
-
-        $smartFileInfos = [];
-        foreach ($files as $file) {
-            $smartFileInfos[] = new SmartFileInfo($file);
-        }
-
-        $smartFileInfos = array_merge($smartFileInfos, $this->findInDirectories($directories, $suffixes));
-
-        return $this->fileInfosBySourceAndSuffixes[$cacheKey] = $smartFileInfos;
+        $filesAndDirectories = $this->filesystemTweaker->resolveWithFnmatch($source);
+        $filePaths = $this->fileAndDirectoryFilter->filterFiles($filesAndDirectories);
+        $directories = $this->fileAndDirectoryFilter->filterDirectories($filesAndDirectories);
+        $currentAndDependentFilePaths = $this->unchangedFilesFilter->filterAndJoinWithDependentFileInfos($filePaths);
+        return \array_merge($currentAndDependentFilePaths, $this->findInDirectories($directories, $suffixes, $sortByName));
     }
-
     /**
      * @param string[] $directories
      * @param string[] $suffixes
-     * @return SmartFileInfo[]
+     * @return string[]
      */
-    private function findInDirectories(array $directories, array $suffixes): array
+    private function findInDirectories(array $directories, array $suffixes, bool $sortByName = \true) : array
     {
-        if (! count($directories)) {
+        if ($directories === []) {
             return [];
         }
-
-        $absoluteDirectories = $this->filesystemTweaker->resolveDirectoriesWithFnmatch($directories);
-        if (! $absoluteDirectories) {
-            return [];
+        $finder = Finder::create()->files()->size('> 0')->in($directories);
+        if ($sortByName) {
+            $finder->sortByName();
         }
-
-        $suffixesPattern = $this->normalizeSuffixesToPattern($suffixes);
-
-        $finder = Finder::create()
-            ->files()
-            ->in($absoluteDirectories)
-            ->name($suffixesPattern)
-            ->exclude(
-                ['examples', 'Examples', 'stubs', 'Stubs', 'fixtures', 'Fixtures', 'polyfill', 'Polyfill', 'vendor']
-            )
-            ->notName('*polyfill*')
-            ->sortByName();
-
+        if ($suffixes !== []) {
+            $suffixesPattern = $this->normalizeSuffixesToPattern($suffixes);
+            $finder->name($suffixesPattern);
+        }
         $this->addFilterWithExcludedPaths($finder);
-
-        return $this->finderSanitizer->sanitize($finder);
+        $filePaths = [];
+        foreach ($finder as $fileInfo) {
+            // getRealPath() function will return false when it checks broken symlinks.
+            // So we should check if this file exists or we got broken symlink
+            /** @var string|false $path */
+            $path = $fileInfo->getRealPath();
+            if ($path !== \false) {
+                $filePaths[] = $path;
+            }
+        }
+        return $this->unchangedFilesFilter->filterAndJoinWithDependentFileInfos($filePaths);
     }
-
     /**
      * @param string[] $suffixes
      */
-    private function normalizeSuffixesToPattern(array $suffixes): string
+    private function normalizeSuffixesToPattern(array $suffixes) : string
     {
-        $suffixesPattern = implode('|', $suffixes);
-
-        return '#\.(' . $suffixesPattern . ')$#';
+        $suffixesPattern = \implode('|', $suffixes);
+        return '#\\.(' . $suffixesPattern . ')$#';
     }
-
-    private function addFilterWithExcludedPaths(Finder $finder): void
+    private function addFilterWithExcludedPaths(Finder $finder) : void
     {
-        if (! $this->excludePaths) {
+        $excludePaths = $this->skippedPathsResolver->resolve();
+        if ($excludePaths === []) {
             return;
         }
-
-        $finder->filter(function (SplFileInfo $splFileInfo) {
+        $finder->filter(function (SplFileInfo $splFileInfo) use($excludePaths) : bool {
+            /** @var string|false $realPath */
+            $realPath = $splFileInfo->getRealPath();
+            if ($realPath === \false) {
+                // dead symlink
+                return \false;
+            }
+            // make the path work accross different OSes
+            $realPath = \str_replace('\\', '/', $realPath);
             // return false to remove file
-            foreach ($this->excludePaths as $excludePath) {
-                if (Strings::match($splFileInfo->getRealPath(), '#' . preg_quote($excludePath, '#') . '#')) {
-                    return false;
+            foreach ($excludePaths as $excludePath) {
+                // make the path work accross different OSes
+                $excludePath = \str_replace('\\', '/', $excludePath);
+                if (\fnmatch($this->normalizeForFnmatch($excludePath), $realPath)) {
+                    return \false;
                 }
-
-                if (fnmatch($excludePath, $splFileInfo->getRealPath())) {
-                    return false;
+                if (\strpos($excludePath, '**') !== \false) {
+                    // prevent matching a fnmatch pattern as a regex
+                    // which is a waste of resources
+                    continue;
+                }
+                if (StringUtils::isMatch($realPath, '#' . \preg_quote($excludePath, '#') . '#')) {
+                    return \false;
                 }
             }
-
-            return true;
+            return \true;
         });
+    }
+    /**
+     * "value*" → "*value*"
+     * "*value" → "*value*"
+     */
+    private function normalizeForFnmatch(string $path) : string
+    {
+        if (\substr_compare($path, '*', -\strlen('*')) === 0 || \strncmp($path, '*', \strlen('*')) === 0) {
+            return '*' . \trim($path, '*') . '*';
+        }
+        return $path;
     }
 }

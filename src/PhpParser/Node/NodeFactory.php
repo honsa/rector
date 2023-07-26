@@ -1,249 +1,404 @@
-<?php declare(strict_types=1);
+<?php
 
-namespace Rector\PhpParser\Node;
+declare (strict_types=1);
+namespace Rector\Core\PhpParser\Node;
 
+use PhpParser\Builder\Method;
+use PhpParser\Builder\Param as ParamBuilder;
+use PhpParser\Builder\Property as PropertyBuilder;
 use PhpParser\BuilderFactory;
 use PhpParser\BuilderHelpers;
-use PhpParser\Comment\Doc;
+use PhpParser\Node;
 use PhpParser\Node\Arg;
 use PhpParser\Node\Expr;
 use PhpParser\Node\Expr\Array_;
 use PhpParser\Node\Expr\ArrayItem;
 use PhpParser\Node\Expr\Assign;
+use PhpParser\Node\Expr\BinaryOp\BooleanAnd;
+use PhpParser\Node\Expr\BinaryOp\Concat;
+use PhpParser\Node\Expr\BinaryOp\Identical;
+use PhpParser\Node\Expr\BinaryOp\NotIdentical;
+use PhpParser\Node\Expr\Cast;
 use PhpParser\Node\Expr\ClassConstFetch;
+use PhpParser\Node\Expr\ConstFetch;
+use PhpParser\Node\Expr\FuncCall;
 use PhpParser\Node\Expr\MethodCall;
 use PhpParser\Node\Expr\PropertyFetch;
 use PhpParser\Node\Expr\StaticCall;
+use PhpParser\Node\Expr\StaticPropertyFetch;
 use PhpParser\Node\Expr\Variable;
 use PhpParser\Node\Identifier;
 use PhpParser\Node\Name;
 use PhpParser\Node\Name\FullyQualified;
 use PhpParser\Node\Param;
+use PhpParser\Node\Scalar;
 use PhpParser\Node\Scalar\String_;
+use PhpParser\Node\Stmt\Class_;
 use PhpParser\Node\Stmt\ClassMethod;
 use PhpParser\Node\Stmt\Property;
-use Rector\Exception\NotImplementedException;
-use Rector\NodeTypeResolver\Node\Attribute;
-use Rector\Php\TypeAnalyzer;
-use function Safe\sprintf;
-
+use PHPStan\Type\Type;
+use Rector\BetterPhpDocParser\PhpDocInfo\PhpDocInfoFactory;
+use Rector\Core\Enum\ObjectReference;
+use Rector\Core\Exception\NotImplementedYetException;
+use Rector\Core\Exception\ShouldNotHappenException;
+use Rector\Core\NodeDecorator\PropertyTypeDecorator;
+use Rector\Core\ValueObject\MethodName;
+use Rector\PHPStanStaticTypeMapper\Enum\TypeKind;
+use Rector\PostRector\ValueObject\PropertyMetadata;
+use Rector\StaticTypeMapper\StaticTypeMapper;
+/**
+ * @see \Rector\Core\Tests\PhpParser\Node\NodeFactoryTest
+ */
 final class NodeFactory
 {
     /**
-     * @var BuilderFactory
+     * @readonly
+     * @var \PhpParser\BuilderFactory
      */
     private $builderFactory;
-
     /**
-     * @var TypeAnalyzer
+     * @readonly
+     * @var \Rector\BetterPhpDocParser\PhpDocInfo\PhpDocInfoFactory
      */
-    private $typeAnalyzer;
-
-    public function __construct(BuilderFactory $builderFactory, TypeAnalyzer $typeAnalyzer)
+    private $phpDocInfoFactory;
+    /**
+     * @readonly
+     * @var \Rector\StaticTypeMapper\StaticTypeMapper
+     */
+    private $staticTypeMapper;
+    /**
+     * @readonly
+     * @var \Rector\Core\NodeDecorator\PropertyTypeDecorator
+     */
+    private $propertyTypeDecorator;
+    /**
+     * @var string
+     */
+    private const THIS = 'this';
+    public function __construct(BuilderFactory $builderFactory, PhpDocInfoFactory $phpDocInfoFactory, StaticTypeMapper $staticTypeMapper, PropertyTypeDecorator $propertyTypeDecorator)
     {
         $this->builderFactory = $builderFactory;
-        $this->typeAnalyzer = $typeAnalyzer;
+        $this->phpDocInfoFactory = $phpDocInfoFactory;
+        $this->staticTypeMapper = $staticTypeMapper;
+        $this->propertyTypeDecorator = $propertyTypeDecorator;
     }
-
     /**
+     * @param string|ObjectReference::* $className
      * Creates "\SomeClass::CONSTANT"
      */
-    public function createClassConstant(string $className, string $constantName): ClassConstFetch
+    public function createClassConstFetch(string $className, string $constantName) : ClassConstFetch
     {
-        $classNameNode = new FullyQualified($className);
-
-        $classConstFetchNode = $this->builderFactory->classConstFetch($classNameNode, $constantName);
-        $classConstFetchNode->class->setAttribute(Attribute::RESOLVED_NAME, $classNameNode);
-
-        return $classConstFetchNode;
+        $name = $this->createName($className);
+        return $this->createClassConstFetchFromName($name, $constantName);
     }
-
     /**
+     * @param string|ObjectReference::* $className
      * Creates "\SomeClass::class"
      */
-    public function createClassConstantReference(string $className): ClassConstFetch
+    public function createClassConstReference(string $className) : ClassConstFetch
     {
-        $nameNode = new FullyQualified($className);
-
-        return $this->builderFactory->classConstFetch($nameNode, 'class');
+        return $this->createClassConstFetch($className, 'class');
     }
-
     /**
      * Creates "['item', $variable]"
      *
      * @param mixed[] $items
      */
-    public function createArray(array $items): Array_
+    public function createArray(array $items) : Array_
     {
         $arrayItems = [];
-
-        foreach ($items as $item) {
-            $arrayItems[] = $this->createArrayItem($item);
+        $defaultKey = 0;
+        foreach ($items as $key => $item) {
+            $customKey = $key !== $defaultKey ? $key : null;
+            $arrayItems[] = $this->createArrayItem($item, $customKey);
+            ++$defaultKey;
         }
-
         return new Array_($arrayItems);
     }
-
     /**
      * Creates "($args)"
      *
-     * @param mixed[] $arguments
+     * @param mixed[] $values
      * @return Arg[]
      */
-    public function createArgs(array $arguments): array
+    public function createArgs(array $values) : array
     {
-        return $this->builderFactory->args($arguments);
+        return $this->builderFactory->args($values);
     }
-
     /**
      * Creates $this->property = $property;
      */
-    public function createPropertyAssignment(string $propertyName): Assign
+    public function createPropertyAssignment(string $propertyName) : Assign
     {
         $variable = new Variable($propertyName);
-
         return $this->createPropertyAssignmentWithExpr($propertyName, $variable);
     }
-
-    public function createPropertyAssignmentWithExpr(string $propertyName, Expr $rightExprNode): Assign
-    {
-        $leftExprNode = $this->createPropertyFetch('this', $propertyName);
-
-        return new Assign($leftExprNode, $rightExprNode);
-    }
-
     /**
-     * Creates "($arg)"
-     *
+     * @api
+     */
+    public function createPropertyAssignmentWithExpr(string $propertyName, Expr $expr) : Assign
+    {
+        $propertyFetch = $this->createPropertyFetch(self::THIS, $propertyName);
+        return new Assign($propertyFetch, $expr);
+    }
+    /**
      * @param mixed $argument
      */
-    public function createArg($argument): Arg
+    public function createArg($argument) : Arg
     {
         return new Arg(BuilderHelpers::normalizeValue($argument));
     }
-
-    public function createPublicMethod(string $name): ClassMethod
+    public function createPublicMethod(string $name) : ClassMethod
     {
-        return $this->builderFactory->method($name)
-            ->makePublic()
-            ->getNode();
+        $method = new Method($name);
+        $method->makePublic();
+        return $method->getNode();
     }
-
-    public function createParamFromVariableInfo(VariableInfo $variableInfo): Param
+    public function createParamFromNameAndType(string $name, ?Type $type) : Param
     {
-        $paramBuild = $this->builderFactory->param($variableInfo->getName());
-        $paramBuild->setType($this->createTypeName($variableInfo->getType()));
-
-        return $paramBuild->getNode();
-    }
-
-    public function createPrivatePropertyFromVariableInfo(VariableInfo $variableInfo): Property
-    {
-        $docComment = $this->createVarDoc($variableInfo->getType());
-
-        $propertyBuilder = $this->builderFactory->property($variableInfo->getName())
-            ->makePrivate()
-            ->setDocComment($docComment);
-
-        return $propertyBuilder->getNode();
-    }
-
-    public function createTypeName(string $name): Name
-    {
-        if ($this->typeAnalyzer->isPhpReservedType($name)) {
-            return new Name($name);
+        $param = new ParamBuilder($name);
+        if ($type instanceof Type) {
+            $typeNode = $this->staticTypeMapper->mapPHPStanTypeToPhpParserNode($type, TypeKind::PARAM);
+            if ($typeNode !== null) {
+                $param->setType($typeNode);
+            }
         }
-
-        return new FullyQualified($name);
+        return $param->getNode();
     }
-
+    public function createPrivatePropertyFromNameAndType(string $name, ?Type $type) : Property
+    {
+        $propertyBuilder = new PropertyBuilder($name);
+        $propertyBuilder->makePrivate();
+        $property = $propertyBuilder->getNode();
+        $this->propertyTypeDecorator->decorate($property, $type);
+        return $property;
+    }
     /**
-     * @param string|Expr $variable
+     * @api symfony
      * @param mixed[] $arguments
      */
-    public function createMethodCall($variable, string $method, array $arguments): MethodCall
+    public function createLocalMethodCall(string $method, array $arguments = []) : MethodCall
     {
-        if (is_string($variable)) {
-            $variable = new Variable($variable);
-        }
-
-        if ($variable instanceof PropertyFetch) {
-            $variable = new PropertyFetch($variable->var, $variable->name);
-        }
-
-        $methodCallNode = $this->builderFactory->methodCall($variable, $method, $arguments);
-
-        $variable->setAttribute(Attribute::PARENT_NODE, $methodCallNode);
-
-        return $methodCallNode;
+        $variable = new Variable('this');
+        return $this->createMethodCall($variable, $method, $arguments);
     }
-
     /**
-     * @param string|Expr $variable
+     * @param mixed[] $arguments
+     * @param \PhpParser\Node\Expr|string $exprOrVariableName
      */
-    public function createPropertyFetch($variable, string $property): PropertyFetch
+    public function createMethodCall($exprOrVariableName, string $method, array $arguments = []) : MethodCall
     {
-        if (is_string($variable)) {
-            $variable = new Variable($variable);
-        }
-
-        return $this->builderFactory->propertyFetch($variable, $property);
+        $callerExpr = $this->createMethodCaller($exprOrVariableName);
+        return $this->builderFactory->methodCall($callerExpr, $method, $arguments);
     }
-
+    /**
+     * @param string|\PhpParser\Node\Expr $variableNameOrExpr
+     */
+    public function createPropertyFetch($variableNameOrExpr, string $property) : PropertyFetch
+    {
+        $fetcherExpr = \is_string($variableNameOrExpr) ? new Variable($variableNameOrExpr) : $variableNameOrExpr;
+        return $this->builderFactory->propertyFetch($fetcherExpr, $property);
+    }
     /**
      * @param Param[] $params
      */
-    public function createParentConstructWithParams(array $params): StaticCall
+    public function createParentConstructWithParams(array $params) : StaticCall
     {
-        return new StaticCall(
-            new Name('parent'),
-            new Identifier('__construct'),
-            $this->convertParamNodesToArgNodes($params)
-        );
+        return new StaticCall(new Name(ObjectReference::PARENT), new Identifier(MethodName::CONSTRUCT), $this->createArgsFromParams($params));
     }
-
     /**
-     * @param mixed $item
+     * @api doctrine
      */
-    private function createArrayItem($item): ArrayItem
+    public function createPrivateProperty(string $name) : Property
     {
-        if ($item instanceof Variable) {
-            return new ArrayItem($item);
-        }
-
-        if ($item instanceof Identifier) {
-            $string = new String_($item->toString());
-            return new ArrayItem($string);
-        }
-
-        if (is_scalar($item)) {
-            return new ArrayItem(BuilderHelpers::normalizeValue($item));
-        }
-
-        throw new NotImplementedException(sprintf(
-            'Not implemented yet. Go to "%s()" and add check for "%s" node.',
-            __METHOD__,
-            get_class($item)
-        ));
+        $propertyBuilder = new PropertyBuilder($name);
+        $propertyBuilder->makePrivate();
+        $property = $propertyBuilder->getNode();
+        $this->phpDocInfoFactory->createFromNode($property);
+        return $property;
     }
-
-    private function createVarDoc(string $type): Doc
-    {
-        $type = $this->typeAnalyzer->isPhpReservedType($type) ? $type : '\\' . $type;
-        return new Doc(sprintf('/**%s * @var %s%s */', PHP_EOL, $type, PHP_EOL));
-    }
-
     /**
-     * @param Param[] $paramNodes
+     * @param Expr[] $exprs
+     */
+    public function createConcat(array $exprs) : ?Concat
+    {
+        if (\count($exprs) < 2) {
+            return null;
+        }
+        $previousConcat = \array_shift($exprs);
+        foreach ($exprs as $expr) {
+            $previousConcat = new Concat($previousConcat, $expr);
+        }
+        if (!$previousConcat instanceof Concat) {
+            throw new ShouldNotHappenException();
+        }
+        return $previousConcat;
+    }
+    /**
+     * @param string|ObjectReference::* $class
+     * @param Node[] $args
+     */
+    public function createStaticCall(string $class, string $method, array $args = []) : StaticCall
+    {
+        $name = $this->createName($class);
+        $args = $this->createArgs($args);
+        return new StaticCall($name, $method, $args);
+    }
+    /**
+     * @param mixed[] $arguments
+     */
+    public function createFuncCall(string $name, array $arguments = []) : FuncCall
+    {
+        $arguments = $this->createArgs($arguments);
+        return new FuncCall(new Name($name), $arguments);
+    }
+    public function createSelfFetchConstant(string $constantName) : ClassConstFetch
+    {
+        $name = new Name(ObjectReference::SELF);
+        return new ClassConstFetch($name, $constantName);
+    }
+    /**
+     * @param Param[] $params
      * @return Arg[]
      */
-    private function convertParamNodesToArgNodes(array $paramNodes): array
+    public function createArgsFromParams(array $params) : array
     {
-        $argNodes = [];
-        foreach ($paramNodes as $paramNode) {
-            $argNodes[] = new Arg($paramNode->var);
+        $args = [];
+        foreach ($params as $param) {
+            $args[] = new Arg($param->var);
         }
-
-        return $argNodes;
+        return $args;
+    }
+    public function createNull() : ConstFetch
+    {
+        return new ConstFetch(new Name('null'));
+    }
+    public function createPromotedPropertyParam(PropertyMetadata $propertyMetadata) : Param
+    {
+        $paramBuilder = new ParamBuilder($propertyMetadata->getName());
+        $propertyType = $propertyMetadata->getType();
+        if ($propertyType instanceof Type) {
+            $typeNode = $this->staticTypeMapper->mapPHPStanTypeToPhpParserNode($propertyType, TypeKind::PROPERTY);
+            if ($typeNode !== null) {
+                $paramBuilder->setType($typeNode);
+            }
+        }
+        $param = $paramBuilder->getNode();
+        $propertyFlags = $propertyMetadata->getFlags();
+        $param->flags = $propertyFlags !== 0 ? $propertyFlags : Class_::MODIFIER_PRIVATE;
+        return $param;
+    }
+    public function createFalse() : ConstFetch
+    {
+        return new ConstFetch(new Name('false'));
+    }
+    public function createTrue() : ConstFetch
+    {
+        return new ConstFetch(new Name('true'));
+    }
+    /**
+     * @api phpunit
+     * @param string|ObjectReference::* $constantName
+     */
+    public function createClassConstFetchFromName(Name $className, string $constantName) : ClassConstFetch
+    {
+        return $this->builderFactory->classConstFetch($className, $constantName);
+    }
+    /**
+     * @param array<NotIdentical|BooleanAnd|Identical> $newNodes
+     */
+    public function createReturnBooleanAnd(array $newNodes) : ?Expr
+    {
+        if ($newNodes === []) {
+            return null;
+        }
+        if (\count($newNodes) === 1) {
+            return $newNodes[0];
+        }
+        return $this->createBooleanAndFromNodes($newNodes);
+    }
+    /**
+     * @param string|int|null $key
+     * @param mixed $item
+     */
+    private function createArrayItem($item, $key = null) : ArrayItem
+    {
+        $arrayItem = null;
+        if ($item instanceof Variable || $item instanceof MethodCall || $item instanceof StaticCall || $item instanceof FuncCall || $item instanceof Concat || $item instanceof Scalar || $item instanceof Cast || $item instanceof ConstFetch) {
+            $arrayItem = new ArrayItem($item);
+        } elseif ($item instanceof Identifier) {
+            $string = new String_($item->toString());
+            $arrayItem = new ArrayItem($string);
+        } elseif (\is_scalar($item) || $item instanceof Array_) {
+            $itemValue = BuilderHelpers::normalizeValue($item);
+            $arrayItem = new ArrayItem($itemValue);
+        } elseif (\is_array($item)) {
+            $arrayItem = new ArrayItem($this->createArray($item));
+        } elseif ($item === null || $item instanceof ClassConstFetch) {
+            $itemValue = BuilderHelpers::normalizeValue($item);
+            $arrayItem = new ArrayItem($itemValue);
+        } elseif ($item instanceof Arg) {
+            $arrayItem = new ArrayItem($item->value);
+        }
+        if ($arrayItem instanceof ArrayItem) {
+            $this->decorateArrayItemWithKey($key, $arrayItem);
+            return $arrayItem;
+        }
+        $nodeClass = \is_object($item) ? \get_class($item) : $item;
+        throw new NotImplementedYetException(\sprintf('Not implemented yet. Go to "%s()" and add check for "%s" node.', __METHOD__, (string) $nodeClass));
+    }
+    /**
+     * @param int|string|null $key
+     */
+    private function decorateArrayItemWithKey($key, ArrayItem $arrayItem) : void
+    {
+        if ($key === null) {
+            return;
+        }
+        $arrayItem->key = BuilderHelpers::normalizeValue($key);
+    }
+    /**
+     * @param Expr\BinaryOp[] $binaryOps
+     */
+    private function createBooleanAndFromNodes(array $binaryOps) : BooleanAnd
+    {
+        /** @var NotIdentical|BooleanAnd $mainBooleanAnd */
+        $mainBooleanAnd = \array_shift($binaryOps);
+        foreach ($binaryOps as $binaryOp) {
+            $mainBooleanAnd = new BooleanAnd($mainBooleanAnd, $binaryOp);
+        }
+        /** @var BooleanAnd $mainBooleanAnd */
+        return $mainBooleanAnd;
+    }
+    /**
+     * @param string|ObjectReference::* $className
+     * @return \PhpParser\Node\Name|\PhpParser\Node\Name\FullyQualified
+     */
+    private function createName(string $className)
+    {
+        if (\in_array($className, [ObjectReference::PARENT, ObjectReference::SELF, ObjectReference::STATIC], \true)) {
+            return new Name($className);
+        }
+        return new FullyQualified($className);
+    }
+    /**
+     * @param \PhpParser\Node\Expr|string $exprOrVariableName
+     * @return \PhpParser\Node\Expr\PropertyFetch|\PhpParser\Node\Expr\Variable|\PhpParser\Node\Expr\MethodCall|\PhpParser\Node\Expr\StaticPropertyFetch|\PhpParser\Node\Expr
+     */
+    private function createMethodCaller($exprOrVariableName)
+    {
+        if (\is_string($exprOrVariableName)) {
+            return new Variable($exprOrVariableName);
+        }
+        if ($exprOrVariableName instanceof PropertyFetch) {
+            return new PropertyFetch($exprOrVariableName->var, $exprOrVariableName->name);
+        }
+        if ($exprOrVariableName instanceof StaticPropertyFetch) {
+            return new StaticPropertyFetch($exprOrVariableName->class, $exprOrVariableName->name);
+        }
+        if ($exprOrVariableName instanceof MethodCall) {
+            return new MethodCall($exprOrVariableName->var, $exprOrVariableName->name, $exprOrVariableName->args);
+        }
+        return $exprOrVariableName;
     }
 }
