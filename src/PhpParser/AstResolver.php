@@ -1,12 +1,13 @@
 <?php
 
 declare (strict_types=1);
-namespace Rector\Core\PhpParser;
+namespace Rector\PhpParser;
 
 use PhpParser\Node;
 use PhpParser\Node\Expr;
 use PhpParser\Node\Expr\FuncCall;
 use PhpParser\Node\Expr\MethodCall;
+use PhpParser\Node\Expr\NullsafeMethodCall;
 use PhpParser\Node\Expr\StaticCall;
 use PhpParser\Node\Param;
 use PhpParser\Node\Stmt;
@@ -23,16 +24,19 @@ use PHPStan\Analyser\Scope;
 use PHPStan\Reflection\ClassReflection;
 use PHPStan\Reflection\FunctionReflection;
 use PHPStan\Reflection\MethodReflection;
+use PHPStan\Reflection\Php\PhpFunctionReflection;
 use PHPStan\Reflection\Php\PhpPropertyReflection;
 use PHPStan\Reflection\ReflectionProvider;
 use PHPStan\Type\TypeWithClassName;
-use Rector\Core\Reflection\ReflectionResolver;
-use Rector\Core\ValueObject\MethodName;
 use Rector\NodeNameResolver\NodeNameResolver;
 use Rector\NodeTypeResolver\NodeScopeAndMetadataDecorator;
 use Rector\NodeTypeResolver\NodeTypeResolver;
 use Rector\PhpDocParser\NodeTraverser\SimpleCallableNodeTraverser;
 use Rector\PhpDocParser\PhpParser\SmartPhpParser;
+use Rector\PhpParser\Node\BetterNodeFinder;
+use Rector\Reflection\MethodReflectionResolver;
+use Rector\ValueObject\MethodName;
+use Throwable;
 /**
  * The nodes provided by this resolver is for read-only analysis only!
  * They are not part of node tree processed by Rector, so any changes will not make effect in final printed file.
@@ -66,19 +70,19 @@ final class AstResolver
     private $reflectionProvider;
     /**
      * @readonly
-     * @var \Rector\Core\Reflection\ReflectionResolver
-     */
-    private $reflectionResolver;
-    /**
-     * @readonly
      * @var \Rector\NodeTypeResolver\NodeTypeResolver
      */
     private $nodeTypeResolver;
     /**
      * @readonly
-     * @var \Rector\Core\PhpParser\ClassLikeAstResolver
+     * @var \Rector\Reflection\MethodReflectionResolver
      */
-    private $classLikeAstResolver;
+    private $methodReflectionResolver;
+    /**
+     * @readonly
+     * @var \Rector\PhpParser\Node\BetterNodeFinder
+     */
+    private $betterNodeFinder;
     /**
      * Parsing files is very heavy performance, so this will help to leverage it
      * The value can be also null, when no statements could be parsed from the file.
@@ -86,18 +90,19 @@ final class AstResolver
      * @var array<string, Stmt[]|null>
      */
     private $parsedFileNodes = [];
-    public function __construct(SmartPhpParser $smartPhpParser, NodeScopeAndMetadataDecorator $nodeScopeAndMetadataDecorator, SimpleCallableNodeTraverser $simpleCallableNodeTraverser, NodeNameResolver $nodeNameResolver, ReflectionProvider $reflectionProvider, ReflectionResolver $reflectionResolver, NodeTypeResolver $nodeTypeResolver, \Rector\Core\PhpParser\ClassLikeAstResolver $classLikeAstResolver)
+    public function __construct(SmartPhpParser $smartPhpParser, NodeScopeAndMetadataDecorator $nodeScopeAndMetadataDecorator, SimpleCallableNodeTraverser $simpleCallableNodeTraverser, NodeNameResolver $nodeNameResolver, ReflectionProvider $reflectionProvider, NodeTypeResolver $nodeTypeResolver, MethodReflectionResolver $methodReflectionResolver, BetterNodeFinder $betterNodeFinder)
     {
         $this->smartPhpParser = $smartPhpParser;
         $this->nodeScopeAndMetadataDecorator = $nodeScopeAndMetadataDecorator;
         $this->simpleCallableNodeTraverser = $simpleCallableNodeTraverser;
         $this->nodeNameResolver = $nodeNameResolver;
         $this->reflectionProvider = $reflectionProvider;
-        $this->reflectionResolver = $reflectionResolver;
         $this->nodeTypeResolver = $nodeTypeResolver;
-        $this->classLikeAstResolver = $classLikeAstResolver;
+        $this->methodReflectionResolver = $methodReflectionResolver;
+        $this->betterNodeFinder = $betterNodeFinder;
     }
     /**
+     * @api downgrade
      * @return \PhpParser\Node\Stmt\Class_|\PhpParser\Node\Stmt\Trait_|\PhpParser\Node\Stmt\Interface_|\PhpParser\Node\Stmt\Enum_|null
      */
     public function resolveClassFromName(string $className)
@@ -112,14 +117,7 @@ final class AstResolver
     {
         $classReflection = $methodReflection->getDeclaringClass();
         $fileName = $classReflection->getFileName();
-        // probably native PHP method → un-parseable
-        if ($fileName === null) {
-            return null;
-        }
         $nodes = $this->parseFileNameToDecoratedNodes($fileName);
-        if ($nodes === []) {
-            return null;
-        }
         $classLikeName = $classReflection->getName();
         $methodName = $methodReflection->getName();
         $classMethod = null;
@@ -153,14 +151,11 @@ final class AstResolver
     }
     public function resolveFunctionFromFunctionReflection(FunctionReflection $functionReflection) : ?Function_
     {
+        if (!$functionReflection instanceof PhpFunctionReflection) {
+            return null;
+        }
         $fileName = $functionReflection->getFileName();
-        if ($fileName === null) {
-            return null;
-        }
         $nodes = $this->parseFileNameToDecoratedNodes($fileName);
-        if ($nodes === []) {
-            return null;
-        }
         $functionName = $functionReflection->getName();
         $functionNode = null;
         $this->simpleCallableNodeTraverser->traverseNodesWithCallable($nodes, function (Node $node) use($functionName, &$functionNode) : ?int {
@@ -181,7 +176,7 @@ final class AstResolver
      */
     public function resolveClassMethod(string $className, string $methodName) : ?ClassMethod
     {
-        $methodReflection = $this->reflectionResolver->resolveMethodReflection($className, $methodName, null);
+        $methodReflection = $this->methodReflectionResolver->resolveMethodReflection($className, $methodName, null);
         if (!$methodReflection instanceof MethodReflection) {
             return null;
         }
@@ -192,11 +187,11 @@ final class AstResolver
         return $classMethod;
     }
     /**
-     * @param \PhpParser\Node\Expr\MethodCall|\PhpParser\Node\Expr\StaticCall $call
+     * @param \PhpParser\Node\Expr\MethodCall|\PhpParser\Node\Expr\StaticCall|\PhpParser\Node\Expr\NullsafeMethodCall $call
      */
     public function resolveClassMethodFromCall($call) : ?ClassMethod
     {
-        $callerStaticType = $call instanceof MethodCall ? $this->nodeTypeResolver->getType($call->var) : $this->nodeTypeResolver->getType($call->class);
+        $callerStaticType = $call instanceof MethodCall || $call instanceof NullsafeMethodCall ? $this->nodeTypeResolver->getType($call->var) : $this->nodeTypeResolver->getType($call->class);
         if (!$callerStaticType instanceof TypeWithClassName) {
             return null;
         }
@@ -211,7 +206,20 @@ final class AstResolver
      */
     public function resolveClassFromClassReflection(ClassReflection $classReflection)
     {
-        return $this->classLikeAstResolver->resolveClassFromClassReflection($classReflection);
+        if ($classReflection->isBuiltin()) {
+            return null;
+        }
+        $fileName = $classReflection->getFileName();
+        $stmts = $this->parseFileNameToDecoratedNodes($fileName);
+        $className = $classReflection->getName();
+        /** @var Class_|Trait_|Interface_|Enum_|null $classLike */
+        $classLike = $this->betterNodeFinder->findFirst($stmts, function (Node $node) use($className) : bool {
+            if (!$node instanceof ClassLike) {
+                return \false;
+            }
+            return $this->nodeNameResolver->isName($node, $className);
+        });
+        return $classLike;
     }
     /**
      * @return Trait_[]
@@ -223,13 +231,7 @@ final class AstResolver
         $traits = [];
         foreach ($classLikes as $classLike) {
             $fileName = $classLike->getFileName();
-            if ($fileName === null) {
-                continue;
-            }
             $nodes = $this->parseFileNameToDecoratedNodes($fileName);
-            if ($nodes === []) {
-                continue;
-            }
             $traitName = $classLike->getName();
             $traitNode = null;
             $this->simpleCallableNodeTraverser->traverseNodesWithCallable($nodes, function (Node $node) use($traitName, &$traitNode) : ?int {
@@ -256,9 +258,6 @@ final class AstResolver
     {
         $classReflection = $phpPropertyReflection->getDeclaringClass();
         $fileName = $classReflection->getFileName();
-        if ($fileName === null) {
-            return null;
-        }
         $nodes = $this->parseFileNameToDecoratedNodes($fileName);
         if ($nodes === []) {
             return null;
@@ -291,14 +290,29 @@ final class AstResolver
     /**
      * @return Stmt[]
      */
-    public function parseFileNameToDecoratedNodes(string $fileName) : array
+    public function parseFileNameToDecoratedNodes(?string $fileName) : array
     {
+        // probably native PHP → un-parseable
+        if ($fileName === null) {
+            return [];
+        }
         if (isset($this->parsedFileNodes[$fileName])) {
             return $this->parsedFileNodes[$fileName];
         }
-        $stmts = $this->smartPhpParser->parseFile($fileName);
-        if ($stmts === []) {
-            return $this->parsedFileNodes[$fileName] = [];
+        try {
+            $stmts = $this->smartPhpParser->parseFile($fileName);
+        } catch (Throwable $throwable) {
+            /**
+             * phpstan.phar contains jetbrains/phpstorm-stubs which the code is not downgraded
+             * that if read from lower php < 8.1 may cause crash
+             *
+             * @see https://github.com/rectorphp/rector/issues/8193 on php 8.0
+             * @see https://github.com/rectorphp/rector/issues/8145 on php 7.4
+             */
+            if (\strpos($fileName, 'phpstan.phar') !== \false) {
+                return [];
+            }
+            throw $throwable;
         }
         return $this->parsedFileNodes[$fileName] = $this->nodeScopeAndMetadataDecorator->decorateNodesFromFile($fileName, $stmts);
     }

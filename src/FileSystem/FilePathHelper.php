@@ -1,13 +1,13 @@
 <?php
 
 declare (strict_types=1);
-namespace Rector\Core\FileSystem;
+namespace Rector\FileSystem;
 
-use RectorPrefix202307\Nette\Utils\Strings;
-use RectorPrefix202307\Symfony\Component\Filesystem\Filesystem;
-use RectorPrefix202307\Webmozart\Assert\Assert;
+use RectorPrefix202401\Nette\Utils\Strings;
+use RectorPrefix202401\Symfony\Component\Filesystem\Filesystem;
+use RectorPrefix202401\Webmozart\Assert\Assert;
 /**
- * @see \Rector\Core\Tests\FileSystem\FilePathHelperTest
+ * @see \Rector\Tests\FileSystem\FilePathHelperTest
  */
 final class FilePathHelper
 {
@@ -42,16 +42,6 @@ final class FilePathHelper
         return $this->relativeFilePathFromDirectory($fileRealPath, \getcwd());
     }
     /**
-     * @api
-     */
-    public function relativeFilePathFromDirectory(string $fileRealPath, string $directory) : string
-    {
-        Assert::directory($directory);
-        $normalizedFileRealPath = $this->normalizePath($fileRealPath);
-        $relativeFilePath = $this->filesystem->makePathRelative($normalizedFileRealPath, $directory);
-        return \rtrim($relativeFilePath, '/');
-    }
-    /**
      * Used from
      * https://github.com/phpstan/phpstan-src/blob/02425e61aa48f0668b4efb3e73d52ad544048f65/src/File/FileHelper.php#L40, with custom modifications
      */
@@ -72,6 +62,13 @@ final class FilePathHelper
         $normalizedPathParts = $this->normalizePathParts($pathParts, $scheme);
         $pathStart = $scheme !== self::SCHEME_UNDEFINED ? $scheme . '://' : '';
         return $pathStart . $pathRoot . \implode($directorySeparator, $normalizedPathParts);
+    }
+    private function relativeFilePathFromDirectory(string $fileRealPath, string $directory) : string
+    {
+        Assert::directory($directory);
+        $normalizedFileRealPath = $this->normalizePath($fileRealPath);
+        $relativeFilePath = $this->filesystem->makePathRelative($normalizedFileRealPath, $directory);
+        return \rtrim($relativeFilePath, '/');
     }
     private function normalizePath(string $filePath) : string
     {

@@ -1,7 +1,7 @@
 <?php
 
 declare (strict_types=1);
-namespace Rector\Core\Configuration;
+namespace Rector\Configuration;
 
 use Rector\Caching\Contract\ValueObject\Storage\CacheStorageInterface;
 use Rector\Caching\ValueObject\Storage\FileCacheStorage;
@@ -46,6 +46,11 @@ final class Option
      * @var string
      */
     public const AUTO_IMPORT_NAMES = 'auto_import_names';
+    /**
+     * @internal Use @see \Rector\Config\RectorConfig::polyfillPackages() instead
+     * @var string
+     */
+    public const POLYFILL_PACKAGES = 'polyfill_packages';
     /**
      * @internal Use @see \Rector\Config\RectorConfig::importNames() instead
      * @var string
@@ -124,7 +129,7 @@ final class Option
      * @internal Use @see \Rector\Config\RectorConfig::phpstanConfig() instead
      * @var string
      */
-    public const PHPSTAN_FOR_RECTOR_PATH = 'phpstan_for_rector_path';
+    public const PHPSTAN_FOR_RECTOR_PATHS = 'phpstan_for_rector_paths';
     /**
      * @var string
      */
@@ -180,4 +185,14 @@ final class Option
      * @var string
      */
     public const CONTAINER_CACHE_DIRECTORY = 'container-cache-directory';
+    /**
+     * @internal For cache invalidation in case of change
+     * @var string
+     */
+    public const REGISTERED_RECTOR_RULES = 'registered_rector_rules';
+    /**
+     * @internal For cache invalidation in case of change
+     * @var string
+     */
+    public const REGISTERED_RECTOR_SETS = 'registered_rector_sets';
 }

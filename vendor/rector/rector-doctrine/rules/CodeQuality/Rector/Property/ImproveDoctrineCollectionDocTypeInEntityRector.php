@@ -12,16 +12,19 @@ use PHPStan\PhpDocParser\Ast\PhpDoc\VarTagValueNode;
 use PHPStan\Reflection\Php\PhpPropertyReflection;
 use PHPStan\Type\Type;
 use Rector\BetterPhpDocParser\PhpDocInfo\PhpDocInfo;
+use Rector\BetterPhpDocParser\PhpDocInfo\PhpDocInfoFactory;
 use Rector\BetterPhpDocParser\PhpDocManipulator\PhpDocTypeChanger;
-use Rector\Core\NodeManipulator\AssignManipulator;
-use Rector\Core\Rector\AbstractRector;
-use Rector\Core\Reflection\ReflectionResolver;
+use Rector\Doctrine\CodeQuality\Enum\ToManyMappings;
 use Rector\Doctrine\NodeAnalyzer\AttributeFinder;
 use Rector\Doctrine\NodeAnalyzer\TargetEntityResolver;
 use Rector\Doctrine\PhpDocParser\DoctrineDocBlockResolver;
 use Rector\Doctrine\TypeAnalyzer\CollectionTypeFactory;
 use Rector\Doctrine\TypeAnalyzer\CollectionTypeResolver;
 use Rector\Doctrine\TypeAnalyzer\CollectionVarTagValueNodeResolver;
+use Rector\NodeManipulator\AssignManipulator;
+use Rector\Rector\AbstractRector;
+use Rector\Reflection\ReflectionResolver;
+use Rector\StaticTypeMapper\StaticTypeMapper;
 use Rector\StaticTypeMapper\ValueObject\Type\FullyQualifiedObjectType;
 use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
 use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
@@ -37,7 +40,7 @@ final class ImproveDoctrineCollectionDocTypeInEntityRector extends AbstractRecto
     private $collectionTypeFactory;
     /**
      * @readonly
-     * @var \Rector\Core\NodeManipulator\AssignManipulator
+     * @var \Rector\NodeManipulator\AssignManipulator
      */
     private $assignManipulator;
     /**
@@ -62,7 +65,7 @@ final class ImproveDoctrineCollectionDocTypeInEntityRector extends AbstractRecto
     private $doctrineDocBlockResolver;
     /**
      * @readonly
-     * @var \Rector\Core\Reflection\ReflectionResolver
+     * @var \Rector\Reflection\ReflectionResolver
      */
     private $reflectionResolver;
     /**
@@ -75,7 +78,17 @@ final class ImproveDoctrineCollectionDocTypeInEntityRector extends AbstractRecto
      * @var \Rector\Doctrine\NodeAnalyzer\TargetEntityResolver
      */
     private $targetEntityResolver;
-    public function __construct(CollectionTypeFactory $collectionTypeFactory, AssignManipulator $assignManipulator, CollectionTypeResolver $collectionTypeResolver, CollectionVarTagValueNodeResolver $collectionVarTagValueNodeResolver, PhpDocTypeChanger $phpDocTypeChanger, DoctrineDocBlockResolver $doctrineDocBlockResolver, ReflectionResolver $reflectionResolver, AttributeFinder $attributeFinder, TargetEntityResolver $targetEntityResolver)
+    /**
+     * @readonly
+     * @var \Rector\BetterPhpDocParser\PhpDocInfo\PhpDocInfoFactory
+     */
+    private $phpDocInfoFactory;
+    /**
+     * @readonly
+     * @var \Rector\StaticTypeMapper\StaticTypeMapper
+     */
+    private $staticTypeMapper;
+    public function __construct(CollectionTypeFactory $collectionTypeFactory, AssignManipulator $assignManipulator, CollectionTypeResolver $collectionTypeResolver, CollectionVarTagValueNodeResolver $collectionVarTagValueNodeResolver, PhpDocTypeChanger $phpDocTypeChanger, DoctrineDocBlockResolver $doctrineDocBlockResolver, ReflectionResolver $reflectionResolver, AttributeFinder $attributeFinder, TargetEntityResolver $targetEntityResolver, PhpDocInfoFactory $phpDocInfoFactory, StaticTypeMapper $staticTypeMapper)
     {
         $this->collectionTypeFactory = $collectionTypeFactory;
         $this->assignManipulator = $assignManipulator;
@@ -86,6 +99,8 @@ final class ImproveDoctrineCollectionDocTypeInEntityRector extends AbstractRecto
         $this->reflectionResolver = $reflectionResolver;
         $this->attributeFinder = $attributeFinder;
         $this->targetEntityResolver = $targetEntityResolver;
+        $this->phpDocInfoFactory = $phpDocInfoFactory;
+        $this->staticTypeMapper = $staticTypeMapper;
     }
     public function getRuleDefinition() : RuleDefinition
     {
@@ -116,7 +131,7 @@ class SomeClass
 {
     /**
      * @ORM\OneToMany(targetEntity=Trainer::class, mappedBy="trainer")
-     * @var Collection<int, Trainer>|Trainer[]
+     * @var Collection<int, Trainer>
      */
     private $trainings = [];
 }
@@ -143,10 +158,10 @@ CODE_SAMPLE
     private function refactorProperty(Property $property) : ?Property
     {
         $phpDocInfo = $this->phpDocInfoFactory->createFromNodeOrEmpty($property);
-        if ($phpDocInfo->hasByAnnotationClass('Doctrine\\ORM\\Mapping\\OneToMany')) {
+        if ($phpDocInfo->hasByAnnotationClasses(ToManyMappings::TO_MANY_CLASSES)) {
             return $this->refactorPropertyPhpDocInfo($property, $phpDocInfo);
         }
-        $targetEntityExpr = $this->attributeFinder->findAttributeByClassArgByName($property, 'Doctrine\\ORM\\Mapping\\OneToMany', 'targetEntity');
+        $targetEntityExpr = $this->attributeFinder->findAttributeByClassesArgByName($property, ToManyMappings::TO_MANY_CLASSES, 'targetEntity');
         if (!$targetEntityExpr instanceof Expr) {
             return null;
         }
@@ -216,7 +231,7 @@ CODE_SAMPLE
             $newVarType = $this->collectionTypeFactory->createType($collectionObjectType);
             $this->phpDocTypeChanger->changeVarType($property, $phpDocInfo, $newVarType);
         } else {
-            $collectionObjectType = $this->collectionTypeResolver->resolveFromOneToManyProperty($property);
+            $collectionObjectType = $this->collectionTypeResolver->resolveFromToManyProperties($property);
             if (!$collectionObjectType instanceof FullyQualifiedObjectType) {
                 return null;
             }

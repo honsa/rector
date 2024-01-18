@@ -6,17 +6,20 @@ namespace Rector\TypeDeclaration\Rector\ClassMethod;
 use PhpParser\Node;
 use PhpParser\Node\Expr;
 use PhpParser\Node\Expr\PropertyFetch;
+use PhpParser\Node\Expr\StaticPropertyFetch;
 use PhpParser\Node\Stmt\ClassMethod;
 use PhpParser\Node\Stmt\Return_;
 use PHPStan\Analyser\Scope;
 use PHPStan\Reflection\Php\PhpPropertyReflection;
 use PHPStan\Type\MixedType;
 use PHPStan\Type\Type;
-use Rector\Core\Rector\AbstractScopeAwareRector;
-use Rector\Core\Reflection\ReflectionResolver;
-use Rector\Core\ValueObject\PhpVersionFeature;
 use Rector\NodeTypeResolver\PHPStan\Type\TypeFactory;
+use Rector\PhpParser\Node\BetterNodeFinder;
 use Rector\PHPStanStaticTypeMapper\Enum\TypeKind;
+use Rector\Rector\AbstractScopeAwareRector;
+use Rector\Reflection\ReflectionResolver;
+use Rector\StaticTypeMapper\StaticTypeMapper;
+use Rector\ValueObject\PhpVersionFeature;
 use Rector\VendorLocker\NodeVendorLocker\ClassMethodReturnTypeOverrideGuard;
 use Rector\VersionBonding\Contract\MinPhpVersionInterface;
 use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
@@ -33,7 +36,7 @@ final class ReturnTypeFromStrictTypedPropertyRector extends AbstractScopeAwareRe
     private $typeFactory;
     /**
      * @readonly
-     * @var \Rector\Core\Reflection\ReflectionResolver
+     * @var \Rector\Reflection\ReflectionResolver
      */
     private $reflectionResolver;
     /**
@@ -41,11 +44,23 @@ final class ReturnTypeFromStrictTypedPropertyRector extends AbstractScopeAwareRe
      * @var \Rector\VendorLocker\NodeVendorLocker\ClassMethodReturnTypeOverrideGuard
      */
     private $classMethodReturnTypeOverrideGuard;
-    public function __construct(TypeFactory $typeFactory, ReflectionResolver $reflectionResolver, ClassMethodReturnTypeOverrideGuard $classMethodReturnTypeOverrideGuard)
+    /**
+     * @readonly
+     * @var \Rector\PhpParser\Node\BetterNodeFinder
+     */
+    private $betterNodeFinder;
+    /**
+     * @readonly
+     * @var \Rector\StaticTypeMapper\StaticTypeMapper
+     */
+    private $staticTypeMapper;
+    public function __construct(TypeFactory $typeFactory, ReflectionResolver $reflectionResolver, ClassMethodReturnTypeOverrideGuard $classMethodReturnTypeOverrideGuard, BetterNodeFinder $betterNodeFinder, StaticTypeMapper $staticTypeMapper)
     {
         $this->typeFactory = $typeFactory;
         $this->reflectionResolver = $reflectionResolver;
         $this->classMethodReturnTypeOverrideGuard = $classMethodReturnTypeOverrideGuard;
+        $this->betterNodeFinder = $betterNodeFinder;
+        $this->staticTypeMapper = $staticTypeMapper;
     }
     public function getRuleDefinition() : RuleDefinition
     {
@@ -123,7 +138,7 @@ CODE_SAMPLE
             if (!$return->expr instanceof Expr) {
                 return [];
             }
-            if (!$return->expr instanceof PropertyFetch) {
+            if (!$return->expr instanceof PropertyFetch && !$return->expr instanceof StaticPropertyFetch) {
                 return [];
             }
             $phpPropertyReflection = $this->reflectionResolver->resolvePropertyReflectionFromPropertyFetch($return->expr);

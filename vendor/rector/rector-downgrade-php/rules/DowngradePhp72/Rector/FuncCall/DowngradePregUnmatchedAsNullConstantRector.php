@@ -19,10 +19,10 @@ use PhpParser\Node\Stmt;
 use PhpParser\Node\Stmt\ClassConst;
 use PhpParser\Node\Stmt\Expression;
 use PhpParser\Node\Stmt\If_;
-use Rector\Core\NodeManipulator\IfManipulator;
-use Rector\Core\Rector\AbstractRector;
 use Rector\DowngradePhp72\NodeAnalyzer\RegexFuncAnalyzer;
 use Rector\DowngradePhp72\NodeManipulator\BitwiseFlagCleaner;
+use Rector\PhpParser\Node\BetterNodeFinder;
+use Rector\Rector\AbstractRector;
 use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
 use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
 /**
@@ -30,11 +30,6 @@ use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
  */
 final class DowngradePregUnmatchedAsNullConstantRector extends AbstractRector
 {
-    /**
-     * @readonly
-     * @var \Rector\Core\NodeManipulator\IfManipulator
-     */
-    private $ifManipulator;
     /**
      * @readonly
      * @var \Rector\DowngradePhp72\NodeManipulator\BitwiseFlagCleaner
@@ -46,15 +41,20 @@ final class DowngradePregUnmatchedAsNullConstantRector extends AbstractRector
      */
     private $regexFuncAnalyzer;
     /**
+     * @readonly
+     * @var \Rector\PhpParser\Node\BetterNodeFinder
+     */
+    private $betterNodeFinder;
+    /**
      * @see https://www.php.net/manual/en/function.preg-match.php
      * @var string
      */
     private const UNMATCHED_NULL_FLAG = 'PREG_UNMATCHED_AS_NULL';
-    public function __construct(IfManipulator $ifManipulator, BitwiseFlagCleaner $bitwiseFlagCleaner, RegexFuncAnalyzer $regexFuncAnalyzer)
+    public function __construct(BitwiseFlagCleaner $bitwiseFlagCleaner, RegexFuncAnalyzer $regexFuncAnalyzer, BetterNodeFinder $betterNodeFinder)
     {
-        $this->ifManipulator = $ifManipulator;
         $this->bitwiseFlagCleaner = $bitwiseFlagCleaner;
         $this->regexFuncAnalyzer = $regexFuncAnalyzer;
+        $this->betterNodeFinder = $betterNodeFinder;
     }
     /**
      * @return array<class-string<Node>>
@@ -150,7 +150,7 @@ CODE_SAMPLE
     {
         $variablePass = new Variable('value');
         $assign = new Assign($variablePass, $this->nodeFactory->createNull());
-        $if = $this->ifManipulator->createIfStmt(new Identical($variablePass, new String_('')), new Expression($assign));
+        $if = $this->createIf($variablePass, $assign);
         $param = new Param($variablePass, null, null, \true);
         $closure = new Closure(['params' => [$param], 'stmts' => [$if]]);
         $arguments = $this->nodeFactory->createArgs([$variable, $closure]);
@@ -199,5 +199,10 @@ CODE_SAMPLE
             return $funcCall;
         }
         return null;
+    }
+    private function createIf(Variable $variable, Assign $assign) : If_
+    {
+        $conditionIdentical = new Identical($variable, new String_(''));
+        return new If_($conditionIdentical, ['stmts' => [new Expression($assign)]]);
     }
 }

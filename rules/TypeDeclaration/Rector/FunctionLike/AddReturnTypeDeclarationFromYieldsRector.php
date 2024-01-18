@@ -17,22 +17,25 @@ use PhpParser\Node\Stmt\ClassMethod;
 use PhpParser\Node\Stmt\Expression;
 use PhpParser\Node\Stmt\Function_;
 use PhpParser\NodeTraverser;
+use PHPStan\Analyser\Scope;
 use PHPStan\Type\MixedType;
 use PHPStan\Type\Type;
-use Rector\Core\Rector\AbstractRector;
-use Rector\Core\ValueObject\PhpVersionFeature;
 use Rector\NodeTypeResolver\PHPStan\Type\TypeFactory;
 use Rector\PhpDocParser\NodeTraverser\SimpleCallableNodeTraverser;
 use Rector\PHPStanStaticTypeMapper\Enum\TypeKind;
+use Rector\Rector\AbstractScopeAwareRector;
+use Rector\StaticTypeMapper\StaticTypeMapper;
 use Rector\StaticTypeMapper\ValueObject\Type\FullyQualifiedGenericObjectType;
 use Rector\StaticTypeMapper\ValueObject\Type\FullyQualifiedObjectType;
+use Rector\ValueObject\PhpVersionFeature;
+use Rector\VendorLocker\NodeVendorLocker\ClassMethodReturnTypeOverrideGuard;
 use Rector\VersionBonding\Contract\MinPhpVersionInterface;
 use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
 use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
 /**
  * @see \Rector\Tests\TypeDeclaration\Rector\FunctionLike\AddReturnTypeDeclarationFromYieldsRector\AddReturnTypeDeclarationFromYieldsRectorTest
  */
-final class AddReturnTypeDeclarationFromYieldsRector extends AbstractRector implements MinPhpVersionInterface
+final class AddReturnTypeDeclarationFromYieldsRector extends AbstractScopeAwareRector implements MinPhpVersionInterface
 {
     /**
      * @readonly
@@ -44,10 +47,22 @@ final class AddReturnTypeDeclarationFromYieldsRector extends AbstractRector impl
      * @var \Rector\PhpDocParser\NodeTraverser\SimpleCallableNodeTraverser
      */
     private $simpleCallableNodeTraverser;
-    public function __construct(TypeFactory $typeFactory, SimpleCallableNodeTraverser $simpleCallableNodeTraverser)
+    /**
+     * @readonly
+     * @var \Rector\StaticTypeMapper\StaticTypeMapper
+     */
+    private $staticTypeMapper;
+    /**
+     * @readonly
+     * @var \Rector\VendorLocker\NodeVendorLocker\ClassMethodReturnTypeOverrideGuard
+     */
+    private $classMethodReturnTypeOverrideGuard;
+    public function __construct(TypeFactory $typeFactory, SimpleCallableNodeTraverser $simpleCallableNodeTraverser, StaticTypeMapper $staticTypeMapper, ClassMethodReturnTypeOverrideGuard $classMethodReturnTypeOverrideGuard)
     {
         $this->typeFactory = $typeFactory;
         $this->simpleCallableNodeTraverser = $simpleCallableNodeTraverser;
+        $this->staticTypeMapper = $staticTypeMapper;
+        $this->classMethodReturnTypeOverrideGuard = $classMethodReturnTypeOverrideGuard;
     }
     public function getRuleDefinition() : RuleDefinition
     {
@@ -84,14 +99,17 @@ CODE_SAMPLE
     /**
      * @param Function_|ClassMethod|Closure $node
      */
-    public function refactor(Node $node) : ?Node
+    public function refactorWithScope(Node $node, Scope $scope) : ?Node
     {
         $yieldNodes = $this->findCurrentScopeYieldNodes($node);
         if ($yieldNodes === []) {
             return null;
         }
         // skip already filled type
-        if ($node->returnType instanceof Node && $this->isNames($node->returnType, ['Iterator', 'Generator', 'Traversable'])) {
+        if ($node->returnType instanceof Node && $this->isNames($node->returnType, ['Iterator', 'Generator', 'Traversable', 'iterable'])) {
+            return null;
+        }
+        if ($node instanceof ClassMethod && $this->classMethodReturnTypeOverrideGuard->shouldSkipClassMethod($node, $scope)) {
             return null;
         }
         $yieldType = $this->resolveYieldType($yieldNodes, $node);

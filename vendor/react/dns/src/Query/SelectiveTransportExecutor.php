@@ -1,8 +1,8 @@
 <?php
 
-namespace RectorPrefix202307\React\Dns\Query;
+namespace RectorPrefix202401\React\Dns\Query;
 
-use RectorPrefix202307\React\Promise\Promise;
+use RectorPrefix202401\React\Promise\Promise;
 /**
  * Send DNS queries over a UDP or TCP/IP stream transport.
  *

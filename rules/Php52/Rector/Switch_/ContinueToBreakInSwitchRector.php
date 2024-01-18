@@ -12,8 +12,9 @@ use PhpParser\Node\Stmt\Continue_;
 use PhpParser\Node\Stmt\Switch_;
 use PHPStan\Type\Constant\ConstantIntegerType;
 use PHPStan\Type\ConstantType;
-use Rector\Core\Rector\AbstractRector;
-use Rector\Core\ValueObject\PhpVersionFeature;
+use Rector\PhpParser\Node\Value\ValueResolver;
+use Rector\Rector\AbstractRector;
+use Rector\ValueObject\PhpVersionFeature;
 use Rector\VersionBonding\Contract\MinPhpVersionInterface;
 use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
 use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
@@ -23,6 +24,15 @@ use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
  */
 final class ContinueToBreakInSwitchRector extends AbstractRector implements MinPhpVersionInterface
 {
+    /**
+     * @readonly
+     * @var \Rector\PhpParser\Node\Value\ValueResolver
+     */
+    private $valueResolver;
+    public function __construct(ValueResolver $valueResolver)
+    {
+        $this->valueResolver = $valueResolver;
+    }
     public function provideMinPhpVersion() : int
     {
         return PhpVersionFeature::CONTINUE_TO_BREAK;

@@ -1,7 +1,7 @@
 <?php
 
 declare (strict_types=1);
-namespace Rector\Core\PhpParser\Node;
+namespace Rector\PhpParser\Node;
 
 use PhpParser\Node;
 use PhpParser\Node\Expr\Closure;
@@ -13,12 +13,12 @@ use PhpParser\Node\Stmt\ClassMethod;
 use PhpParser\Node\Stmt\Function_;
 use PhpParser\NodeFinder;
 use PhpParser\NodeTraverser;
-use Rector\Core\NodeAnalyzer\ClassAnalyzer;
+use Rector\NodeAnalyzer\ClassAnalyzer;
 use Rector\NodeNameResolver\NodeNameResolver;
 use Rector\PhpDocParser\NodeTraverser\SimpleCallableNodeTraverser;
-use RectorPrefix202307\Webmozart\Assert\Assert;
+use RectorPrefix202401\Webmozart\Assert\Assert;
 /**
- * @see \Rector\Core\Tests\PhpParser\Node\BetterNodeFinder\BetterNodeFinderTest
+ * @see \Rector\Tests\PhpParser\Node\BetterNodeFinder\BetterNodeFinderTest
  */
 final class BetterNodeFinder
 {
@@ -34,7 +34,7 @@ final class BetterNodeFinder
     private $nodeNameResolver;
     /**
      * @readonly
-     * @var \Rector\Core\NodeAnalyzer\ClassAnalyzer
+     * @var \Rector\NodeAnalyzer\ClassAnalyzer
      */
     private $classAnalyzer;
     /**
@@ -52,7 +52,7 @@ final class BetterNodeFinder
     /**
      * @template T of Node
      * @param array<class-string<T>> $types
-     * @param \PhpParser\Node|mixed[] $nodes
+     * @param Node|Node[]|Stmt[] $nodes
      * @return T[]
      */
     public function findInstancesOf($nodes, array $types) : array
@@ -67,7 +67,7 @@ final class BetterNodeFinder
     /**
      * @template T of Node
      * @param class-string<T> $type
-     * @param \PhpParser\Node|mixed[] $nodes
+     * @param Node|Node[]|Stmt[] $nodes
      * @return T[]
      */
     public function findInstanceOf($nodes, string $type) : array
@@ -77,9 +77,9 @@ final class BetterNodeFinder
     /**
      * @template T of Node
      * @param class-string<T> $type
-     * @return T|null
+     * @param Node|Node[] $nodes
      *
-     * @param \PhpParser\Node|mixed[] $nodes
+     * @return T|null
      */
     public function findFirstInstanceOf($nodes, string $type) : ?Node
     {
@@ -104,7 +104,7 @@ final class BetterNodeFinder
     }
     /**
      * @api
-     * @param \PhpParser\Node|mixed[] $nodes
+     * @param Node|Node[] $nodes
      * @return Variable|null
      */
     public function findVariableOfName($nodes, string $name) : ?Node
@@ -112,7 +112,7 @@ final class BetterNodeFinder
         return $this->findInstanceOfName($nodes, Variable::class, $name);
     }
     /**
-     * @param \PhpParser\Node|mixed[] $nodes
+     * @param Node|Node[] $nodes
      * @param array<class-string<Node>> $types
      */
     public function hasInstancesOf($nodes, array $types) : bool
@@ -128,7 +128,7 @@ final class BetterNodeFinder
         return \false;
     }
     /**
-     * @param \PhpParser\Node|mixed[] $nodes
+     * @param Node|Node[] $nodes
      * @param callable(Node $node): bool $filter
      * @return Node[]
      */
@@ -149,7 +149,7 @@ final class BetterNodeFinder
         });
     }
     /**
-     * @param \PhpParser\Node|mixed[] $nodes
+     * @param Node|Node[] $nodes
      * @param callable(Node $filter): bool $filter
      */
     public function findFirst($nodes, callable $filter) : ?Node
@@ -184,7 +184,7 @@ final class BetterNodeFinder
     /**
      * @template T of Node
      * @param array<class-string<T>>|class-string<T> $types
-     * @return T[]
+     * @return array<T>
      * @param \PhpParser\Node\Stmt\ClassMethod|\PhpParser\Node\Stmt\Function_|\PhpParser\Node\Expr\Closure $functionLike
      */
     public function findInstancesOfInFunctionLikeScoped($functionLike, $types) : array
@@ -225,7 +225,7 @@ final class BetterNodeFinder
             return $foundNode;
         }
         $scopedNode = null;
-        $this->simpleCallableNodeTraverser->traverseNodesWithCallable($functionLike->stmts, static function (Node $subNode) use(&$scopedNode, $foundNode) : ?int {
+        $this->simpleCallableNodeTraverser->traverseNodesWithCallable($functionLike->stmts, function (Node $subNode) use(&$scopedNode, $foundNode, $filter) : ?int {
             if ($subNode instanceof Class_ || $subNode instanceof Function_ || $subNode instanceof Closure) {
                 if ($foundNode instanceof $subNode && $subNode === $foundNode) {
                     $scopedNode = $subNode;
@@ -233,7 +233,13 @@ final class BetterNodeFinder
                 }
                 return NodeTraverser::DONT_TRAVERSE_CURRENT_AND_CHILDREN;
             }
-            if ($foundNode instanceof $subNode && $subNode === $foundNode) {
+            if (!$foundNode instanceof $subNode) {
+                return null;
+            }
+            // handle after Closure
+            // @see https://github.com/rectorphp/rector-src/pull/4931
+            $scopedFoundNode = $this->findFirst($subNode, $filter);
+            if ($scopedFoundNode === $subNode) {
                 $scopedNode = $subNode;
                 return NodeTraverser::STOP_TRAVERSAL;
             }
@@ -243,7 +249,7 @@ final class BetterNodeFinder
     }
     /**
      * @template T of Node
-     * @param \PhpParser\Node|mixed[] $nodes
+     * @param Node|Node[] $nodes
      * @param class-string<T> $type
      */
     private function findInstanceOfName($nodes, string $type, string $name) : ?Node

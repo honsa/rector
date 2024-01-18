@@ -1,29 +1,4 @@
-# 15 Rules Overview
-
-## ChangeBigIntEntityPropertyToIntTypeRector
-
-Change database type "bigint" for @var/type declaration to string
-
-- class: [`Rector\Doctrine\CodeQuality\Rector\Property\ChangeBigIntEntityPropertyToIntTypeRector`](../rules/CodeQuality/Rector/Property/ChangeBigIntEntityPropertyToIntTypeRector.php)
-
-```diff
- use Doctrine\ORM\Mapping as ORM;
-
- /**
-  * @ORM\Entity()
-  */
- class SomeEntity
- {
-     /**
--     * @var int|null
-+     * @var string|null
-      * @ORM\Column(type="bigint", nullable=true)
-      */
-     private $bigNumber;
- }
-```
-
-<br>
+# 17 Rules Overview
 
 ## ChangeCompositeExpressionAddMultipleWithWithRector
 
@@ -72,24 +47,57 @@ Change default value types to match Doctrine annotation type
 
 <br>
 
-## DoctrineTargetEntityStringToClassConstantRector
+## EventSubscriberInterfaceToAttributeRector
 
-Convert targetEntities defined as String to <class>::class Constants in Doctrine Entities.
+Replace EventSubscriberInterface with AsDoctrineListener attribute(s)
 
-- class: [`Rector\Doctrine\CodeQuality\Rector\Property\DoctrineTargetEntityStringToClassConstantRector`](../rules/CodeQuality/Rector/Property/DoctrineTargetEntityStringToClassConstantRector.php)
+- class: [`Rector\Doctrine\Bundle210\Rector\Class_\EventSubscriberInterfaceToAttributeRector`](../rules/Bundle210/Rector/Class_/EventSubscriberInterfaceToAttributeRector.php)
 
 ```diff
- final class SomeClass
- {
-     /**
--     * @ORM\OneToMany(targetEntity="AnotherClass")
-+     * @ORM\OneToMany(targetEntity=\MyNamespace\Source\AnotherClass::class)
-      */
-     private readonly ?Collection $items;
++use Doctrine\Bundle\DoctrineBundle\Attribute\AsDoctrineListener;
+ use Doctrine\ORM\Event\PrePersistEventArgs;
+ use Doctrine\ORM\Event\PostUpdateEventArgs;
+-use Doctrine\Common\EventSubscriber;
+ use Doctrine\ORM\Events;
 
--    #[ORM\ManyToOne(targetEntity: "AnotherClass")]
-+    #[ORM\ManyToOne(targetEntity: \MyNamespace\Source\AnotherClass::class)]
-     private readonly ?Collection $items2;
+-class MyEventSubscriber implements EventSubscriber
++#[AsDoctrineListener(event: Events::postUpdate)]
++#[AsDoctrineListener(event: Events::prePersist)]
++class MyEventSubscriber
+ {
+-    public function getSubscribedEvents()
+-    {
+-        return array(
+-            Events::postUpdate,
+-            Events::prePersist,
+-        );
+-    }
+-
+     public function postUpdate(PostUpdateEventArgs $args)
+     {
+         // ...
+     }
+
+     public function prePersist(PrePersistEventArgs $args)
+     {
+         // ...
+     }
+ }
+```
+
+<br>
+
+## ExtractArrayArgOnQueryBuilderSelectRector
+
+Extract array arg on QueryBuilder select, addSelect, groupBy, addGroupBy
+
+- class: [`Rector\Doctrine\Dbal211\Rector\MethodCall\ExtractArrayArgOnQueryBuilderSelectRector`](../rules/Dbal211/Rector/MethodCall/ExtractArrayArgOnQueryBuilderSelectRector.php)
+
+```diff
+ function query(\Doctrine\DBAL\Query\QueryBuilder $queryBuilder)
+ {
+-    $query = $queryBuilder->select(['u.id', 'p.id']);
++    $query = $queryBuilder->select('u.id', 'p.id');
  }
 ```
 
@@ -113,7 +121,7 @@ Improve @var, `@param` and `@return` types for Doctrine collections to make them
      /**
       * @ORM\OneToMany(targetEntity=Trainer::class, mappedBy="trainer")
 -     * @var Collection|Trainer[]
-+     * @var Collection<int, Trainer>|Trainer[]
++     * @var Collection<int, Trainer>
       */
      private $trainings = [];
  }
@@ -149,6 +157,32 @@ Initialize collection property in Entity constructor
 
 <br>
 
+## IterateToToIterableRector
+
+Change `iterate()` => `toIterable()`
+
+- class: [`Rector\Doctrine\Orm28\Rector\MethodCall\IterateToToIterableRector`](../rules/Orm28/Rector/MethodCall/IterateToToIterableRector.php)
+
+```diff
+ use Doctrine\ORM\EntityRepository;
+ use Doctrine\ORM\Internal\Hydration\IterableResult;
+
+ class SomeRepository extends EntityRepository
+ {
+-    public function run(): IterateResult
++    public function run(): iterable
+     {
+         /** @var \Doctrine\ORM\AbstractQuery $query */
+         $query = $this->getEntityManager()->select('e')->from('entity')->getQuery();
+
+-        return $query->iterate();
++        return $query->toIterable();
+     }
+ }
+```
+
+<br>
+
 ## MakeEntityDateTimePropertyDateTimeInterfaceRector
 
 Make maker bundle generate DateTime property accept DateTimeInterface too
@@ -172,36 +206,6 @@ Make maker bundle generate DateTime property accept DateTimeInterface too
      public function setBornAt(DateTimeInterface $bornAt)
      {
          $this->bornAt = $bornAt;
-     }
- }
-```
-
-<br>
-
-## MakeEntitySetterNullabilityInSyncWithPropertyRector
-
-Make nullability in setter class method with respect to property
-
-- class: [`Rector\Doctrine\CodeQuality\Rector\ClassMethod\MakeEntitySetterNullabilityInSyncWithPropertyRector`](../rules/CodeQuality/Rector/ClassMethod/MakeEntitySetterNullabilityInSyncWithPropertyRector.php)
-
-```diff
- use Doctrine\ORM\Mapping as ORM;
-
- /**
-  * @ORM\Entity()
-  */
- class Product
- {
-     /**
-      * @ORM\ManyToOne(targetEntity="AnotherEntity")
-      * @ORM\JoinColumn(nullable=false)
-      */
-     private $anotherEntity;
-
--    public function setAnotherEntity(?AnotherEntity $anotherEntity)
-+    public function setAnotherEntity(AnotherEntity $anotherEntity)
-     {
-         $this->anotherEntity = $anotherEntity;
      }
  }
 ```
@@ -236,6 +240,26 @@ Move default value for entity property to constructor, the safest place
 +        $this->when = new \DateTime();
 +    }
  }
+```
+
+<br>
+
+## OrderByKeyToClassConstRector
+
+Replace OrderBy Attribute ASC/DESC with class constant from Criteria
+
+- class: [`Rector\Doctrine\CodeQuality\Rector\Property\OrderByKeyToClassConstRector`](../rules/CodeQuality/Rector/Property/OrderByKeyToClassConstRector.php)
+
+```diff
+ use Doctrine\ORM\Mapping as ORM;
+
+ class ReplaceOrderByAscWithClassConstant
+ {
+-    #[ORM\OrderBy(['createdAt' => 'ASC'])]
++    #[ORM\OrderBy(['createdAt' => \Doctrine\Common\Collections\Criteria::ASC])]
+     protected \DateTimeInterface $messages;
+ }
+ ?>
 ```
 
 <br>
@@ -342,7 +366,7 @@ Complete `@var` annotations or types based on @ORM\*toMany annotations or attrib
  {
      /**
       * @ORM\OneToMany(targetEntity="App\Product")
-+     * @var \Doctrine\Common\Collections\Collection<\App\Product>
++     * @var \Doctrine\Common\Collections\Collection<int, \App\Product>
       */
 -    private $products;
 +    private \Doctrine\Common\Collections\Collection $products;
@@ -367,6 +391,38 @@ Complete `@var` annotations or types based on @ORM\*toOne annotations or attribu
       */
 -    private $company;
 +    private ?\App\Company\Entity\Company $company = null;
+ }
+```
+
+<br>
+
+## YamlToAnnotationsDoctrineMappingRector
+
+Converts YAML Doctrine Entity mapping to particular annotation mapping
+
+:wrench: **configure it!**
+
+- class: [`Rector\Doctrine\CodeQuality\Rector\Class_\YamlToAnnotationsDoctrineMappingRector`](../rules/CodeQuality/Rector/Class_/YamlToAnnotationsDoctrineMappingRector.php)
+
+```diff
++use Doctrine\ORM\Mapping as ORM;
++
++/**
++ * @ORM\Entity
++ */
+ class SomeEntity
+ {
++    /**
++     * @ORM\Id
++     * @ORM\GeneratedValue
++     * @ORM\Column(type="integer")
++     */
+     private $id;
+
++    /**
++     * @ORM\Column(type="string")
++     */
+     private $name;
  }
 ```
 

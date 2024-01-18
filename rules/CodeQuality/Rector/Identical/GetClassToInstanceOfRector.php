@@ -13,10 +13,11 @@ use PhpParser\Node\Expr\Instanceof_;
 use PhpParser\Node\Name;
 use PhpParser\Node\Name\FullyQualified;
 use PhpParser\Node\Scalar\String_;
-use Rector\Core\Enum\ObjectReference;
-use Rector\Core\NodeManipulator\BinaryOpManipulator;
-use Rector\Core\Rector\AbstractRector;
+use Rector\Enum\ObjectReference;
+use Rector\NodeManipulator\BinaryOpManipulator;
 use Rector\Php71\ValueObject\TwoNodeMatch;
+use Rector\PhpParser\Node\Value\ValueResolver;
+use Rector\Rector\AbstractRector;
 use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
 use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
 /**
@@ -26,16 +27,22 @@ final class GetClassToInstanceOfRector extends AbstractRector
 {
     /**
      * @readonly
-     * @var \Rector\Core\NodeManipulator\BinaryOpManipulator
+     * @var \Rector\NodeManipulator\BinaryOpManipulator
      */
     private $binaryOpManipulator;
+    /**
+     * @readonly
+     * @var \Rector\PhpParser\Node\Value\ValueResolver
+     */
+    private $valueResolver;
     /**
      * @var string[]
      */
     private const NO_NAMESPACED_CLASSNAMES = ['self', 'static'];
-    public function __construct(BinaryOpManipulator $binaryOpManipulator)
+    public function __construct(BinaryOpManipulator $binaryOpManipulator, ValueResolver $valueResolver)
     {
         $this->binaryOpManipulator = $binaryOpManipulator;
+        $this->valueResolver = $valueResolver;
     }
     public function getRuleDefinition() : RuleDefinition
     {

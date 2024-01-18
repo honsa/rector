@@ -10,8 +10,9 @@ use PhpParser\Node\Expr\Empty_;
 use PhpParser\Node\Expr\Instanceof_;
 use PhpParser\Node\Name;
 use PHPStan\Type\ObjectType;
-use Rector\Core\Rector\AbstractRector;
 use Rector\PHPStanStaticTypeMapper\Enum\TypeKind;
+use Rector\Rector\AbstractRector;
+use Rector\StaticTypeMapper\StaticTypeMapper;
 use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
 use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
 /**
@@ -19,6 +20,15 @@ use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
  */
 final class EmptyOnNullableObjectToInstanceOfRector extends AbstractRector
 {
+    /**
+     * @readonly
+     * @var \Rector\StaticTypeMapper\StaticTypeMapper
+     */
+    private $staticTypeMapper;
+    public function __construct(StaticTypeMapper $staticTypeMapper)
+    {
+        $this->staticTypeMapper = $staticTypeMapper;
+    }
     public function getRuleDefinition() : RuleDefinition
     {
         return new RuleDefinition('Change empty() on nullable object to instanceof check', [new CodeSample(<<<'CODE_SAMPLE'
@@ -74,7 +84,7 @@ CODE_SAMPLE
         if ($empty->expr instanceof ArrayDimFetch) {
             return null;
         }
-        $exprType = $this->getType($empty->expr);
+        $exprType = $this->nodeTypeResolver->getNativeType($empty->expr);
         if (!$exprType instanceof ObjectType) {
             return null;
         }

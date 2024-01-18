@@ -10,9 +10,9 @@ use PhpParser\Node\Expr\New_;
 use PhpParser\Node\Expr\StaticCall;
 use PhpParser\Node\Expr\Variable;
 use PhpParser\Node\Scalar\String_;
-use Rector\Core\Rector\AbstractRector;
 use Rector\PHPUnit\NodeAnalyzer\IdentifierManipulator;
 use Rector\PHPUnit\NodeAnalyzer\TestsNodeAnalyzer;
+use Rector\Rector\AbstractRector;
 use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
 use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
 /**
@@ -100,7 +100,7 @@ CODE_SAMPLE
         }
         unset($node->args[0]);
         $newArgs = $this->nodeFactory->createArgs([$secondArgument->value->value, $secondArg]);
-        $node->args = $this->appendArgs($newArgs, $node->getArgs());
+        $node->args = \array_merge($newArgs, $node->getArgs());
         $this->identifierManipulator->renameNodeWithMap($node, $map);
         return $node;
     }

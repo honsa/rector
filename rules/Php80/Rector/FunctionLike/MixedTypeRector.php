@@ -13,12 +13,13 @@ use PHPStan\PhpDocParser\Ast\PhpDoc\ParamTagValueNode;
 use PHPStan\Reflection\ClassReflection;
 use PHPStan\Type\MixedType;
 use Rector\BetterPhpDocParser\PhpDocInfo\PhpDocInfo;
-use Rector\Core\Rector\AbstractRector;
-use Rector\Core\Reflection\ReflectionResolver;
-use Rector\Core\ValueObject\PhpVersionFeature;
+use Rector\BetterPhpDocParser\PhpDocInfo\PhpDocInfoFactory;
 use Rector\DeadCode\PhpDoc\TagRemover\ParamTagRemover;
 use Rector\FamilyTree\NodeAnalyzer\ClassChildAnalyzer;
 use Rector\NodeTypeResolver\Node\AttributeKey;
+use Rector\Rector\AbstractRector;
+use Rector\Reflection\ReflectionResolver;
+use Rector\ValueObject\PhpVersionFeature;
 use Rector\VersionBonding\Contract\MinPhpVersionInterface;
 use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
 use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
@@ -29,7 +30,7 @@ final class MixedTypeRector extends AbstractRector implements MinPhpVersionInter
 {
     /**
      * @readonly
-     * @var \Rector\Core\Reflection\ReflectionResolver
+     * @var \Rector\Reflection\ReflectionResolver
      */
     private $reflectionResolver;
     /**
@@ -43,14 +44,20 @@ final class MixedTypeRector extends AbstractRector implements MinPhpVersionInter
      */
     private $paramTagRemover;
     /**
+     * @readonly
+     * @var \Rector\BetterPhpDocParser\PhpDocInfo\PhpDocInfoFactory
+     */
+    private $phpDocInfoFactory;
+    /**
      * @var bool
      */
     private $hasChanged = \false;
-    public function __construct(ReflectionResolver $reflectionResolver, ClassChildAnalyzer $classChildAnalyzer, ParamTagRemover $paramTagRemover)
+    public function __construct(ReflectionResolver $reflectionResolver, ClassChildAnalyzer $classChildAnalyzer, ParamTagRemover $paramTagRemover, PhpDocInfoFactory $phpDocInfoFactory)
     {
         $this->reflectionResolver = $reflectionResolver;
         $this->classChildAnalyzer = $classChildAnalyzer;
         $this->paramTagRemover = $paramTagRemover;
+        $this->phpDocInfoFactory = $phpDocInfoFactory;
     }
     public function getRuleDefinition() : RuleDefinition
     {

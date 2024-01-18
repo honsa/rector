@@ -3,7 +3,7 @@
 declare (strict_types=1);
 namespace Rector\Doctrine\NodeManipulator;
 
-use RectorPrefix202307\Nette\Utils\Strings;
+use RectorPrefix202401\Nette\Utils\Strings;
 use PhpParser\Node\Expr;
 use PhpParser\Node\Stmt\Property;
 use PHPStan\PhpDocParser\Ast\ConstExpr\ConstExprTrueNode;
@@ -97,9 +97,6 @@ final class ToOneRelationPropertyTypeResolver
         }
         // resolve to FQN
         $tagFullyQualifiedName = $this->classAnnotationMatcher->resolveTagFullyQualifiedName($targetEntityClass, $property);
-        if ($tagFullyQualifiedName === null) {
-            return new MixedType();
-        }
         $fullyQualifiedObjectType = new FullyQualifiedObjectType($tagFullyQualifiedName);
         $isNullable = $this->isNullableType($joinDoctrineAnnotationTagValueNode);
         return $this->resolveFromObjectType($fullyQualifiedObjectType, $isNullable);

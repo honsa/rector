@@ -1,18 +1,19 @@
 <?php
 
 declare (strict_types=1);
-namespace Rector\Core\Configuration;
+namespace Rector\Configuration;
 
 use PHPStan\Type\ObjectType;
-final class RenamedClassesDataCollector
+use Rector\Contract\DependencyInjection\ResetableInterface;
+final class RenamedClassesDataCollector implements ResetableInterface
 {
     /**
      * @var array<string, string>
      */
     private $oldToNewClasses = [];
-    public function addOldToNewClass(string $oldClass, string $newClass) : void
+    public function reset() : void
     {
-        $this->oldToNewClasses[$oldClass] = $newClass;
+        $this->oldToNewClasses = [];
     }
     public function hasOldClass(string $oldClass) : bool
     {

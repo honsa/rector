@@ -11,7 +11,7 @@ use PhpParser\Node\Expr\MethodCall;
 use PhpParser\Node\Expr\New_;
 use PhpParser\Node\Scalar\LNumber;
 use PHPStan\Type\ObjectType;
-use Rector\Core\Rector\AbstractRector;
+use Rector\Rector\AbstractRector;
 use Rector\Symfony\NodeAnalyzer\LiteralCallLikeConstFetchReplacer;
 use Rector\Symfony\TypeAnalyzer\ControllerAnalyzer;
 use Rector\Symfony\ValueObject\ConstantMap\SymfonyResponseConstantMap;
@@ -99,13 +99,17 @@ CODE_SAMPLE
     }
     private function processMethodCall(MethodCall $methodCall) : ?\PhpParser\Node\Expr\CallLike
     {
-        if ($this->isName($methodCall->name, 'assert*')) {
+        $methodCallName = $this->nodeNameResolver->getName($methodCall->name);
+        if (!\is_string($methodCallName)) {
+            return null;
+        }
+        if (\strncmp($methodCallName, 'assert', \strlen('assert')) === 0) {
             return $this->processAssertMethodCall($methodCall);
         }
-        if ($this->isName($methodCall->name, 'redirect')) {
+        if ($methodCallName === 'redirect') {
             return $this->processRedirectMethodCall($methodCall);
         }
-        if (!$this->isName($methodCall->name, 'setStatusCode')) {
+        if ($methodCallName !== 'setStatusCode') {
             return null;
         }
         if (!$this->isObjectType($methodCall->var, $this->responseObjectType)) {

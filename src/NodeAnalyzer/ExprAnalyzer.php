@@ -1,34 +1,29 @@
 <?php
 
 declare (strict_types=1);
-namespace Rector\Core\NodeAnalyzer;
+namespace Rector\NodeAnalyzer;
 
 use PhpParser\Node\Expr;
 use PhpParser\Node\Expr\Array_;
+use PhpParser\Node\Expr\ArrayItem;
 use PhpParser\Node\Expr\ClassConstFetch;
 use PhpParser\Node\Expr\ConstFetch;
+use PhpParser\Node\Expr\UnaryMinus;
+use PhpParser\Node\Expr\UnaryPlus;
 use PhpParser\Node\Expr\Variable;
 use PhpParser\Node\Identifier;
 use PhpParser\Node\Name;
 use PhpParser\Node\Scalar;
 use PhpParser\Node\Scalar\Encapsed;
+use PhpParser\Node\Scalar\LNumber;
+use PhpParser\Node\Scalar\String_;
 use PHPStan\Analyser\Scope;
 use PHPStan\Type\MixedType;
 use PHPStan\Type\UnionType;
-use Rector\Core\Enum\ObjectReference;
-use Rector\Core\NodeManipulator\ArrayManipulator;
+use Rector\Enum\ObjectReference;
 use Rector\NodeTypeResolver\Node\AttributeKey;
 final class ExprAnalyzer
 {
-    /**
-     * @readonly
-     * @var \Rector\Core\NodeManipulator\ArrayManipulator
-     */
-    private $arrayManipulator;
-    public function __construct(ArrayManipulator $arrayManipulator)
-    {
-        $this->arrayManipulator = $arrayManipulator;
-    }
     public function isNonTypedFromParam(Expr $expr) : bool
     {
         if (!$expr instanceof Variable) {
@@ -51,14 +46,33 @@ final class ExprAnalyzer
     }
     public function isDynamicExpr(Expr $expr) : bool
     {
-        if (!$expr instanceof Array_) {
-            if ($expr instanceof Scalar) {
-                // string interpolation is true, otherwise false
-                return $expr instanceof Encapsed;
-            }
-            return !$this->isAllowedConstFetchOrClassConstFetch($expr);
+        // Unwrap UnaryPlus and UnaryMinus
+        if ($expr instanceof UnaryPlus || $expr instanceof UnaryMinus) {
+            $expr = $expr->expr;
         }
-        return $this->arrayManipulator->isDynamicArray($expr);
+        if ($expr instanceof Array_) {
+            return $this->isDynamicArray($expr);
+        }
+        if ($expr instanceof Scalar) {
+            // string interpolation is true, otherwise false
+            return $expr instanceof Encapsed;
+        }
+        return !$this->isAllowedConstFetchOrClassConstFetch($expr);
+    }
+    public function isDynamicArray(Array_ $array) : bool
+    {
+        foreach ($array->items as $item) {
+            if (!$item instanceof ArrayItem) {
+                continue;
+            }
+            if (!$this->isAllowedArrayKey($item->key)) {
+                return \true;
+            }
+            if (!$this->isAllowedArrayValue($item->value)) {
+                return \true;
+            }
+        }
+        return \false;
     }
     private function isAllowedConstFetchOrClassConstFetch(Expr $expr) : bool
     {
@@ -76,5 +90,22 @@ final class ExprAnalyzer
             return $expr->class->toString() !== ObjectReference::STATIC;
         }
         return \false;
+    }
+    private function isAllowedArrayKey(?Expr $expr) : bool
+    {
+        if (!$expr instanceof Expr) {
+            return \true;
+        }
+        if ($expr instanceof String_) {
+            return \true;
+        }
+        return $expr instanceof LNumber;
+    }
+    private function isAllowedArrayValue(Expr $expr) : bool
+    {
+        if ($expr instanceof Array_) {
+            return !$this->isDynamicArray($expr);
+        }
+        return !$this->isDynamicExpr($expr);
     }
 }

@@ -7,12 +7,14 @@ use PhpParser\Node;
 use PhpParser\Node\Expr;
 use PhpParser\Node\Expr\ArrayDimFetch;
 use PhpParser\Node\Expr\BinaryOp\BooleanAnd;
+use PhpParser\Node\Expr\BinaryOp\BooleanOr;
 use PhpParser\Node\Expr\BooleanNot;
 use PhpParser\Node\Expr\Empty_;
 use PhpParser\Node\Expr\Isset_;
 use PHPStan\Analyser\Scope;
-use Rector\Core\Contract\Rector\ConfigurableRectorInterface;
-use Rector\Core\NodeAnalyzer\ExprAnalyzer;
+use Rector\Contract\Rector\ConfigurableRectorInterface;
+use Rector\NodeAnalyzer\ExprAnalyzer;
+use Rector\Strict\NodeAnalyzer\UnitializedPropertyAnalyzer;
 use Rector\Strict\NodeFactory\ExactCompareFactory;
 use Rector\Strict\Rector\AbstractFalsyScalarRuleFixerRector;
 use Symplify\RuleDocGenerator\ValueObject\CodeSample\ConfiguredCodeSample;
@@ -29,13 +31,19 @@ final class DisallowedEmptyRuleFixerRector extends AbstractFalsyScalarRuleFixerR
     private $exactCompareFactory;
     /**
      * @readonly
-     * @var \Rector\Core\NodeAnalyzer\ExprAnalyzer
+     * @var \Rector\NodeAnalyzer\ExprAnalyzer
      */
     private $exprAnalyzer;
-    public function __construct(ExactCompareFactory $exactCompareFactory, ExprAnalyzer $exprAnalyzer)
+    /**
+     * @readonly
+     * @var \Rector\Strict\NodeAnalyzer\UnitializedPropertyAnalyzer
+     */
+    private $unitializedPropertyAnalyzer;
+    public function __construct(ExactCompareFactory $exactCompareFactory, ExprAnalyzer $exprAnalyzer, UnitializedPropertyAnalyzer $unitializedPropertyAnalyzer)
     {
         $this->exactCompareFactory = $exactCompareFactory;
         $this->exprAnalyzer = $exprAnalyzer;
+        $this->unitializedPropertyAnalyzer = $unitializedPropertyAnalyzer;
     }
     public function getRuleDefinition() : RuleDefinition
     {
@@ -58,7 +66,7 @@ final class SomeEmptyArray
     }
 }
 CODE_SAMPLE
-, [self::TREAT_AS_NON_EMPTY => \false])]);
+, [\Rector\Strict\Rector\Empty_\DisallowedEmptyRuleFixerRector::TREAT_AS_NON_EMPTY => \false])]);
     }
     /**
      * @return array<class-string<Node>>
@@ -87,27 +95,41 @@ CODE_SAMPLE
         }
         $empty = $booleanNot->expr;
         if ($empty->expr instanceof ArrayDimFetch) {
-            return $this->createDimFetchBooleanAnd($empty);
+            return $this->createDimFetchBooleanAnd($empty->expr);
         }
         if ($this->exprAnalyzer->isNonTypedFromParam($empty->expr)) {
             return null;
         }
-        $emptyExprType = $scope->getType($empty->expr);
-        return $this->exactCompareFactory->createNotIdenticalFalsyCompare($emptyExprType, $empty->expr, $this->treatAsNonEmpty);
+        $emptyExprType = $scope->getNativeType($empty->expr);
+        $result = $this->exactCompareFactory->createNotIdenticalFalsyCompare($emptyExprType, $empty->expr, $this->treatAsNonEmpty);
+        if (!$result instanceof Expr) {
+            return null;
+        }
+        if ($this->unitializedPropertyAnalyzer->isUnitialized($empty->expr)) {
+            return new BooleanAnd(new Isset_([$empty->expr]), $result);
+        }
+        return $result;
     }
     private function refactorEmpty(Empty_ $empty, Scope $scope, bool $treatAsNonEmpty) : ?\PhpParser\Node\Expr
     {
         if ($this->exprAnalyzer->isNonTypedFromParam($empty->expr)) {
             return null;
         }
-        $exprType = $scope->getType($empty->expr);
-        return $this->exactCompareFactory->createIdenticalFalsyCompare($exprType, $empty->expr, $treatAsNonEmpty);
+        $exprType = $scope->getNativeType($empty->expr);
+        $result = $this->exactCompareFactory->createIdenticalFalsyCompare($exprType, $empty->expr, $treatAsNonEmpty);
+        if (!$result instanceof Expr) {
+            return null;
+        }
+        if ($this->unitializedPropertyAnalyzer->isUnitialized($empty->expr)) {
+            return new BooleanOr(new BooleanNot(new Isset_([$empty->expr])), $result);
+        }
+        return $result;
     }
-    private function createDimFetchBooleanAnd(Empty_ $empty) : ?BooleanAnd
+    private function createDimFetchBooleanAnd(ArrayDimFetch $arrayDimFetch) : ?BooleanAnd
     {
-        $exprType = $this->getType($empty->expr);
-        $isset = new Isset_([$empty->expr]);
-        $compareExpr = $this->exactCompareFactory->createNotIdenticalFalsyCompare($exprType, $empty->expr, \false);
+        $exprType = $this->nodeTypeResolver->getNativeType($arrayDimFetch);
+        $isset = new Isset_([$arrayDimFetch]);
+        $compareExpr = $this->exactCompareFactory->createNotIdenticalFalsyCompare($exprType, $arrayDimFetch, \false);
         if (!$compareExpr instanceof Expr) {
             return null;
         }

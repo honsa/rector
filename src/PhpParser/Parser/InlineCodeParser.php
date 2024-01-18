@@ -1,33 +1,33 @@
 <?php
 
 declare (strict_types=1);
-namespace Rector\Core\PhpParser\Parser;
+namespace Rector\PhpParser\Parser;
 
-use RectorPrefix202307\Nette\Utils\FileSystem;
-use RectorPrefix202307\Nette\Utils\Strings;
+use RectorPrefix202401\Nette\Utils\FileSystem;
+use RectorPrefix202401\Nette\Utils\Strings;
 use PhpParser\Node\Expr;
 use PhpParser\Node\Expr\BinaryOp\Concat;
 use PhpParser\Node\Scalar\Encapsed;
 use PhpParser\Node\Scalar\String_;
 use PhpParser\Node\Stmt;
-use Rector\Core\PhpParser\Node\Value\ValueResolver;
-use Rector\Core\PhpParser\Printer\BetterStandardPrinter;
-use Rector\Core\Util\StringUtils;
+use Rector\PhpParser\Node\Value\ValueResolver;
+use Rector\PhpParser\Printer\BetterStandardPrinter;
+use Rector\Util\StringUtils;
 final class InlineCodeParser
 {
     /**
      * @readonly
-     * @var \Rector\Core\PhpParser\Printer\BetterStandardPrinter
+     * @var \Rector\PhpParser\Printer\BetterStandardPrinter
      */
     private $betterStandardPrinter;
     /**
      * @readonly
-     * @var \Rector\Core\PhpParser\Parser\SimplePhpParser
+     * @var \Rector\PhpParser\Parser\SimplePhpParser
      */
     private $simplePhpParser;
     /**
      * @readonly
-     * @var \Rector\Core\PhpParser\Node\Value\ValueResolver
+     * @var \Rector\PhpParser\Node\Value\ValueResolver
      */
     private $valueResolver;
     /**
@@ -65,7 +65,7 @@ final class InlineCodeParser
      * @see https://regex101.com/r/nSO3Eq/1
      */
     private const BACKREFERENCE_NO_DOUBLE_QUOTE_START_REGEX = '#(?<!")(?<backreference>\\$\\d+)#';
-    public function __construct(BetterStandardPrinter $betterStandardPrinter, \Rector\Core\PhpParser\Parser\SimplePhpParser $simplePhpParser, ValueResolver $valueResolver)
+    public function __construct(BetterStandardPrinter $betterStandardPrinter, \Rector\PhpParser\Parser\SimplePhpParser $simplePhpParser, ValueResolver $valueResolver)
     {
         $this->betterStandardPrinter = $betterStandardPrinter;
         $this->simplePhpParser = $simplePhpParser;

@@ -57,7 +57,7 @@ class SomeClass
     }
 }
 CODE_SAMPLE
-, [self::TREAT_AS_NON_EMPTY => \true])]);
+, [\Rector\Strict\Rector\BooleanNot\BooleanInBooleanNotRuleFixerRector::TREAT_AS_NON_EMPTY => \true])]);
     }
     /**
      * @return array<class-string<Node>>
@@ -71,7 +71,7 @@ CODE_SAMPLE
      */
     public function refactorWithScope(Node $node, Scope $scope) : ?Expr
     {
-        $exprType = $scope->getType($node->expr);
+        $exprType = $scope->getNativeType($node->expr);
         if ($exprType->isBoolean()->yes()) {
             return null;
         }

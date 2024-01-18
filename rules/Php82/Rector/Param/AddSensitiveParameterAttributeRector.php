@@ -8,14 +8,14 @@ use PhpParser\Node\Attribute;
 use PhpParser\Node\AttributeGroup;
 use PhpParser\Node\Name\FullyQualified;
 use PhpParser\Node\Param;
-use Rector\Core\Contract\Rector\ConfigurableRectorInterface;
-use Rector\Core\Rector\AbstractRector;
-use Rector\Core\ValueObject\PhpVersionFeature;
+use Rector\Contract\Rector\ConfigurableRectorInterface;
 use Rector\Php80\NodeAnalyzer\PhpAttributeAnalyzer;
+use Rector\Rector\AbstractRector;
+use Rector\ValueObject\PhpVersionFeature;
 use Rector\VersionBonding\Contract\MinPhpVersionInterface;
 use Symplify\RuleDocGenerator\ValueObject\CodeSample\ConfiguredCodeSample;
 use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
-use RectorPrefix202307\Webmozart\Assert\Assert;
+use RectorPrefix202401\Webmozart\Assert\Assert;
 /**
  * @see \Rector\Tests\Php82\Rector\Param\AddSensitiveParameterAttributeRector\AddSensitiveParameterAttributeRectorTest
  */
@@ -78,7 +78,7 @@ class SomeClass
     }
 }
 CODE_SAMPLE
-, [self::SENSITIVE_PARAMETERS => ['password']])]);
+, [\Rector\Php82\Rector\Param\AddSensitiveParameterAttributeRector::SENSITIVE_PARAMETERS => ['password']])]);
     }
     public function provideMinPhpVersion() : int
     {

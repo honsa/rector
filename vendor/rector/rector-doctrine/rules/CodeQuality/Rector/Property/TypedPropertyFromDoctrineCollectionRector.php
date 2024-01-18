@@ -8,9 +8,11 @@ use PhpParser\Node\Name\FullyQualified;
 use PhpParser\Node\Stmt\Property;
 use PHPStan\PhpDocParser\Ast\PhpDoc\VarTagValueNode;
 use Rector\BetterPhpDocParser\PhpDocInfo\PhpDocInfo;
-use Rector\Core\Rector\AbstractRector;
-use Rector\Core\ValueObject\PhpVersion;
+use Rector\BetterPhpDocParser\PhpDocInfo\PhpDocInfoFactory;
 use Rector\Doctrine\TypeAnalyzer\DoctrineCollectionTypeAnalyzer;
+use Rector\Rector\AbstractRector;
+use Rector\StaticTypeMapper\StaticTypeMapper;
+use Rector\ValueObject\PhpVersion;
 use Rector\VersionBonding\Contract\MinPhpVersionInterface;
 use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
 use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
@@ -24,9 +26,21 @@ final class TypedPropertyFromDoctrineCollectionRector extends AbstractRector imp
      * @var \Rector\Doctrine\TypeAnalyzer\DoctrineCollectionTypeAnalyzer
      */
     private $doctrineCollectionTypeAnalyzer;
-    public function __construct(DoctrineCollectionTypeAnalyzer $doctrineCollectionTypeAnalyzer)
+    /**
+     * @readonly
+     * @var \Rector\BetterPhpDocParser\PhpDocInfo\PhpDocInfoFactory
+     */
+    private $phpDocInfoFactory;
+    /**
+     * @readonly
+     * @var \Rector\StaticTypeMapper\StaticTypeMapper
+     */
+    private $staticTypeMapper;
+    public function __construct(DoctrineCollectionTypeAnalyzer $doctrineCollectionTypeAnalyzer, PhpDocInfoFactory $phpDocInfoFactory, StaticTypeMapper $staticTypeMapper)
     {
         $this->doctrineCollectionTypeAnalyzer = $doctrineCollectionTypeAnalyzer;
+        $this->phpDocInfoFactory = $phpDocInfoFactory;
+        $this->staticTypeMapper = $staticTypeMapper;
     }
     public function getRuleDefinition() : RuleDefinition
     {

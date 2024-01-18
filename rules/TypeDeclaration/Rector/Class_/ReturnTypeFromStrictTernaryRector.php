@@ -13,10 +13,13 @@ use PHPStan\Analyser\Scope;
 use PHPStan\Type\MixedType;
 use PHPStan\Type\TypeCombinator;
 use PHPStan\Type\UnionType;
-use Rector\Core\Rector\AbstractScopeAwareRector;
-use Rector\Core\ValueObject\PhpVersionFeature;
+use Rector\NodeTypeResolver\Node\AttributeKey;
+use Rector\PhpParser\Node\BetterNodeFinder;
 use Rector\PHPStanStaticTypeMapper\Enum\TypeKind;
+use Rector\Rector\AbstractScopeAwareRector;
+use Rector\StaticTypeMapper\StaticTypeMapper;
 use Rector\TypeDeclaration\TypeInferer\ReturnTypeInferer;
+use Rector\ValueObject\PhpVersionFeature;
 use Rector\VendorLocker\NodeVendorLocker\ClassMethodReturnTypeOverrideGuard;
 use Rector\VersionBonding\Contract\MinPhpVersionInterface;
 use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
@@ -36,10 +39,22 @@ final class ReturnTypeFromStrictTernaryRector extends AbstractScopeAwareRector i
      * @var \Rector\TypeDeclaration\TypeInferer\ReturnTypeInferer
      */
     private $returnTypeInferer;
-    public function __construct(ClassMethodReturnTypeOverrideGuard $classMethodReturnTypeOverrideGuard, ReturnTypeInferer $returnTypeInferer)
+    /**
+     * @readonly
+     * @var \Rector\PhpParser\Node\BetterNodeFinder
+     */
+    private $betterNodeFinder;
+    /**
+     * @readonly
+     * @var \Rector\StaticTypeMapper\StaticTypeMapper
+     */
+    private $staticTypeMapper;
+    public function __construct(ClassMethodReturnTypeOverrideGuard $classMethodReturnTypeOverrideGuard, ReturnTypeInferer $returnTypeInferer, BetterNodeFinder $betterNodeFinder, StaticTypeMapper $staticTypeMapper)
     {
         $this->classMethodReturnTypeOverrideGuard = $classMethodReturnTypeOverrideGuard;
         $this->returnTypeInferer = $returnTypeInferer;
+        $this->betterNodeFinder = $betterNodeFinder;
+        $this->staticTypeMapper = $staticTypeMapper;
     }
     public function getRuleDefinition() : RuleDefinition
     {
@@ -90,7 +105,11 @@ CODE_SAMPLE
             return null;
         }
         $ternary = $return->expr;
-        $nativeTernaryType = $scope->getNativeType($ternary);
+        $returnScope = $return->expr->getAttribute(AttributeKey::SCOPE);
+        if (!$returnScope instanceof Scope) {
+            return null;
+        }
+        $nativeTernaryType = $returnScope->getNativeType($ternary);
         if ($nativeTernaryType instanceof MixedType) {
             return null;
         }

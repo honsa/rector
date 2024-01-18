@@ -10,13 +10,14 @@ use PhpParser\Node\Expr\Assign;
 use PhpParser\Node\Expr\BinaryOp\Coalesce;
 use PhpParser\Node\Expr\BinaryOp\Identical;
 use PhpParser\Node\Stmt;
+use PhpParser\Node\Stmt\Else_;
 use PhpParser\Node\Stmt\Expression;
 use PhpParser\Node\Stmt\Foreach_;
 use PhpParser\Node\Stmt\If_;
 use PhpParser\Node\Stmt\Return_;
-use Rector\Core\Contract\PhpParser\Node\StmtsAwareInterface;
-use Rector\Core\Rector\AbstractRector;
-use Rector\Core\ValueObject\PhpVersionFeature;
+use Rector\Contract\PhpParser\Node\StmtsAwareInterface;
+use Rector\Rector\AbstractRector;
+use Rector\ValueObject\PhpVersionFeature;
 use Rector\VersionBonding\Contract\MinPhpVersionInterface;
 use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
 use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
@@ -32,14 +33,14 @@ final class SimplifyForeachToCoalescingRector extends AbstractRector implements 
         return new RuleDefinition('Changes foreach that returns set value to ??', [new CodeSample(<<<'CODE_SAMPLE'
 foreach ($this->oldToNewFunctions as $oldFunction => $newFunction) {
     if ($currentFunction === $oldFunction) {
-        innerForeachReturn $newFunction;
+        return $newFunction;
     }
 }
 
-innerForeachReturn null;
+return null;
 CODE_SAMPLE
 , <<<'CODE_SAMPLE'
-innerForeachReturn $this->oldToNewFunctions[$currentFunction] ?? null;
+return $this->oldToNewFunctions[$currentFunction] ?? null;
 CODE_SAMPLE
 )]);
     }
@@ -88,6 +89,9 @@ CODE_SAMPLE
                 }
                 $nextStmt = $node->stmts[$key + 1] ?? null;
                 $return = $this->processForeachNodeWithReturnInside($foreach, $foreachReturnOrAssign, $nextStmt);
+                if (!$return instanceof Return_) {
+                    continue;
+                }
                 $node->stmts[$key] = $return;
                 // cleanup next return
                 if ($nextStmt instanceof Return_) {
@@ -123,6 +127,9 @@ CODE_SAMPLE
             return null;
         }
         if (\count($if->stmts) !== 1) {
+            return null;
+        }
+        if ($if->else instanceof Else_ || $if->elseifs !== []) {
             return null;
         }
         $innerStmt = $if->stmts[0];

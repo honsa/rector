@@ -10,10 +10,11 @@ use PhpParser\Node\Stmt\Class_;
 use PhpParser\Node\Stmt\ClassMethod;
 use PHPStan\Analyser\Scope;
 use PHPStan\Reflection\ClassReflection;
-use Rector\Core\Rector\AbstractScopeAwareRector;
-use Rector\Core\Reflection\ReflectionResolver;
-use Rector\Core\ValueObject\MethodName;
 use Rector\DeadCode\NodeAnalyzer\IsClassMethodUsedAnalyzer;
+use Rector\PhpParser\Node\BetterNodeFinder;
+use Rector\Rector\AbstractScopeAwareRector;
+use Rector\Reflection\ReflectionResolver;
+use Rector\ValueObject\MethodName;
 use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
 use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
 /**
@@ -28,13 +29,19 @@ final class RemoveUnusedPrivateMethodRector extends AbstractScopeAwareRector
     private $isClassMethodUsedAnalyzer;
     /**
      * @readonly
-     * @var \Rector\Core\Reflection\ReflectionResolver
+     * @var \Rector\Reflection\ReflectionResolver
      */
     private $reflectionResolver;
-    public function __construct(IsClassMethodUsedAnalyzer $isClassMethodUsedAnalyzer, ReflectionResolver $reflectionResolver)
+    /**
+     * @readonly
+     * @var \Rector\PhpParser\Node\BetterNodeFinder
+     */
+    private $betterNodeFinder;
+    public function __construct(IsClassMethodUsedAnalyzer $isClassMethodUsedAnalyzer, ReflectionResolver $reflectionResolver, BetterNodeFinder $betterNodeFinder)
     {
         $this->isClassMethodUsedAnalyzer = $isClassMethodUsedAnalyzer;
         $this->reflectionResolver = $reflectionResolver;
+        $this->betterNodeFinder = $betterNodeFinder;
     }
     public function getRuleDefinition() : RuleDefinition
     {

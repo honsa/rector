@@ -22,10 +22,10 @@ use PhpParser\Node\Stmt;
 use PhpParser\Node\Stmt\Expression;
 use PhpParser\Node\Stmt\If_;
 use PhpParser\Node\Stmt\Return_;
-use Rector\Core\NodeManipulator\BinaryOpManipulator;
-use Rector\Core\NodeManipulator\IfManipulator;
-use Rector\Core\Rector\AbstractRector;
 use Rector\NodeAnalyzer\CoalesceAnalyzer;
+use Rector\NodeManipulator\BinaryOpManipulator;
+use Rector\PhpParser\Node\BetterNodeFinder;
+use Rector\Rector\AbstractRector;
 use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
 use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
 /**
@@ -37,24 +37,24 @@ final class DowngradeThrowExprRector extends AbstractRector
 {
     /**
      * @readonly
-     * @var \Rector\Core\NodeManipulator\IfManipulator
-     */
-    private $ifManipulator;
-    /**
-     * @readonly
      * @var \Rector\NodeAnalyzer\CoalesceAnalyzer
      */
     private $coalesceAnalyzer;
     /**
      * @readonly
-     * @var \Rector\Core\NodeManipulator\BinaryOpManipulator
+     * @var \Rector\NodeManipulator\BinaryOpManipulator
      */
     private $binaryOpManipulator;
-    public function __construct(IfManipulator $ifManipulator, CoalesceAnalyzer $coalesceAnalyzer, BinaryOpManipulator $binaryOpManipulator)
+    /**
+     * @readonly
+     * @var \Rector\PhpParser\Node\BetterNodeFinder
+     */
+    private $betterNodeFinder;
+    public function __construct(CoalesceAnalyzer $coalesceAnalyzer, BinaryOpManipulator $binaryOpManipulator, BetterNodeFinder $betterNodeFinder)
     {
-        $this->ifManipulator = $ifManipulator;
         $this->coalesceAnalyzer = $coalesceAnalyzer;
         $this->binaryOpManipulator = $binaryOpManipulator;
+        $this->betterNodeFinder = $betterNodeFinder;
     }
     public function getRuleDefinition() : RuleDefinition
     {
@@ -131,7 +131,7 @@ CODE_SAMPLE
             return null;
         }
         $inversedTernaryExpr = $this->binaryOpManipulator->inverseNode($ternary->cond);
-        $if = $this->ifManipulator->createIfStmt($inversedTernaryExpr, new Expression($ternary->else));
+        $if = new If_($inversedTernaryExpr, ['stmts' => [new Expression($ternary->else)]]);
         if (!$assign instanceof Assign) {
             return $if;
         }
@@ -150,7 +150,7 @@ CODE_SAMPLE
             return null;
         }
         $condExpr = $this->createCondExpr($coalesce);
-        $if = $this->ifManipulator->createIfStmt($condExpr, new Expression($coalesce->right));
+        $if = new If_($condExpr, ['stmts' => [new Expression($coalesce->right)]]);
         if (!$assign instanceof Assign) {
             return $if;
         }
@@ -168,8 +168,8 @@ CODE_SAMPLE
      */
     private function refactorReturn(Return_ $return) : ?array
     {
-        $throwExpr = $this->betterNodeFinder->findFirstInstanceOf($return, Throw_::class);
-        if (!$throwExpr instanceof Throw_) {
+        $throw = $this->betterNodeFinder->findFirstInstanceOf($return, Throw_::class);
+        if (!$throw instanceof Throw_) {
             return null;
         }
         if ($return->expr instanceof Coalesce) {

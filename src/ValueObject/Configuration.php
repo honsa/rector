@@ -1,9 +1,11 @@
 <?php
 
 declare (strict_types=1);
-namespace Rector\Core\ValueObject;
+namespace Rector\ValueObject;
 
+use PHPStan\Collectors\CollectedData;
 use Rector\ChangesReporting\Output\ConsoleOutputFormatter;
+use RectorPrefix202401\Webmozart\Assert\Assert;
 final class Configuration
 {
     /**
@@ -62,10 +64,23 @@ final class Configuration
      */
     private $memoryLimit = null;
     /**
+     * @readonly
+     * @var bool
+     */
+    private $isDebug = \false;
+    /**
+     * @var bool
+     */
+    private $isSecondRun = \false;
+    /**
+     * @var CollectedData[]
+     */
+    private $collectedData = [];
+    /**
      * @param string[] $fileExtensions
      * @param string[] $paths
      */
-    public function __construct(bool $isDryRun = \false, bool $showProgressBar = \true, bool $shouldClearCache = \false, string $outputFormat = ConsoleOutputFormatter::NAME, array $fileExtensions = ['php'], array $paths = [], bool $showDiffs = \true, ?string $parallelPort = null, ?string $parallelIdentifier = null, bool $isParallel = \false, ?string $memoryLimit = null)
+    public function __construct(bool $isDryRun = \false, bool $showProgressBar = \true, bool $shouldClearCache = \false, string $outputFormat = ConsoleOutputFormatter::NAME, array $fileExtensions = ['php'], array $paths = [], bool $showDiffs = \true, ?string $parallelPort = null, ?string $parallelIdentifier = null, bool $isParallel = \false, ?string $memoryLimit = null, bool $isDebug = \false)
     {
         $this->isDryRun = $isDryRun;
         $this->showProgressBar = $showProgressBar;
@@ -78,6 +93,7 @@ final class Configuration
         $this->parallelIdentifier = $parallelIdentifier;
         $this->isParallel = $isParallel;
         $this->memoryLimit = $memoryLimit;
+        $this->isDebug = $isDebug;
     }
     public function isDryRun() : bool
     {
@@ -96,6 +112,7 @@ final class Configuration
      */
     public function getFileExtensions() : array
     {
+        Assert::notEmpty($this->fileExtensions);
         return $this->fileExtensions;
     }
     /**
@@ -128,5 +145,44 @@ final class Configuration
     public function getMemoryLimit() : ?string
     {
         return $this->memoryLimit;
+    }
+    public function isDebug() : bool
+    {
+        return $this->isDebug;
+    }
+    /**
+     * @param CollectedData[] $collectedData
+     */
+    public function setCollectedData(array $collectedData) : void
+    {
+        $this->collectedData = $collectedData;
+    }
+    /**
+     * @return CollectedData[]
+     */
+    public function getCollectedData() : array
+    {
+        return $this->collectedData;
+    }
+    /**
+     * @api
+     */
+    public function enableSecondRun() : void
+    {
+        $this->isSecondRun = \true;
+    }
+    /**
+     * @api
+     */
+    public function isSecondRun() : bool
+    {
+        return $this->isSecondRun;
+    }
+    /**
+     * @api used in tests
+     */
+    public function reset() : void
+    {
+        $this->isSecondRun = \false;
     }
 }

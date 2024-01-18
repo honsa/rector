@@ -12,7 +12,8 @@ use PhpParser\Node\Expr\MethodCall;
 use PhpParser\Node\Name\FullyQualified;
 use PhpParser\Node\Scalar\String_;
 use PHPStan\Type\ObjectType;
-use Rector\Core\Rector\AbstractRector;
+use Rector\PhpParser\Node\Value\ValueResolver;
+use Rector\Rector\AbstractRector;
 use Rector\Symfony\NodeAnalyzer\SymfonyPhpClosureDetector;
 use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
 use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
@@ -27,6 +28,11 @@ final class ServicesSetNameToSetTypeRector extends AbstractRector
      */
     private $symfonyPhpClosureDetector;
     /**
+     * @readonly
+     * @var \Rector\PhpParser\Node\Value\ValueResolver
+     */
+    private $valueResolver;
+    /**
      * @var array<string, string>
      */
     private $alreadyChangedServiceNamesToTypes = [];
@@ -38,9 +44,10 @@ final class ServicesSetNameToSetTypeRector extends AbstractRector
      * @var array<string, string[]>
      */
     private $servicesNamesByType = [];
-    public function __construct(SymfonyPhpClosureDetector $symfonyPhpClosureDetector)
+    public function __construct(SymfonyPhpClosureDetector $symfonyPhpClosureDetector, ValueResolver $valueResolver)
     {
         $this->symfonyPhpClosureDetector = $symfonyPhpClosureDetector;
+        $this->valueResolver = $valueResolver;
     }
     public function getRuleDefinition() : RuleDefinition
     {
@@ -100,7 +107,7 @@ CODE_SAMPLE
      */
     private function handleSetServices(Closure $closure, array $serviceNamesToSkip) : void
     {
-        $this->traverseNodesWithCallable($closure->stmts, function (Node $node) use($serviceNamesToSkip) {
+        $this->traverseNodesWithCallable($closure->stmts, function (Node $node) use($serviceNamesToSkip) : ?MethodCall {
             if (!$node instanceof MethodCall) {
                 return null;
             }

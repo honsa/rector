@@ -1,13 +1,13 @@
 <?php
 
-namespace RectorPrefix202307\Illuminate\Container;
+namespace RectorPrefix202401\Illuminate\Container;
 
 use ArrayAccess;
 use Closure;
 use Exception;
-use RectorPrefix202307\Illuminate\Contracts\Container\BindingResolutionException;
-use RectorPrefix202307\Illuminate\Contracts\Container\CircularDependencyException;
-use RectorPrefix202307\Illuminate\Contracts\Container\Container as ContainerContract;
+use RectorPrefix202401\Illuminate\Contracts\Container\BindingResolutionException;
+use RectorPrefix202401\Illuminate\Contracts\Container\CircularDependencyException;
+use RectorPrefix202401\Illuminate\Contracts\Container\Container as ContainerContract;
 use LogicException;
 use ReflectionClass;
 use ReflectionException;
@@ -694,7 +694,7 @@ class Container implements ArrayAccess, ContainerContract
         // If the requested type is registered as a singleton we'll want to cache off
         // the instances in "memory" so we can return it later without creating an
         // entirely new instance of an object on each subsequent request for it.
-        if ($this->isShared($abstract) && !$needsContextualBuild) {
+        if (!$needsContextualBuild) {
             $this->instances[$abstract] = $object;
         }
         if ($raiseEvents) {

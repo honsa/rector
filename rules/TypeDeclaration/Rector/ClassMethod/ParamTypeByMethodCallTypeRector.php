@@ -8,20 +8,18 @@ use PhpParser\Node\ComplexType;
 use PhpParser\Node\Expr\FuncCall;
 use PhpParser\Node\Expr\MethodCall;
 use PhpParser\Node\Expr\StaticCall;
-use PhpParser\Node\Expr\Ternary;
-use PhpParser\Node\Expr\Variable;
 use PhpParser\Node\Identifier;
 use PhpParser\Node\Name;
 use PhpParser\Node\NullableType;
 use PhpParser\Node\Param;
 use PhpParser\Node\Stmt\Class_;
 use PhpParser\Node\Stmt\ClassMethod;
-use PhpParser\Node\Stmt\If_;
 use PhpParser\Node\UnionType;
-use PhpParser\NodeTraverser;
 use PHPStan\Analyser\Scope;
-use Rector\Core\Rector\AbstractScopeAwareRector;
 use Rector\NodeTypeResolver\Node\AttributeKey;
+use Rector\PhpParser\Node\BetterNodeFinder;
+use Rector\Rector\AbstractScopeAwareRector;
+use Rector\TypeDeclaration\Guard\ParamTypeAddGuard;
 use Rector\TypeDeclaration\NodeAnalyzer\CallerParamMatcher;
 use Rector\VendorLocker\ParentClassMethodTypeOverrideGuard;
 use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
@@ -41,10 +39,22 @@ final class ParamTypeByMethodCallTypeRector extends AbstractScopeAwareRector
      * @var \Rector\VendorLocker\ParentClassMethodTypeOverrideGuard
      */
     private $parentClassMethodTypeOverrideGuard;
-    public function __construct(CallerParamMatcher $callerParamMatcher, ParentClassMethodTypeOverrideGuard $parentClassMethodTypeOverrideGuard)
+    /**
+     * @readonly
+     * @var \Rector\TypeDeclaration\Guard\ParamTypeAddGuard
+     */
+    private $paramTypeAddGuard;
+    /**
+     * @readonly
+     * @var \Rector\PhpParser\Node\BetterNodeFinder
+     */
+    private $betterNodeFinder;
+    public function __construct(CallerParamMatcher $callerParamMatcher, ParentClassMethodTypeOverrideGuard $parentClassMethodTypeOverrideGuard, ParamTypeAddGuard $paramTypeAddGuard, BetterNodeFinder $betterNodeFinder)
     {
         $this->callerParamMatcher = $callerParamMatcher;
         $this->parentClassMethodTypeOverrideGuard = $parentClassMethodTypeOverrideGuard;
+        $this->paramTypeAddGuard = $paramTypeAddGuard;
+        $this->betterNodeFinder = $betterNodeFinder;
     }
     public function getRuleDefinition() : RuleDefinition
     {
@@ -111,18 +121,9 @@ CODE_SAMPLE
             }
             /** @var array<StaticCall|MethodCall|FuncCall> $callers */
             $callers = $this->betterNodeFinder->findInstancesOf($classMethod, [StaticCall::class, MethodCall::class, FuncCall::class]);
-            foreach ($classMethod->params as $param) {
-                if ($this->shouldSkipParam($param, $classMethod)) {
-                    continue;
-                }
-                foreach ($callers as $caller) {
-                    $paramType = $this->callerParamMatcher->matchCallParamType($caller, $param, $scope);
-                    if ($paramType === null) {
-                        continue;
-                    }
-                    $this->mirrorParamType($param, $paramType);
-                    $hasChanged = \true;
-                }
+            $hasClassMethodChanged = $this->refactorClassMethod($classMethod, $callers, $scope);
+            if ($hasClassMethodChanged) {
+                $hasChanged = \true;
             }
         }
         if ($hasChanged) {
@@ -151,42 +152,36 @@ CODE_SAMPLE
         });
         $decoratedParam->type = $newParamType;
     }
-    /**
-     * Should skip param because one of them is conditional types?
-     */
-    private function isParamConditioned(Param $param, ClassMethod $classMethod) : bool
-    {
-        $paramName = $this->nodeNameResolver->getName($param->var);
-        if ($paramName === null) {
-            return \false;
-        }
-        $isParamConditioned = \false;
-        $this->traverseNodesWithCallable((array) $classMethod->stmts, function (Node $subNode) use(&$isParamConditioned, $paramName) : ?int {
-            if ($subNode instanceof If_ && (bool) $this->betterNodeFinder->findFirst($subNode->cond, function (Node $node) use($paramName) : bool {
-                return $node instanceof Variable && $this->isName($node, $paramName);
-            })) {
-                $isParamConditioned = \true;
-                return NodeTraverser::STOP_TRAVERSAL;
-            }
-            if ($subNode instanceof Ternary && (bool) $this->betterNodeFinder->findFirst($subNode, function (Node $node) use($paramName) : bool {
-                return $node instanceof Variable && $this->isName($node, $paramName);
-            })) {
-                $isParamConditioned = \true;
-                return NodeTraverser::STOP_TRAVERSAL;
-            }
-            return null;
-        });
-        return $isParamConditioned;
-    }
     private function shouldSkipParam(Param $param, ClassMethod $classMethod) : bool
     {
-        if ($this->isParamConditioned($param, $classMethod)) {
+        // already has type, skip
+        if ($param->type !== null) {
             return \true;
         }
         if ($param->variadic) {
             return \true;
         }
-        // already has type, skip
-        return $param->type !== null;
+        return !$this->paramTypeAddGuard->isLegal($param, $classMethod);
+    }
+    /**
+     * @param array<StaticCall|MethodCall|FuncCall> $callers
+     */
+    private function refactorClassMethod(ClassMethod $classMethod, array $callers, Scope $scope) : bool
+    {
+        $hasChanged = \false;
+        foreach ($classMethod->params as $param) {
+            if ($this->shouldSkipParam($param, $classMethod)) {
+                continue;
+            }
+            foreach ($callers as $caller) {
+                $paramType = $this->callerParamMatcher->matchCallParamType($caller, $param, $scope);
+                if ($paramType === null) {
+                    continue;
+                }
+                $this->mirrorParamType($param, $paramType);
+                $hasChanged = \true;
+            }
+        }
+        return $hasChanged;
     }
 }

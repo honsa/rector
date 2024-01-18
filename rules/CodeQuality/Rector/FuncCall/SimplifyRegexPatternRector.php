@@ -3,11 +3,11 @@
 declare (strict_types=1);
 namespace Rector\CodeQuality\Rector\FuncCall;
 
-use RectorPrefix202307\Nette\Utils\Strings;
+use RectorPrefix202401\Nette\Utils\Strings;
 use PhpParser\Node;
 use PhpParser\Node\Scalar\String_;
-use Rector\Core\Rector\AbstractRector;
 use Rector\NodeNameResolver\Regex\RegexPatternDetector;
+use Rector\Rector\AbstractRector;
 use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
 use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
 /**

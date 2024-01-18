@@ -7,19 +7,21 @@ use PhpParser\Comment;
 use PhpParser\Node;
 use PhpParser\Node\ComplexType;
 use PhpParser\Node\Expr;
-use PhpParser\Node\Expr\ConstFetch;
 use PhpParser\Node\Expr\Variable;
 use PhpParser\Node\Identifier;
 use PhpParser\Node\Name;
 use PhpParser\Node\Param;
 use PhpParser\Node\Stmt\ClassMethod;
+use PHPStan\Reflection\ClassReflection;
 use PHPStan\Reflection\MethodReflection;
-use Rector\Core\PhpParser\AstResolver;
-use Rector\Core\PhpParser\Printer\BetterStandardPrinter;
-use Rector\Core\Rector\AbstractRector;
-use Rector\Core\ValueObject\MethodName;
-use Rector\Core\ValueObject\PhpVersionFeature;
 use Rector\NodeTypeResolver\Node\AttributeKey;
+use Rector\PhpParser\AstResolver;
+use Rector\PhpParser\Node\BetterNodeFinder;
+use Rector\PhpParser\Printer\BetterStandardPrinter;
+use Rector\Rector\AbstractRector;
+use Rector\Reflection\ReflectionResolver;
+use Rector\ValueObject\MethodName;
+use Rector\ValueObject\PhpVersionFeature;
 use Rector\VendorLocker\ParentClassMethodTypeOverrideGuard;
 use Rector\VersionBonding\Contract\MinPhpVersionInterface;
 use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
@@ -37,19 +39,31 @@ final class AddParamBasedOnParentClassMethodRector extends AbstractRector implem
     private $parentClassMethodTypeOverrideGuard;
     /**
      * @readonly
-     * @var \Rector\Core\PhpParser\AstResolver
+     * @var \Rector\PhpParser\AstResolver
      */
     private $astResolver;
     /**
      * @readonly
-     * @var \Rector\Core\PhpParser\Printer\BetterStandardPrinter
+     * @var \Rector\PhpParser\Printer\BetterStandardPrinter
      */
     private $betterStandardPrinter;
-    public function __construct(ParentClassMethodTypeOverrideGuard $parentClassMethodTypeOverrideGuard, AstResolver $astResolver, BetterStandardPrinter $betterStandardPrinter)
+    /**
+     * @readonly
+     * @var \Rector\PhpParser\Node\BetterNodeFinder
+     */
+    private $betterNodeFinder;
+    /**
+     * @readonly
+     * @var \Rector\Reflection\ReflectionResolver
+     */
+    private $reflectionResolver;
+    public function __construct(ParentClassMethodTypeOverrideGuard $parentClassMethodTypeOverrideGuard, AstResolver $astResolver, BetterStandardPrinter $betterStandardPrinter, BetterNodeFinder $betterNodeFinder, ReflectionResolver $reflectionResolver)
     {
         $this->parentClassMethodTypeOverrideGuard = $parentClassMethodTypeOverrideGuard;
         $this->astResolver = $astResolver;
         $this->betterStandardPrinter = $betterStandardPrinter;
+        $this->betterNodeFinder = $betterNodeFinder;
+        $this->reflectionResolver = $reflectionResolver;
     }
     public function provideMinPhpVersion() : int
     {
@@ -106,11 +120,18 @@ CODE_SAMPLE
         if (!$parentMethodReflection instanceof MethodReflection) {
             return null;
         }
-        $parentClassMethod = $this->astResolver->resolveClassMethodFromMethodReflection($parentMethodReflection);
-        if (!$parentClassMethod instanceof ClassMethod) {
+        if ($parentMethodReflection->isPrivate()) {
             return null;
         }
-        if ($parentClassMethod->isPrivate()) {
+        $currentClassReflection = $this->reflectionResolver->resolveClassReflection($node);
+        $isPDO = $currentClassReflection instanceof ClassReflection && $currentClassReflection->isSubclassOf('PDO');
+        // It relies on phpstorm stubs that define 2 kind of query method for both php 7.4 and php 8.0
+        // @see https://github.com/JetBrains/phpstorm-stubs/blob/e2e898a29929d2f520fe95bdb2109d8fa895ba4a/PDO/PDO.php#L1096-L1126
+        if ($isPDO && $parentMethodReflection->getName() === 'query') {
+            return null;
+        }
+        $parentClassMethod = $this->astResolver->resolveClassMethodFromMethodReflection($parentMethodReflection);
+        if (!$parentClassMethod instanceof ClassMethod) {
             return null;
         }
         $currentClassMethodParams = $node->getParams();
@@ -179,8 +200,7 @@ CODE_SAMPLE
             }
             $paramDefault = $parentClassMethodParam->default;
             if ($paramDefault instanceof Expr) {
-                $printParamDefault = $this->betterStandardPrinter->print($paramDefault);
-                $paramDefault = new ConstFetch(new Name($printParamDefault));
+                $paramDefault = $this->nodeFactory->createReprintedExpr($paramDefault);
             }
             $paramName = $this->nodeNameResolver->getName($parentClassMethodParam);
             $paramType = $this->resolveParamType($parentClassMethodParam);

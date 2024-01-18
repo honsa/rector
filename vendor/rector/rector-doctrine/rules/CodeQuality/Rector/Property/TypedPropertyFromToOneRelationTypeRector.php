@@ -11,14 +11,16 @@ use PhpParser\Node\Stmt\Property;
 use PHPStan\Type\MixedType;
 use PHPStan\Type\Type;
 use PHPStan\Type\UnionType;
+use Rector\BetterPhpDocParser\PhpDocInfo\PhpDocInfoFactory;
 use Rector\BetterPhpDocParser\PhpDocManipulator\PhpDocTypeChanger;
-use Rector\Core\Php\PhpVersionProvider;
-use Rector\Core\Rector\AbstractRector;
-use Rector\Core\ValueObject\PhpVersion;
-use Rector\Core\ValueObject\PhpVersionFeature;
 use Rector\Doctrine\NodeManipulator\ToOneRelationPropertyTypeResolver;
+use Rector\Php\PhpVersionProvider;
 use Rector\PHPStanStaticTypeMapper\Enum\TypeKind;
+use Rector\Rector\AbstractRector;
+use Rector\StaticTypeMapper\StaticTypeMapper;
 use Rector\TypeDeclaration\NodeTypeAnalyzer\PropertyTypeDecorator;
+use Rector\ValueObject\PhpVersion;
+use Rector\ValueObject\PhpVersionFeature;
 use Rector\VersionBonding\Contract\MinPhpVersionInterface;
 use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
 use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
@@ -44,15 +46,27 @@ final class TypedPropertyFromToOneRelationTypeRector extends AbstractRector impl
     private $toOneRelationPropertyTypeResolver;
     /**
      * @readonly
-     * @var \Rector\Core\Php\PhpVersionProvider
+     * @var \Rector\Php\PhpVersionProvider
      */
     private $phpVersionProvider;
-    public function __construct(PropertyTypeDecorator $propertyTypeDecorator, PhpDocTypeChanger $phpDocTypeChanger, ToOneRelationPropertyTypeResolver $toOneRelationPropertyTypeResolver, PhpVersionProvider $phpVersionProvider)
+    /**
+     * @readonly
+     * @var \Rector\BetterPhpDocParser\PhpDocInfo\PhpDocInfoFactory
+     */
+    private $phpDocInfoFactory;
+    /**
+     * @readonly
+     * @var \Rector\StaticTypeMapper\StaticTypeMapper
+     */
+    private $staticTypeMapper;
+    public function __construct(PropertyTypeDecorator $propertyTypeDecorator, PhpDocTypeChanger $phpDocTypeChanger, ToOneRelationPropertyTypeResolver $toOneRelationPropertyTypeResolver, PhpVersionProvider $phpVersionProvider, PhpDocInfoFactory $phpDocInfoFactory, StaticTypeMapper $staticTypeMapper)
     {
         $this->propertyTypeDecorator = $propertyTypeDecorator;
         $this->phpDocTypeChanger = $phpDocTypeChanger;
         $this->toOneRelationPropertyTypeResolver = $toOneRelationPropertyTypeResolver;
         $this->phpVersionProvider = $phpVersionProvider;
+        $this->phpDocInfoFactory = $phpDocInfoFactory;
+        $this->staticTypeMapper = $staticTypeMapper;
     }
     public function getRuleDefinition() : RuleDefinition
     {
@@ -103,7 +117,7 @@ CODE_SAMPLE
             return null;
         }
         $typeNode = $this->staticTypeMapper->mapPHPStanTypeToPhpParserNode($propertyType, TypeKind::PROPERTY);
-        if ($typeNode === null) {
+        if (!$typeNode instanceof Node) {
             return null;
         }
         $this->completePropertyTypeOrVarDoc($propertyType, $typeNode, $node);

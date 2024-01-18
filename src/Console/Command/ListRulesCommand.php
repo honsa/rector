@@ -1,28 +1,26 @@
 <?php
 
 declare (strict_types=1);
-namespace Rector\Core\Console\Command;
+namespace Rector\Console\Command;
 
-use RectorPrefix202307\Nette\Utils\Json;
+use RectorPrefix202401\Nette\Utils\Json;
 use Rector\ChangesReporting\Output\ConsoleOutputFormatter;
-use Rector\Core\Configuration\Option;
-use Rector\Core\Console\Output\RectorOutputStyle;
-use Rector\Core\Contract\Rector\RectorInterface;
-use Rector\PostRector\Contract\Rector\ComplementaryRectorInterface;
+use Rector\Configuration\Option;
+use Rector\Contract\Rector\RectorInterface;
 use Rector\PostRector\Contract\Rector\PostRectorInterface;
 use Rector\Skipper\SkipCriteriaResolver\SkippedClassResolver;
-use RectorPrefix202307\Symfony\Component\Console\Command\Command;
-use RectorPrefix202307\Symfony\Component\Console\Input\InputInterface;
-use RectorPrefix202307\Symfony\Component\Console\Input\InputOption;
-use RectorPrefix202307\Symfony\Component\Console\Output\OutputInterface;
-use RectorPrefix202307\Symfony\Component\DependencyInjection\Argument\RewindableGenerator;
+use RectorPrefix202401\Symfony\Component\Console\Command\Command;
+use RectorPrefix202401\Symfony\Component\Console\Input\InputInterface;
+use RectorPrefix202401\Symfony\Component\Console\Input\InputOption;
+use RectorPrefix202401\Symfony\Component\Console\Output\OutputInterface;
+use RectorPrefix202401\Symfony\Component\Console\Style\SymfonyStyle;
 final class ListRulesCommand extends Command
 {
     /**
      * @readonly
-     * @var \Rector\Core\Console\Output\RectorOutputStyle
+     * @var \Symfony\Component\Console\Style\SymfonyStyle
      */
-    private $rectorOutputStyle;
+    private $symfonyStyle;
     /**
      * @readonly
      * @var \Rector\Skipper\SkipCriteriaResolver\SkippedClassResolver
@@ -30,17 +28,18 @@ final class ListRulesCommand extends Command
     private $skippedClassResolver;
     /**
      * @var RectorInterface[]
+     * @readonly
      */
-    private $rectors = [];
+    private $rectors;
     /**
-     * @param RewindableGenerator<RectorInterface> $rectors
+     * @param RectorInterface[] $rectors
      */
-    public function __construct(RectorOutputStyle $rectorOutputStyle, SkippedClassResolver $skippedClassResolver, RewindableGenerator $rectors)
+    public function __construct(SymfonyStyle $symfonyStyle, SkippedClassResolver $skippedClassResolver, array $rectors)
     {
-        $this->rectorOutputStyle = $rectorOutputStyle;
+        $this->symfonyStyle = $symfonyStyle;
         $this->skippedClassResolver = $skippedClassResolver;
+        $this->rectors = $rectors;
         parent::__construct();
-        $this->rectors = \iterator_to_array($rectors);
     }
     protected function configure() : void
     {
@@ -58,12 +57,14 @@ final class ListRulesCommand extends Command
             echo Json::encode($data, Json::PRETTY) . \PHP_EOL;
             return Command::SUCCESS;
         }
-        $this->rectorOutputStyle->title('Loaded Rector rules');
-        $this->rectorOutputStyle->listing($rectorClasses);
+        $this->symfonyStyle->title('Loaded Rector rules');
+        $this->symfonyStyle->listing($rectorClasses);
         if ($skippedClasses !== []) {
-            $this->rectorOutputStyle->title('Skipped Rector rules');
-            $this->rectorOutputStyle->listing($skippedClasses);
+            $this->symfonyStyle->title('Skipped Rector rules');
+            $this->symfonyStyle->listing($skippedClasses);
         }
+        $this->symfonyStyle->newLine();
+        $this->symfonyStyle->note(\sprintf('Loaded %d rules', \count($rectorClasses)));
         return Command::SUCCESS;
     }
     /**
@@ -72,16 +73,13 @@ final class ListRulesCommand extends Command
     private function resolveRectorClasses() : array
     {
         $customRectors = \array_filter($this->rectors, static function (RectorInterface $rector) : bool {
-            if ($rector instanceof PostRectorInterface) {
-                return \false;
-            }
-            return !$rector instanceof ComplementaryRectorInterface;
+            return !$rector instanceof PostRectorInterface;
         });
         $rectorClasses = \array_map(static function (RectorInterface $rector) : string {
             return \get_class($rector);
         }, $customRectors);
         \sort($rectorClasses);
-        return $rectorClasses;
+        return \array_unique($rectorClasses);
     }
     /**
      * @return string[]

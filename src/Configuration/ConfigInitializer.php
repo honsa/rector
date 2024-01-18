@@ -1,22 +1,25 @@
 <?php
 
 declare (strict_types=1);
-namespace Rector\Core\Configuration;
+namespace Rector\Configuration;
 
-use RectorPrefix202307\Nette\Utils\FileSystem;
-use RectorPrefix202307\Nette\Utils\Strings;
-use Rector\Core\Contract\Rector\RectorInterface;
-use Rector\Core\FileSystem\InitFilePathsResolver;
-use Rector\Core\Php\PhpVersionProvider;
-use Rector\PostRector\Contract\Rector\ComplementaryRectorInterface;
+use RectorPrefix202401\Nette\Utils\FileSystem;
+use RectorPrefix202401\Nette\Utils\Strings;
+use Rector\Contract\Rector\RectorInterface;
+use Rector\FileSystem\InitFilePathsResolver;
+use Rector\Php\PhpVersionProvider;
 use Rector\PostRector\Contract\Rector\PostRectorInterface;
-use RectorPrefix202307\Symfony\Component\Console\Style\SymfonyStyle;
-use RectorPrefix202307\Symfony\Component\DependencyInjection\Argument\RewindableGenerator;
+use RectorPrefix202401\Symfony\Component\Console\Style\SymfonyStyle;
 final class ConfigInitializer
 {
     /**
+     * @var RectorInterface[]
      * @readonly
-     * @var \Rector\Core\FileSystem\InitFilePathsResolver
+     */
+    private $rectors;
+    /**
+     * @readonly
+     * @var \Rector\FileSystem\InitFilePathsResolver
      */
     private $initFilePathsResolver;
     /**
@@ -26,22 +29,18 @@ final class ConfigInitializer
     private $symfonyStyle;
     /**
      * @readonly
-     * @var \Rector\Core\Php\PhpVersionProvider
+     * @var \Rector\Php\PhpVersionProvider
      */
     private $phpVersionProvider;
     /**
-     * @var RectorInterface[]
+     * @param RectorInterface[] $rectors
      */
-    private $rectors = [];
-    /**
-     * @param RewindableGenerator<RectorInterface> $rectors
-     */
-    public function __construct(RewindableGenerator $rectors, InitFilePathsResolver $initFilePathsResolver, SymfonyStyle $symfonyStyle, PhpVersionProvider $phpVersionProvider)
+    public function __construct(array $rectors, InitFilePathsResolver $initFilePathsResolver, SymfonyStyle $symfonyStyle, PhpVersionProvider $phpVersionProvider)
     {
+        $this->rectors = $rectors;
         $this->initFilePathsResolver = $initFilePathsResolver;
         $this->symfonyStyle = $symfonyStyle;
         $this->phpVersionProvider = $phpVersionProvider;
-        $this->rectors = \iterator_to_array($rectors);
     }
     public function createConfig(string $projectDirectory) : void
     {
@@ -73,10 +72,7 @@ final class ConfigInitializer
     private function filterActiveRectors(array $rectors) : array
     {
         return \array_filter($rectors, static function (RectorInterface $rector) : bool {
-            if ($rector instanceof PostRectorInterface) {
-                return \false;
-            }
-            return !$rector instanceof ComplementaryRectorInterface;
+            return !$rector instanceof PostRectorInterface;
         });
     }
     private function replacePhpLevelContents(string $rectorPhpTemplateContents) : string

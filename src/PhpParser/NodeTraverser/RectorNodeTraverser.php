@@ -1,15 +1,18 @@
 <?php
 
 declare (strict_types=1);
-namespace Rector\Core\PhpParser\NodeTraverser;
+namespace Rector\PhpParser\NodeTraverser;
 
 use PhpParser\Node;
 use PhpParser\NodeTraverser;
-use Rector\Core\Contract\Rector\PhpRectorInterface;
+use Rector\Contract\Rector\RectorInterface;
 use Rector\VersionBonding\PhpVersionedFilter;
-use RectorPrefix202307\Symfony\Component\DependencyInjection\Argument\RewindableGenerator;
 final class RectorNodeTraverser extends NodeTraverser
 {
+    /**
+     * @var RectorInterface[]
+     */
+    private $rectors;
     /**
      * @readonly
      * @var \Rector\VersionBonding\PhpVersionedFilter
@@ -20,27 +23,32 @@ final class RectorNodeTraverser extends NodeTraverser
      */
     private $areNodeVisitorsPrepared = \false;
     /**
-     * @var PhpRectorInterface[]
+     * @param RectorInterface[] $rectors
      */
-    private $phpRectors = [];
-    /**
-     * @param RewindableGenerator<PhpRectorInterface> $phpRectors
-     */
-    public function __construct(RewindableGenerator $phpRectors, PhpVersionedFilter $phpVersionedFilter)
+    public function __construct(array $rectors, PhpVersionedFilter $phpVersionedFilter)
     {
+        $this->rectors = $rectors;
         $this->phpVersionedFilter = $phpVersionedFilter;
-        $this->phpRectors = \iterator_to_array($phpRectors);
         parent::__construct();
     }
     /**
-     * @template TNode as Node
-     * @param TNode[] $nodes
-     * @return TNode[]
+     * @param Node[] $nodes
+     * @return Node[]
      */
     public function traverse(array $nodes) : array
     {
         $this->prepareNodeVisitors();
         return parent::traverse($nodes);
+    }
+    /**
+     * @param RectorInterface[] $rectors
+     * @api used in tests to update the active rules
+     */
+    public function refreshPhpRectors(array $rectors) : void
+    {
+        $this->rectors = $rectors;
+        $this->visitors = [];
+        $this->areNodeVisitorsPrepared = \false;
     }
     /**
      * This must happen after $this->configuration is set after ProcessCommand::execute() is run,
@@ -54,8 +62,7 @@ final class RectorNodeTraverser extends NodeTraverser
             return;
         }
         // filer out by version
-        $activePhpRectors = $this->phpVersionedFilter->filter($this->phpRectors);
-        $this->visitors = $this->visitors === [] ? $activePhpRectors : \array_merge($this->visitors, $activePhpRectors);
+        $this->visitors = $this->phpVersionedFilter->filter($this->rectors);
         $this->areNodeVisitorsPrepared = \true;
     }
 }

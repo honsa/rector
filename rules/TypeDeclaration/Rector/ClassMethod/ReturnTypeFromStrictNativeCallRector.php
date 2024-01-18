@@ -9,11 +9,12 @@ use PhpParser\Node\Stmt\ClassMethod;
 use PhpParser\Node\Stmt\Function_;
 use PHPStan\Analyser\Scope;
 use PHPStan\Type\MixedType;
-use Rector\Core\Rector\AbstractScopeAwareRector;
-use Rector\Core\ValueObject\PhpVersion;
 use Rector\NodeTypeResolver\PHPStan\Type\TypeFactory;
 use Rector\PHPStanStaticTypeMapper\Enum\TypeKind;
+use Rector\Rector\AbstractScopeAwareRector;
+use Rector\StaticTypeMapper\StaticTypeMapper;
 use Rector\TypeDeclaration\NodeAnalyzer\ReturnTypeAnalyzer\StrictNativeFunctionReturnTypeAnalyzer;
+use Rector\ValueObject\PhpVersion;
 use Rector\VendorLocker\NodeVendorLocker\ClassMethodReturnTypeOverrideGuard;
 use Rector\VersionBonding\Contract\MinPhpVersionInterface;
 use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
@@ -38,11 +39,17 @@ final class ReturnTypeFromStrictNativeCallRector extends AbstractScopeAwareRecto
      * @var \Rector\VendorLocker\NodeVendorLocker\ClassMethodReturnTypeOverrideGuard
      */
     private $classMethodReturnTypeOverrideGuard;
-    public function __construct(StrictNativeFunctionReturnTypeAnalyzer $strictNativeFunctionReturnTypeAnalyzer, TypeFactory $typeFactory, ClassMethodReturnTypeOverrideGuard $classMethodReturnTypeOverrideGuard)
+    /**
+     * @readonly
+     * @var \Rector\StaticTypeMapper\StaticTypeMapper
+     */
+    private $staticTypeMapper;
+    public function __construct(StrictNativeFunctionReturnTypeAnalyzer $strictNativeFunctionReturnTypeAnalyzer, TypeFactory $typeFactory, ClassMethodReturnTypeOverrideGuard $classMethodReturnTypeOverrideGuard, StaticTypeMapper $staticTypeMapper)
     {
         $this->strictNativeFunctionReturnTypeAnalyzer = $strictNativeFunctionReturnTypeAnalyzer;
         $this->typeFactory = $typeFactory;
         $this->classMethodReturnTypeOverrideGuard = $classMethodReturnTypeOverrideGuard;
+        $this->staticTypeMapper = $staticTypeMapper;
     }
     public function getRuleDefinition() : RuleDefinition
     {
@@ -92,7 +99,7 @@ CODE_SAMPLE
         foreach ($nativeCallLikes as $nativeCallLike) {
             $callLikeTypes[] = $this->getType($nativeCallLike);
         }
-        $returnType = $this->typeFactory->createMixedPassedOrUnionType($callLikeTypes);
+        $returnType = $this->typeFactory->createMixedPassedOrUnionTypeAndKeepConstant($callLikeTypes);
         if ($returnType instanceof MixedType) {
             return null;
         }

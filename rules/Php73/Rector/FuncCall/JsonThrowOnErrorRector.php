@@ -10,9 +10,11 @@ use PhpParser\Node\Expr\FuncCall;
 use PhpParser\Node\Identifier;
 use PhpParser\Node\Name;
 use PhpParser\Node\Scalar\LNumber;
-use Rector\Core\Contract\PhpParser\Node\StmtsAwareInterface;
-use Rector\Core\Rector\AbstractRector;
-use Rector\Core\ValueObject\PhpVersionFeature;
+use Rector\Contract\PhpParser\Node\StmtsAwareInterface;
+use Rector\PhpParser\Node\BetterNodeFinder;
+use Rector\PhpParser\Node\Value\ValueResolver;
+use Rector\Rector\AbstractRector;
+use Rector\ValueObject\PhpVersionFeature;
 use Rector\VersionBonding\Contract\MinPhpVersionInterface;
 use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
 use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
@@ -24,9 +26,24 @@ use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
 final class JsonThrowOnErrorRector extends AbstractRector implements MinPhpVersionInterface
 {
     /**
+     * @readonly
+     * @var \Rector\PhpParser\Node\Value\ValueResolver
+     */
+    private $valueResolver;
+    /**
+     * @readonly
+     * @var \Rector\PhpParser\Node\BetterNodeFinder
+     */
+    private $betterNodeFinder;
+    /**
      * @var bool
      */
     private $hasChanged = \false;
+    public function __construct(ValueResolver $valueResolver, BetterNodeFinder $betterNodeFinder)
+    {
+        $this->valueResolver = $valueResolver;
+        $this->betterNodeFinder = $betterNodeFinder;
+    }
     public function getRuleDefinition() : RuleDefinition
     {
         return new RuleDefinition('Adds JSON_THROW_ON_ERROR to json_encode() and json_decode() to throw JsonException on error', [new CodeSample(<<<'CODE_SAMPLE'

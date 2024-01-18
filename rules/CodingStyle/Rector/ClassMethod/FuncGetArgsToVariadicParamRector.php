@@ -13,8 +13,9 @@ use PhpParser\Node\Param;
 use PhpParser\Node\Stmt\ClassMethod;
 use PhpParser\Node\Stmt\Expression;
 use PhpParser\Node\Stmt\Function_;
-use Rector\Core\Rector\AbstractRector;
-use Rector\Core\ValueObject\PhpVersionFeature;
+use Rector\PhpParser\Node\BetterNodeFinder;
+use Rector\Rector\AbstractRector;
+use Rector\ValueObject\PhpVersionFeature;
 use Rector\VersionBonding\Contract\MinPhpVersionInterface;
 use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
 use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
@@ -25,6 +26,15 @@ use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
  */
 final class FuncGetArgsToVariadicParamRector extends AbstractRector implements MinPhpVersionInterface
 {
+    /**
+     * @readonly
+     * @var \Rector\PhpParser\Node\BetterNodeFinder
+     */
+    private $betterNodeFinder;
+    public function __construct(BetterNodeFinder $betterNodeFinder)
+    {
+        $this->betterNodeFinder = $betterNodeFinder;
+    }
     public function getRuleDefinition() : RuleDefinition
     {
         return new RuleDefinition('Refactor func_get_args() in to a variadic param', [new CodeSample(<<<'CODE_SAMPLE'

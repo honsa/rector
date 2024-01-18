@@ -12,12 +12,13 @@ use PhpParser\Node\Scalar\String_;
 use PhpParser\Node\Stmt\Class_;
 use PhpParser\Node\Stmt\ClassMethod;
 use PhpParser\Node\Stmt\Return_;
-use Rector\Core\NodeAnalyzer\ClassAnalyzer;
-use Rector\Core\Rector\AbstractRector;
-use Rector\Core\ValueObject\MethodName;
-use Rector\Core\ValueObject\PhpVersionFeature;
 use Rector\FamilyTree\Reflection\FamilyRelationsAnalyzer;
+use Rector\NodeAnalyzer\ClassAnalyzer;
+use Rector\PhpParser\Node\BetterNodeFinder;
+use Rector\Rector\AbstractRector;
 use Rector\TypeDeclaration\TypeInferer\ReturnTypeInferer;
+use Rector\ValueObject\MethodName;
+use Rector\ValueObject\PhpVersionFeature;
 use Rector\VersionBonding\Contract\MinPhpVersionInterface;
 use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
 use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
@@ -40,18 +41,28 @@ final class StringableForToStringRector extends AbstractRector implements MinPhp
     private $returnTypeInferer;
     /**
      * @readonly
-     * @var \Rector\Core\NodeAnalyzer\ClassAnalyzer
+     * @var \Rector\NodeAnalyzer\ClassAnalyzer
      */
     private $classAnalyzer;
+    /**
+     * @readonly
+     * @var \Rector\PhpParser\Node\BetterNodeFinder
+     */
+    private $betterNodeFinder;
     /**
      * @var string
      */
     private const STRINGABLE = 'Stringable';
-    public function __construct(FamilyRelationsAnalyzer $familyRelationsAnalyzer, ReturnTypeInferer $returnTypeInferer, ClassAnalyzer $classAnalyzer)
+    /**
+     * @var bool
+     */
+    private $hasChanged = \false;
+    public function __construct(FamilyRelationsAnalyzer $familyRelationsAnalyzer, ReturnTypeInferer $returnTypeInferer, ClassAnalyzer $classAnalyzer, BetterNodeFinder $betterNodeFinder)
     {
         $this->familyRelationsAnalyzer = $familyRelationsAnalyzer;
         $this->returnTypeInferer = $returnTypeInferer;
         $this->classAnalyzer = $classAnalyzer;
+        $this->betterNodeFinder = $betterNodeFinder;
     }
     public function provideMinPhpVersion() : int
     {
@@ -98,21 +109,27 @@ CODE_SAMPLE
         if (!$toStringClassMethod instanceof ClassMethod) {
             return null;
         }
+        $this->hasChanged = \false;
         // warning, classes that implements __toString() will return Stringable interface even if they don't implemen it
         // reflection cannot be used for real detection
         $classLikeAncestorNames = $this->familyRelationsAnalyzer->getClassLikeAncestorNames($node);
-        if (\in_array(self::STRINGABLE, $classLikeAncestorNames, \true)) {
-            return null;
-        }
+        $isAncestorHasStringable = \in_array(self::STRINGABLE, $classLikeAncestorNames, \true);
         $returnType = $this->returnTypeInferer->inferFunctionLike($toStringClassMethod);
         if (!$returnType->isString()->yes()) {
             $this->processNotStringType($toStringClassMethod);
         }
-        // add interface
-        $node->implements[] = new FullyQualified(self::STRINGABLE);
+        if (!$isAncestorHasStringable) {
+            // add interface
+            $node->implements[] = new FullyQualified(self::STRINGABLE);
+            $this->hasChanged = \true;
+        }
         // add return type
         if ($toStringClassMethod->returnType === null) {
             $toStringClassMethod->returnType = new Identifier('string');
+            $this->hasChanged = \true;
+        }
+        if (!$this->hasChanged) {
+            return null;
         }
         return $node;
     }
@@ -125,6 +142,7 @@ CODE_SAMPLE
         if (!$hasReturn) {
             $emptyStringReturn = new Return_(new String_(''));
             $toStringClassMethod->stmts[] = $emptyStringReturn;
+            $this->hasChanged = \true;
             return;
         }
         $this->traverseNodesWithCallable((array) $toStringClassMethod->stmts, function (Node $subNode) {
@@ -140,6 +158,7 @@ CODE_SAMPLE
                 return null;
             }
             $subNode->expr = new CastString_($subNode->expr);
+            $this->hasChanged = \true;
             return null;
         });
     }

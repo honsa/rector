@@ -9,10 +9,13 @@ use PhpParser\Node\Name;
 use PhpParser\Node\Stmt;
 use PhpParser\Node\Stmt\Expression;
 use PHPStan\Reflection\ReflectionProvider;
-use Rector\Core\Contract\PhpParser\Node\StmtsAwareInterface;
-use Rector\Core\Rector\AbstractRector;
-use Rector\Core\ValueObject\PhpVersionFeature;
+use Rector\Contract\PhpParser\Node\StmtsAwareInterface;
+use Rector\PhpParser\Node\BetterNodeFinder;
+use Rector\Rector\AbstractRector;
+use Rector\ValueObject\PhpVersionFeature;
+use Rector\ValueObject\PolyfillPackage;
 use Rector\VersionBonding\Contract\MinPhpVersionInterface;
+use Rector\VersionBonding\Contract\RelatedPolyfillInterface;
 use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
 use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
 /**
@@ -23,13 +26,18 @@ use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
  *
  * @see \Rector\Tests\Php73\Rector\FuncCall\ArrayKeyFirstLastRector\ArrayKeyFirstLastRectorTest
  */
-final class ArrayKeyFirstLastRector extends AbstractRector implements MinPhpVersionInterface
+final class ArrayKeyFirstLastRector extends AbstractRector implements MinPhpVersionInterface, RelatedPolyfillInterface
 {
     /**
      * @readonly
      * @var \PHPStan\Reflection\ReflectionProvider
      */
     private $reflectionProvider;
+    /**
+     * @readonly
+     * @var \Rector\PhpParser\Node\BetterNodeFinder
+     */
+    private $betterNodeFinder;
     /**
      * @var string
      */
@@ -42,9 +50,10 @@ final class ArrayKeyFirstLastRector extends AbstractRector implements MinPhpVers
      * @var array<string, string>
      */
     private const PREVIOUS_TO_NEW_FUNCTIONS = ['reset' => self::ARRAY_KEY_FIRST, 'end' => self::ARRAY_KEY_LAST];
-    public function __construct(ReflectionProvider $reflectionProvider)
+    public function __construct(ReflectionProvider $reflectionProvider, BetterNodeFinder $betterNodeFinder)
     {
         $this->reflectionProvider = $reflectionProvider;
+        $this->betterNodeFinder = $betterNodeFinder;
     }
     public function getRuleDefinition() : RuleDefinition
     {
@@ -82,6 +91,10 @@ CODE_SAMPLE
     {
         return PhpVersionFeature::ARRAY_KEY_FIRST_LAST;
     }
+    public function providePolyfillPackage() : string
+    {
+        return PolyfillPackage::PHP_73;
+    }
     private function processArrayKeyFirstLast(StmtsAwareInterface $stmtsAware, bool $hasChanged, int $jumpToKey = 0) : ?StmtsAwareInterface
     {
         if ($stmtsAware->stmts === null) {
@@ -110,7 +123,7 @@ CODE_SAMPLE
             if (!$keyFuncCall instanceof FuncCall) {
                 continue;
             }
-            if ($this->hasPrevCallNext($stmtsAware, $key + 2, $totalKeys, $keyFuncCall)) {
+            if ($this->hasInternalPointerChangeNext($stmtsAware, $key + 1, $totalKeys, $keyFuncCall)) {
                 continue;
             }
             $newName = self::PREVIOUS_TO_NEW_FUNCTIONS[$this->getName($stmt->expr)];
@@ -143,7 +156,7 @@ CODE_SAMPLE
             return $this->nodeComparator->areNodesEqual($resetOrEndFuncCall->getArgs()[0], $subNode->getArgs()[0]);
         });
     }
-    private function hasPrevCallNext(StmtsAwareInterface $stmtsAware, int $nextKey, int $totalKeys, FuncCall $funcCall) : bool
+    private function hasInternalPointerChangeNext(StmtsAwareInterface $stmtsAware, int $nextKey, int $totalKeys, FuncCall $funcCall) : bool
     {
         for ($key = $nextKey; $key <= $totalKeys; ++$key) {
             if (!isset($stmtsAware->stmts[$key])) {
@@ -153,7 +166,7 @@ CODE_SAMPLE
                 if (!$subNode instanceof FuncCall) {
                     return \false;
                 }
-                if (!$this->isName($subNode, 'prev')) {
+                if (!$this->isNames($subNode, ['prev', 'next'])) {
                     return \false;
                 }
                 if ($subNode->isFirstClassCallable()) {

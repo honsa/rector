@@ -49,7 +49,7 @@ final class ArrayCompare
     }
 }
 CODE_SAMPLE
-, [self::TREAT_AS_NON_EMPTY => \false])]);
+, [\Rector\Strict\Rector\Ternary\BooleanInTernaryOperatorRuleFixerRector::TREAT_AS_NON_EMPTY => \false])]);
     }
     /**
      * @return array<class-string<Node>>
@@ -67,7 +67,7 @@ CODE_SAMPLE
         if (!$node->if instanceof Expr) {
             return null;
         }
-        $exprType = $scope->getType($node->cond);
+        $exprType = $scope->getNativeType($node->cond);
         $expr = $this->exactCompareFactory->createNotIdenticalFalsyCompare($exprType, $node->cond, $this->treatAsNonEmpty);
         if (!$expr instanceof Expr) {
             return null;

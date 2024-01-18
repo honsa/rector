@@ -15,24 +15,29 @@ use PhpParser\Node\Expr\BinaryOp\NotEqual;
 use PhpParser\Node\Expr\BinaryOp\NotIdentical;
 use PhpParser\Node\Expr\BinaryOp\Smaller;
 use PhpParser\Node\Expr\BinaryOp\SmallerOrEqual;
+use PhpParser\Node\Expr\Closure;
 use PhpParser\Node\Expr\FuncCall;
 use PhpParser\Node\Identifier;
 use PhpParser\Node\Name;
 use PhpParser\Node\Stmt\ClassMethod;
 use PhpParser\Node\Stmt\Function_;
 use PhpParser\Node\Stmt\Return_;
+use PHPStan\Analyser\Scope;
 use PHPStan\Reflection\ReflectionProvider;
 use PHPStan\Type\BooleanType;
-use Rector\Core\Rector\AbstractRector;
-use Rector\Core\ValueObject\PhpVersionFeature;
+use Rector\PhpParser\Node\BetterNodeFinder;
+use Rector\PhpParser\Node\Value\ValueResolver;
+use Rector\Rector\AbstractScopeAwareRector;
 use Rector\TypeDeclaration\NodeAnalyzer\ReturnAnalyzer;
+use Rector\ValueObject\PhpVersionFeature;
+use Rector\VendorLocker\NodeVendorLocker\ClassMethodReturnTypeOverrideGuard;
 use Rector\VersionBonding\Contract\MinPhpVersionInterface;
 use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
 use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
 /**
  * @see \Rector\Tests\TypeDeclaration\Rector\ClassMethod\BoolReturnTypeFromStrictScalarReturnsRector\BoolReturnTypeFromStrictScalarReturnsRectorTest
  */
-final class BoolReturnTypeFromStrictScalarReturnsRector extends AbstractRector implements MinPhpVersionInterface
+final class BoolReturnTypeFromStrictScalarReturnsRector extends AbstractScopeAwareRector implements MinPhpVersionInterface
 {
     /**
      * @readonly
@@ -44,10 +49,28 @@ final class BoolReturnTypeFromStrictScalarReturnsRector extends AbstractRector i
      * @var \PHPStan\Reflection\ReflectionProvider
      */
     private $reflectionProvider;
-    public function __construct(ReturnAnalyzer $returnAnalyzer, ReflectionProvider $reflectionProvider)
+    /**
+     * @readonly
+     * @var \Rector\PhpParser\Node\Value\ValueResolver
+     */
+    private $valueResolver;
+    /**
+     * @readonly
+     * @var \Rector\PhpParser\Node\BetterNodeFinder
+     */
+    private $betterNodeFinder;
+    /**
+     * @readonly
+     * @var \Rector\VendorLocker\NodeVendorLocker\ClassMethodReturnTypeOverrideGuard
+     */
+    private $classMethodReturnTypeOverrideGuard;
+    public function __construct(ReturnAnalyzer $returnAnalyzer, ReflectionProvider $reflectionProvider, ValueResolver $valueResolver, BetterNodeFinder $betterNodeFinder, ClassMethodReturnTypeOverrideGuard $classMethodReturnTypeOverrideGuard)
     {
         $this->returnAnalyzer = $returnAnalyzer;
         $this->reflectionProvider = $reflectionProvider;
+        $this->valueResolver = $valueResolver;
+        $this->betterNodeFinder = $betterNodeFinder;
+        $this->classMethodReturnTypeOverrideGuard = $classMethodReturnTypeOverrideGuard;
     }
     public function getRuleDefinition() : RuleDefinition
     {
@@ -84,14 +107,14 @@ CODE_SAMPLE
      */
     public function getNodeTypes() : array
     {
-        return [ClassMethod::class, Function_::class];
+        return [ClassMethod::class, Function_::class, Closure::class];
     }
     /**
-     * @param ClassMethod|Function_ $node
+     * @param ClassMethod|Function_|Closure $node
      */
-    public function refactor(Node $node) : ?Node
+    public function refactorWithScope(Node $node, Scope $scope) : ?Node
     {
-        if ($node->returnType instanceof Node) {
+        if ($this->shouldSkip($node, $scope)) {
             return null;
         }
         $returns = $this->betterNodeFinder->findInstancesOfInFunctionLikeScoped($node, Return_::class);
@@ -106,8 +129,18 @@ CODE_SAMPLE
         return PhpVersionFeature::SCALAR_TYPES;
     }
     /**
+     * @param ClassMethod|Function_|Closure $node
+     */
+    private function shouldSkip(Node $node, Scope $scope) : bool
+    {
+        if ($node->returnType instanceof Node) {
+            return \true;
+        }
+        return $node instanceof ClassMethod && $this->classMethodReturnTypeOverrideGuard->shouldSkipClassMethod($node, $scope);
+    }
+    /**
      * @param Return_[] $returns
-     * @param \PhpParser\Node\Stmt\ClassMethod|\PhpParser\Node\Stmt\Function_ $functionLike
+     * @param \PhpParser\Node\Stmt\ClassMethod|\PhpParser\Node\Stmt\Function_|\PhpParser\Node\Expr\Closure $functionLike
      */
     private function hasOnlyBoolScalarReturnExprs(array $returns, $functionLike) : bool
     {

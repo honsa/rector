@@ -4,17 +4,28 @@ declare (strict_types=1);
 namespace Rector\TypeDeclaration\Rector\ClassMethod;
 
 use PhpParser\Node;
+use PhpParser\Node\Expr;
 use PhpParser\Node\Expr\ArrayDimFetch;
+use PhpParser\Node\Expr\Assign;
 use PhpParser\Node\Expr\AssignOp\Coalesce as AssignOpCoalesce;
 use PhpParser\Node\Expr\BinaryOp\Coalesce;
+use PhpParser\Node\Expr\CallLike;
+use PhpParser\Node\Expr\Cast\Array_;
+use PhpParser\Node\Expr\Closure;
+use PhpParser\Node\Expr\Empty_;
 use PhpParser\Node\Expr\FuncCall;
+use PhpParser\Node\Expr\MethodCall;
 use PhpParser\Node\Expr\Variable;
+use PhpParser\Node\FunctionLike;
 use PhpParser\Node\Identifier;
 use PhpParser\Node\Param;
+use PhpParser\Node\Stmt\Class_;
 use PhpParser\Node\Stmt\ClassMethod;
+use PhpParser\Node\Stmt\Echo_;
+use PhpParser\Node\Stmt\Expression;
 use PhpParser\Node\Stmt\Function_;
 use PhpParser\NodeTraverser;
-use Rector\Core\Rector\AbstractRector;
+use Rector\Rector\AbstractRector;
 use Rector\VendorLocker\ParentClassMethodTypeOverrideGuard;
 use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
 use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
@@ -59,10 +70,10 @@ CODE_SAMPLE
      */
     public function getNodeTypes() : array
     {
-        return [ClassMethod::class, Function_::class];
+        return [ClassMethod::class, Function_::class, Closure::class];
     }
     /**
-     * @param ClassMethod|Function_ $node
+     * @param ClassMethod|Function_|Closure $node
      */
     public function refactor(Node $node) : ?Node
     {
@@ -72,6 +83,9 @@ CODE_SAMPLE
         }
         foreach ($node->getParams() as $param) {
             if ($param->type instanceof Node) {
+                continue;
+            }
+            if ($param->default instanceof Expr && !$this->getType($param->default)->isArray()->yes()) {
                 continue;
             }
             if (!$this->isParamAccessedArrayDimFetch($param, $node)) {
@@ -86,13 +100,19 @@ CODE_SAMPLE
         return null;
     }
     /**
-     * @param \PhpParser\Node\Stmt\ClassMethod|\PhpParser\Node\Stmt\Function_ $functionLike
+     * @param \PhpParser\Node\Stmt\ClassMethod|\PhpParser\Node\Stmt\Function_|\PhpParser\Node\Expr\Closure $functionLike
      */
     private function isParamAccessedArrayDimFetch(Param $param, $functionLike) : bool
     {
+        if ($functionLike->stmts === null) {
+            return \false;
+        }
         $paramName = $this->getName($param);
         $isParamAccessedArrayDimFetch = \false;
-        $this->traverseNodesWithCallable($functionLike, function (Node $node) use($paramName, &$isParamAccessedArrayDimFetch) : ?int {
+        $this->traverseNodesWithCallable($functionLike->stmts, function (Node $node) use($paramName, &$isParamAccessedArrayDimFetch) : ?int {
+            if ($node instanceof Class_ || $node instanceof FunctionLike) {
+                return NodeTraverser::DONT_TRAVERSE_CURRENT_AND_CHILDREN;
+            }
             if ($this->shouldStop($node, $paramName)) {
                 // force set to false to avoid too early replaced
                 $isParamAccessedArrayDimFetch = \false;
@@ -101,16 +121,43 @@ CODE_SAMPLE
             if (!$node instanceof ArrayDimFetch) {
                 return null;
             }
+            if (!$node->dim instanceof Expr) {
+                return null;
+            }
             if (!$node->var instanceof Variable) {
                 return null;
             }
             if (!$this->isName($node->var, $paramName)) {
                 return null;
             }
+            // skip possible strings
+            $variableType = $this->getType($node->var);
+            if ($variableType->isString()->yes()) {
+                // force set to false to avoid too early replaced
+                $isParamAccessedArrayDimFetch = \false;
+                return NodeTraverser::STOP_TRAVERSAL;
+            }
+            // skip integer in possibly string type as string can be accessed via int
+            $dimType = $this->getType($node->dim);
+            if ($dimType->isInteger()->yes() && $variableType->isString()->maybe()) {
+                return null;
+            }
             $isParamAccessedArrayDimFetch = \true;
             return null;
         });
         return $isParamAccessedArrayDimFetch;
+    }
+    private function isEchoed(Node $node, string $paramName) : bool
+    {
+        if (!$node instanceof Echo_) {
+            return \false;
+        }
+        foreach ($node->exprs as $expr) {
+            if ($expr instanceof Variable && $this->isName($expr, $paramName)) {
+                return \true;
+            }
+        }
+        return \false;
     }
     private function shouldStop(Node $node, string $paramName) : bool
     {
@@ -119,15 +166,68 @@ CODE_SAMPLE
             $firstArg = $node->getArgs()[0];
             $nodeToCheck = $firstArg->value;
         }
+        if ($node instanceof Expression) {
+            $nodeToCheck = $node->expr;
+        }
         if ($node instanceof Coalesce) {
             $nodeToCheck = $node->left;
         }
         if ($node instanceof AssignOpCoalesce) {
             $nodeToCheck = $node->var;
         }
-        if ($nodeToCheck instanceof ArrayDimFetch) {
-            return $nodeToCheck->var instanceof Variable && $this->isName($nodeToCheck->var, $paramName);
+        if ($this->isMethodCallOrArrayDimFetch($paramName, $nodeToCheck)) {
+            return \true;
         }
-        return $nodeToCheck instanceof Variable && $this->isName($nodeToCheck, $paramName);
+        if ($nodeToCheck instanceof Variable && $this->isName($nodeToCheck, $paramName)) {
+            return \true;
+        }
+        if ($this->isEmptyOrEchoedOrCasted($node, $paramName)) {
+            return \true;
+        }
+        return $this->isReassignAndUseAsArg($node, $paramName);
+    }
+    private function isReassignAndUseAsArg(Node $node, string $paramName) : bool
+    {
+        if (!$node instanceof Assign) {
+            return \false;
+        }
+        if (!$node->var instanceof Variable) {
+            return \false;
+        }
+        if (!$this->isName($node->var, $paramName)) {
+            return \false;
+        }
+        if (!$node->expr instanceof CallLike) {
+            return \false;
+        }
+        if ($node->expr->isFirstClassCallable()) {
+            return \false;
+        }
+        foreach ($node->expr->getArgs() as $arg) {
+            if ($arg->value instanceof Variable && $this->isName($arg->value, $paramName)) {
+                return \true;
+            }
+        }
+        return \false;
+    }
+    private function isEmptyOrEchoedOrCasted(Node $node, string $paramName) : bool
+    {
+        if ($node instanceof Empty_ && $node->expr instanceof Variable && $this->isName($node->expr, $paramName)) {
+            return \true;
+        }
+        if ($this->isEchoed($node, $paramName)) {
+            return \true;
+        }
+        return $node instanceof Array_ && $node->expr instanceof Variable && $this->isName($node->expr, $paramName);
+    }
+    private function isMethodCallOrArrayDimFetch(string $paramName, ?Node $node) : bool
+    {
+        if ($node instanceof MethodCall) {
+            return $node->var instanceof Variable && $this->isName($node->var, $paramName);
+        }
+        if ($node instanceof ArrayDimFetch) {
+            return $node->var instanceof Variable && $this->isName($node->var, $paramName);
+        }
+        return \false;
     }
 }

@@ -6,8 +6,11 @@ namespace Rector\Symfony\Bridge\Symfony\Routing;
 use Rector\Symfony\Bridge\Symfony\ContainerServiceProvider;
 use Rector\Symfony\Contract\Bridge\Symfony\Routing\SymfonyRoutesProviderInterface;
 use Rector\Symfony\ValueObject\SymfonyRouteMetadata;
-use RectorPrefix202307\Symfony\Component\Routing\RouterInterface;
-use RectorPrefix202307\Webmozart\Assert\Assert;
+use RectorPrefix202401\Symfony\Component\Routing\RouterInterface;
+use RectorPrefix202401\Webmozart\Assert\Assert;
+/**
+ * @api part of AddRouteAnnotationRector
+ */
 final class SymfonyRoutesProvider implements SymfonyRoutesProviderInterface
 {
     /**

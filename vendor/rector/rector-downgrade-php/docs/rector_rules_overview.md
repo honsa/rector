@@ -1,4 +1,4 @@
-# 79 Rules Overview
+# 71 Rules Overview
 
 ## ArrowFunctionToAnonymousFunctionRector
 
@@ -205,24 +205,6 @@ Refactor PHP attribute markers to annotations notation
 
 - class: [`Rector\DowngradePhp80\Rector\Class_\DowngradeAttributeToAnnotationRector`](../rules/DowngradePhp80/Rector/Class_/DowngradeAttributeToAnnotationRector.php)
 
-```php
-<?php
-
-declare(strict_types=1);
-
-use Rector\Config\RectorConfig;
-use Rector\DowngradePhp80\Rector\Class_\DowngradeAttributeToAnnotationRector;
-use Rector\DowngradePhp80\ValueObject\DowngradeAttributeToAnnotation;
-
-return static function (RectorConfig $rectorConfig): void {
-    $rectorConfig->ruleWithConfiguration(DowngradeAttributeToAnnotationRector::class, [
-        new DowngradeAttributeToAnnotation('Symfony\Component\Routing\Annotation\Route'),
-    ]);
-};
-```
-
-↓
-
 ```diff
  use Symfony\Component\Routing\Annotation\Route;
 
@@ -235,26 +217,6 @@ return static function (RectorConfig $rectorConfig): void {
      public function action()
      {
      }
- }
-```
-
-<br>
-
-## DowngradeClassConstantVisibilityRector
-
-Downgrade class constant visibility
-
-- class: [`Rector\DowngradePhp71\Rector\ClassConst\DowngradeClassConstantVisibilityRector`](../rules/DowngradePhp71/Rector/ClassConst/DowngradeClassConstantVisibilityRector.php)
-
-```diff
- class SomeClass
- {
--   public const PUBLIC_CONST_B = 2;
--   protected const PROTECTED_CONST = 3;
--   private const PRIVATE_CONST = 4;
-+   const PUBLIC_CONST_B = 2;
-+   const PROTECTED_CONST = 3;
-+   const PRIVATE_CONST = 4;
  }
 ```
 
@@ -275,22 +237,6 @@ Change `$object::class` to get_class($object)
 +        return get_class($object);
      }
  }
-```
-
-<br>
-
-## DowngradeClosureFromCallableRector
-
-Converts `Closure::fromCallable()` to compatible alternative.
-
-- class: [`Rector\DowngradePhp71\Rector\StaticCall\DowngradeClosureFromCallableRector`](../rules/DowngradePhp71/Rector/StaticCall/DowngradeClosureFromCallableRector.php)
-
-```diff
--$someClosure = \Closure::fromCallable('callable');
-+$callable = 'callable';
-+$someClosure = function () use ($callable) {
-+    return $callable(...func_get_args());
-+};
 ```
 
 <br>
@@ -471,42 +417,19 @@ Downgrade `is_countable()` to former version
 
 <br>
 
-## DowngradeIsIterableRector
+## DowngradeIsEnumRector
 
-Change is_iterable with array and Traversable object type check
+Downgrades `isEnum()` on class reflection
 
-- class: [`Rector\DowngradePhp71\Rector\FuncCall\DowngradeIsIterableRector`](../rules/DowngradePhp71/Rector/FuncCall/DowngradeIsIterableRector.php)
-
-```diff
- class SomeClass
- {
-     public function run($obj)
-     {
--        is_iterable($obj);
-+        is_array($obj) || $obj instanceof \Traversable;
-     }
- }
-```
-
-<br>
-
-## DowngradeIterablePseudoTypeDeclarationRector
-
-Remove the iterable pseudo type params and returns, add `@param` and `@return` tags instead
-
-- class: [`Rector\DowngradePhp71\Rector\FunctionLike\DowngradeIterablePseudoTypeDeclarationRector`](../rules/DowngradePhp71/Rector/FunctionLike/DowngradeIterablePseudoTypeDeclarationRector.php)
+- class: [`Rector\DowngradePhp81\Rector\MethodCall\DowngradeIsEnumRector`](../rules/DowngradePhp81/Rector/MethodCall/DowngradeIsEnumRector.php)
 
 ```diff
  class SomeClass
  {
--    public function run(iterable $iterator): iterable
-+    /**
-+     * @param mixed[]|\Traversable $iterator
-+     * @return mixed[]|\Traversable
-+     */
-+    public function run($iterator)
+     public function run(ReflectionClass $reflectionClass)
      {
-         // do something
+-        return $reflectionClass->isEnum();
++        return method_exists($reflectionClass, 'isEnum') ? $reflectionClass->isEnum() : false;
      }
  }
 ```
@@ -530,27 +453,6 @@ Downgrade `json_decode()` with null associative argument function
  {
 -    $value = json_decode($json, $associative);
 +    $value = json_decode($json, $associative === null ?: $associative);
- }
-```
-
-<br>
-
-## DowngradeKeysInListRector
-
-Extract keys in list to its own variable assignment
-
-- class: [`Rector\DowngradePhp71\Rector\List_\DowngradeKeysInListRector`](../rules/DowngradePhp71/Rector/List_/DowngradeKeysInListRector.php)
-
-```diff
- class SomeClass
- {
--    public function run(array $data): void
-+    public function run(): void
-     {
--        list("id" => $id1, "name" => $name1) = $data[0];
-+        $id1 = $data[0]["id"];
-+        $name1 = $data[0]["name"];
-     }
  }
 ```
 
@@ -684,22 +586,6 @@ Remove named argument
 
 <br>
 
-## DowngradeNegativeStringOffsetToStrlenRector
-
-Downgrade negative string offset to strlen
-
-- class: [`Rector\DowngradePhp71\Rector\String_\DowngradeNegativeStringOffsetToStrlenRector`](../rules/DowngradePhp71/Rector/String_/DowngradeNegativeStringOffsetToStrlenRector.php)
-
-```diff
--echo 'abcdef'[-2];
-+echo substr('abcdef', -2, 1);
-
--echo strpos($value, 'b', -3);
-+echo strpos($value, 'b', strlen($value) - 3);
-```
-
-<br>
-
 ## DowngradeNeverTypeDeclarationRector
 
 Remove "never" return type, add a `"@return` never" tag instead
@@ -775,28 +661,6 @@ Remove null coalescing operator ??=
 
 <br>
 
-## DowngradeNullableTypeDeclarationRector
-
-Remove the nullable type params, add `@param` tags instead
-
-- class: [`Rector\DowngradePhp71\Rector\FunctionLike\DowngradeNullableTypeDeclarationRector`](../rules/DowngradePhp71/Rector/FunctionLike/DowngradeNullableTypeDeclarationRector.php)
-
-```diff
- class SomeClass
- {
--    public function run(?string $input): ?string
-+    /**
-+     * @param string|null $input
-+     * @return string|null
-+     */
-+    public function run($input)
-     {
-     }
- }
-```
-
-<br>
-
 ## DowngradeNullsafeToTernaryOperatorRector
 
 Change nullsafe operator to ternary operator rector
@@ -805,9 +669,7 @@ Change nullsafe operator to ternary operator rector
 
 ```diff
 -$dateAsString = $booking->getStartDate()?->asDateTimeString();
--$dateAsString = $booking->startDate?->dateTimeString;
 +$dateAsString = ($bookingGetStartDate = $booking->getStartDate()) ? $bookingGetStartDate->asDateTimeString() : null;
-+$dateAsString = ($bookingGetStartDate = $booking->startDate) ? $bookingGetStartDate->dateTimeString : null;
 ```
 
 <br>
@@ -874,6 +736,25 @@ Remove the "object" param and return type, add a `@param` and `@return` tags ins
 
 <br>
 
+## DowngradeOctalNumberRector
+
+Downgrades octal numbers to decimal ones
+
+- class: [`Rector\DowngradePhp81\Rector\LNumber\DowngradeOctalNumberRector`](../rules/DowngradePhp81/Rector/LNumber/DowngradeOctalNumberRector.php)
+
+```diff
+ class SomeClass
+ {
+     public function run()
+     {
+-        return 0o777;
++        return 0777;
+     }
+ }
+```
+
+<br>
+
 ## DowngradeParameterTypeWideningRector
 
 Change param type to match the lowest type in whole family tree
@@ -881,32 +762,6 @@ Change param type to match the lowest type in whole family tree
 :wrench: **configure it!**
 
 - class: [`Rector\DowngradePhp72\Rector\ClassMethod\DowngradeParameterTypeWideningRector`](../rules/DowngradePhp72/Rector/ClassMethod/DowngradeParameterTypeWideningRector.php)
-
-```php
-<?php
-
-declare(strict_types=1);
-
-use Rector\Config\RectorConfig;
-use Rector\DowngradePhp72\Rector\ClassMethod\DowngradeParameterTypeWideningRector;
-
-return static function (RectorConfig $rectorConfig): void {
-    $rectorConfig->ruleWithConfiguration(DowngradeParameterTypeWideningRector::class, [
-        'ContainerInterface' => [
-            'set',
-            'get',
-            'has',
-            'initialized',
-        ],
-        'SomeContainerInterface' => [
-            'set',
-            'has',
-        ],
-    ]);
-};
-```
-
-↓
 
 ```diff
  interface SomeInterface
@@ -923,19 +778,6 @@ return static function (RectorConfig $rectorConfig): void {
      {
      }
  }
-```
-
-<br>
-
-## DowngradePhp71JsonConstRector
-
-Remove Json constant that available only in php 7.1
-
-- class: [`Rector\DowngradePhp71\Rector\ConstFetch\DowngradePhp71JsonConstRector`](../rules/DowngradePhp71/Rector/ConstFetch/DowngradePhp71JsonConstRector.php)
-
-```diff
--json_encode($content, JSON_UNESCAPED_LINE_TERMINATORS);
-+json_encode($content, 0);
 ```
 
 <br>
@@ -1041,25 +883,6 @@ change instanceof Object to is_resource
 
 <br>
 
-## DowngradePipeToMultiCatchExceptionRector
-
-Downgrade single one | separated to multi catch exception
-
-- class: [`Rector\DowngradePhp71\Rector\TryCatch\DowngradePipeToMultiCatchExceptionRector`](../rules/DowngradePhp71/Rector/TryCatch/DowngradePipeToMultiCatchExceptionRector.php)
-
-```diff
- try {
-     // Some code...
--} catch (ExceptionType1 | ExceptionType2 $exception) {
-+} catch (ExceptionType1 $exception) {
-+    $sameCode;
-+} catch (ExceptionType2 $exception) {
-     $sameCode;
- }
-```
-
-<br>
-
 ## DowngradePregUnmatchedAsNullConstantRector
 
 Remove PREG_UNMATCHED_AS_NULL from preg_match and set null value on empty string matched on each match
@@ -1111,8 +934,8 @@ Change array command argument on proc_open to implode spaced string
 - class: [`Rector\DowngradePhp74\Rector\FuncCall\DowngradeProcOpenArrayCommandArgRector`](../rules/DowngradePhp74/Rector/FuncCall/DowngradeProcOpenArrayCommandArgRector.php)
 
 ```diff
--return proc_open($command, $descriptorspec, $pipes);
-+return proc_open(is_array($command) ? implode(' ', $command) : $command, $descriptorspec, $pipes);
+-return proc_open($command, $descriptorspec, $pipes, null, null, ['suppress_errors' => true]);
++return proc_open(is_array($command) ? implode(' ', array_map('escapeshellarg', $command)) : $command, $descriptorspec, $pipes, null, null, ['suppress_errors' => true]);
 ```
 
 <br>
@@ -1294,6 +1117,27 @@ Downgrade `ReflectionProperty->getDefaultValue()`
      {
 -        return $reflectionProperty->getDefaultValue();
 +        return $reflectionProperty->getDeclaringClass()->getDefaultProperties()[$reflectionProperty->getName()] ?? null;
+     }
+ }
+```
+
+<br>
+
+## DowngradeSetAccessibleReflectionPropertyRector
+
+Add `setAccessible()` on ReflectionProperty to allow reading private properties in PHP 8.0-
+
+- class: [`Rector\DowngradePhp81\Rector\StmtsAwareInterface\DowngradeSetAccessibleReflectionPropertyRector`](../rules/DowngradePhp81/Rector/StmtsAwareInterface/DowngradeSetAccessibleReflectionPropertyRector.php)
+
+```diff
+ class SomeClass
+ {
+     public function run($object)
+     {
+         $reflectionProperty = new ReflectionProperty($object, 'bar');
++        $reflectionProperty->setAccessible(true);
+
+         return $reflectionProperty->getValue($object);
      }
  }
 ```
@@ -1603,27 +1447,6 @@ Removes union type property type definition, adding `@var` annotations instead.
 
 <br>
 
-## DowngradeVoidTypeDeclarationRector
-
-Remove "void" return type, add a `"@return` void" tag instead
-
-- class: [`Rector\DowngradePhp71\Rector\FunctionLike\DowngradeVoidTypeDeclarationRector`](../rules/DowngradePhp71/Rector/FunctionLike/DowngradeVoidTypeDeclarationRector.php)
-
-```diff
- class SomeClass
- {
--    public function run(): void
-+    /**
-+     * @return void
-+     */
-+    public function run()
-     {
-     }
- }
-```
-
-<br>
-
 ## RemoveReturnTypeDeclarationFromCloneRector
 
 Remove return type from `__clone()` method
@@ -1651,19 +1474,6 @@ Convert setcookie option array to arguments
 ```diff
 -setcookie('name', $value, ['expires' => 360]);
 +setcookie('name', $value, 360);
-```
-
-<br>
-
-## SymmetricArrayDestructuringToListRector
-
-Downgrade Symmetric array destructuring to `list()` function
-
-- class: [`Rector\DowngradePhp71\Rector\Array_\SymmetricArrayDestructuringToListRector`](../rules/DowngradePhp71/Rector/Array_/SymmetricArrayDestructuringToListRector.php)
-
-```diff
--[$id1, $name1] = $data;
-+list($id1, $name1) = $data;
 ```
 
 <br>

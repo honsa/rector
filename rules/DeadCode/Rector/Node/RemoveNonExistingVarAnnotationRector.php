@@ -4,6 +4,7 @@ declare (strict_types=1);
 namespace Rector\DeadCode\Rector\Node;
 
 use PhpParser\Node;
+use PhpParser\Node\Expr\Assign;
 use PhpParser\Node\Expr\CallLike;
 use PhpParser\Node\Expr\FuncCall;
 use PhpParser\Node\Expr\New_;
@@ -13,6 +14,7 @@ use PhpParser\Node\Stmt\Echo_;
 use PhpParser\Node\Stmt\Expression;
 use PhpParser\Node\Stmt\Foreach_;
 use PhpParser\Node\Stmt\If_;
+use PhpParser\Node\Stmt\InlineHTML;
 use PhpParser\Node\Stmt\Nop;
 use PhpParser\Node\Stmt\Return_;
 use PhpParser\Node\Stmt\Static_;
@@ -21,9 +23,13 @@ use PhpParser\Node\Stmt\Throw_;
 use PhpParser\Node\Stmt\While_;
 use PHPStan\PhpDocParser\Ast\PhpDoc\VarTagValueNode;
 use PHPStan\PhpDocParser\Ast\Type\IdentifierTypeNode;
-use Rector\Core\Contract\PhpParser\Node\StmtsAwareInterface;
-use Rector\Core\NodeManipulator\StmtsManipulator;
-use Rector\Core\Rector\AbstractRector;
+use Rector\BetterPhpDocParser\PhpDocInfo\PhpDocInfoFactory;
+use Rector\Comments\NodeDocBlock\DocBlockUpdater;
+use Rector\Contract\PhpParser\Node\StmtsAwareInterface;
+use Rector\NodeManipulator\StmtsManipulator;
+use Rector\PhpParser\Node\BetterNodeFinder;
+use Rector\PhpParser\Node\Value\ValueResolver;
+use Rector\Rector\AbstractRector;
 use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
 use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
 /**
@@ -35,16 +41,40 @@ final class RemoveNonExistingVarAnnotationRector extends AbstractRector
 {
     /**
      * @readonly
-     * @var \Rector\Core\NodeManipulator\StmtsManipulator
+     * @var \Rector\NodeManipulator\StmtsManipulator
      */
     private $stmtsManipulator;
+    /**
+     * @readonly
+     * @var \Rector\Comments\NodeDocBlock\DocBlockUpdater
+     */
+    private $docBlockUpdater;
+    /**
+     * @readonly
+     * @var \Rector\BetterPhpDocParser\PhpDocInfo\PhpDocInfoFactory
+     */
+    private $phpDocInfoFactory;
+    /**
+     * @readonly
+     * @var \Rector\PhpParser\Node\Value\ValueResolver
+     */
+    private $valueResolver;
+    /**
+     * @readonly
+     * @var \Rector\PhpParser\Node\BetterNodeFinder
+     */
+    private $betterNodeFinder;
     /**
      * @var array<class-string<Stmt>>
      */
     private const NODE_TYPES = [Foreach_::class, Static_::class, Echo_::class, Return_::class, Expression::class, Throw_::class, If_::class, While_::class, Switch_::class, Nop::class];
-    public function __construct(StmtsManipulator $stmtsManipulator)
+    public function __construct(StmtsManipulator $stmtsManipulator, DocBlockUpdater $docBlockUpdater, PhpDocInfoFactory $phpDocInfoFactory, ValueResolver $valueResolver, BetterNodeFinder $betterNodeFinder)
     {
         $this->stmtsManipulator = $stmtsManipulator;
+        $this->docBlockUpdater = $docBlockUpdater;
+        $this->phpDocInfoFactory = $phpDocInfoFactory;
+        $this->valueResolver = $valueResolver;
+        $this->betterNodeFinder = $betterNodeFinder;
     }
     public function getRuleDefinition() : RuleDefinition
     {
@@ -108,7 +138,7 @@ CODE_SAMPLE
                 continue;
             }
             $variableName = \ltrim($varTagValueNode->variableName, '$');
-            if ($variableName === '' && $this->isAnnotatableReturn($stmt)) {
+            if ($variableName === '' && $this->isAllowedEmptyVariableName($stmt)) {
                 continue;
             }
             if ($this->hasVariableName($stmt, $variableName)) {
@@ -120,6 +150,7 @@ CODE_SAMPLE
                 continue;
             }
             $phpDocInfo->removeByType(VarTagValueNode::class);
+            $this->docBlockUpdater->updateRefactoredNodeWithPhpDocInfo($stmt);
             $hasChanged = \true;
         }
         if ($hasChanged) {
@@ -143,7 +174,7 @@ CODE_SAMPLE
                 return \true;
             }
         }
-        return \false;
+        return isset($stmtsAware->stmts[$key + 1]) && $stmtsAware->stmts[$key + 1] instanceof InlineHTML;
     }
     private function hasVariableName(Stmt $stmt, string $variableName) : bool
     {
@@ -171,8 +202,11 @@ CODE_SAMPLE
         }
         return \strpos($varTagValueNode->description, '}') !== \false;
     }
-    private function isAnnotatableReturn(Stmt $stmt) : bool
+    private function isAllowedEmptyVariableName(Stmt $stmt) : bool
     {
-        return $stmt instanceof Return_ && $stmt->expr instanceof CallLike && !$stmt->expr instanceof New_;
+        if ($stmt instanceof Return_ && $stmt->expr instanceof CallLike && !$stmt->expr instanceof New_) {
+            return \true;
+        }
+        return $stmt instanceof Expression && $stmt->expr instanceof Assign && $stmt->expr->var instanceof Variable;
     }
 }

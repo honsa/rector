@@ -1,9 +1,9 @@
 <?php
 
 declare (strict_types=1);
-namespace Rector\Core\PhpParser\Printer;
+namespace Rector\PhpParser\Printer;
 
-use RectorPrefix202307\Nette\Utils\Strings;
+use RectorPrefix202401\Nette\Utils\Strings;
 use PhpParser\Comment;
 use PhpParser\Node;
 use PhpParser\Node\Expr;
@@ -12,48 +12,28 @@ use PhpParser\Node\Expr\ArrowFunction;
 use PhpParser\Node\Expr\Closure;
 use PhpParser\Node\Expr\Ternary;
 use PhpParser\Node\Expr\Yield_;
-use PhpParser\Node\Name;
-use PhpParser\Node\Name\FullyQualified;
 use PhpParser\Node\Param;
 use PhpParser\Node\Scalar\DNumber;
 use PhpParser\Node\Scalar\EncapsedStringPart;
 use PhpParser\Node\Scalar\LNumber;
 use PhpParser\Node\Scalar\String_;
-use PhpParser\Node\Stmt;
 use PhpParser\Node\Stmt\Class_;
 use PhpParser\Node\Stmt\ClassMethod;
 use PhpParser\Node\Stmt\Declare_;
 use PhpParser\Node\Stmt\Nop;
-use PhpParser\Node\Stmt\Use_;
 use PhpParser\PrettyPrinter\Standard;
-use Rector\Comments\NodeDocBlock\DocBlockUpdater;
-use Rector\Core\Configuration\Option;
-use Rector\Core\Configuration\Parameter\SimpleParameterProvider;
-use Rector\Core\PhpParser\Node\CustomNode\FileWithoutNamespace;
-use Rector\Core\Util\StringUtils;
+use PHPStan\Node\Expr\AlwaysRememberedExpr;
+use Rector\Configuration\Option;
+use Rector\Configuration\Parameter\SimpleParameterProvider;
 use Rector\NodeTypeResolver\Node\AttributeKey;
+use Rector\PhpParser\Node\CustomNode\FileWithoutNamespace;
 /**
- * @see \Rector\Core\Tests\PhpParser\Printer\BetterStandardPrinterTest
+ * @see \Rector\Tests\PhpParser\Printer\BetterStandardPrinterTest
  *
  * @property array<string, array{string, bool, string, null}> $insertionMap
  */
 final class BetterStandardPrinter extends Standard
 {
-    /**
-     * @readonly
-     * @var \Rector\Comments\NodeDocBlock\DocBlockUpdater
-     */
-    private $docBlockUpdater;
-    /**
-     * @var string
-     * @see https://regex101.com/r/jUFizd/1
-     */
-    private const NEWLINE_END_REGEX = "#\n\$#";
-    /**
-     * @var string
-     * @see https://regex101.com/r/F5x783/1
-     */
-    private const USE_REGEX = '#( use)\\(#';
     /**
      * @var string
      * @see https://regex101.com/r/DrsMY4/1
@@ -70,25 +50,15 @@ final class BetterStandardPrinter extends Standard
      * @var string
      */
     private const REPLACE_COLON_WITH_SPACE_REGEX = '#(^.*function .*\\(.*\\)) : #';
-    /**
-     * Use space by default
-     * @var string
-     */
-    private $tabOrSpaceIndentCharacter = ' ';
-    /**
-     * @param mixed[] $options
-     */
-    public function __construct(DocBlockUpdater $docBlockUpdater, array $options = [])
+    public function __construct()
     {
-        $this->docBlockUpdater = $docBlockUpdater;
-        parent::__construct($options);
+        parent::__construct(['shortArraySyntax' => \true]);
         // print return type double colon right after the bracket "function(): string"
         $this->initializeInsertionMap();
         $this->insertionMap['Stmt_ClassMethod->returnType'] = [')', \false, ': ', null];
         $this->insertionMap['Stmt_Function->returnType'] = [')', \false, ': ', null];
         $this->insertionMap['Expr_Closure->returnType'] = [')', \false, ': ', null];
         $this->insertionMap['Expr_ArrowFunction->returnType'] = [')', \false, ': ', null];
-        $this->tabOrSpaceIndentCharacter = SimpleParameterProvider::provideStringParameter(Option::INDENT_CHAR, ' ');
     }
     /**
      * @param Node[] $stmts
@@ -100,13 +70,13 @@ final class BetterStandardPrinter extends Standard
         $newStmts = $this->resolveNewStmts($stmts);
         $content = parent::printFormatPreserving($newStmts, $origStmts, $origTokens);
         // add new line in case of added stmts
-        if (\count($newStmts) !== \count($origStmts) && !StringUtils::isMatch($content, self::NEWLINE_END_REGEX)) {
+        if (\count($newStmts) !== \count($origStmts) && \substr_compare($content, "\n", -\strlen("\n")) !== 0) {
             $content .= $this->nl;
         }
         return $content;
     }
     /**
-     * @param \PhpParser\Node|mixed[]|null $node
+     * @param Node|Node[]|null $node
      */
     public function print($node) : string
     {
@@ -137,6 +107,9 @@ final class BetterStandardPrinter extends Standard
     }
     protected function p(Node $node, $parentFormatPreserved = \false) : string
     {
+        while ($node instanceof AlwaysRememberedExpr) {
+            $node = $node->getExpr();
+        }
         $content = parent::p($node, $parentFormatPreserved);
         return $node->getAttribute(AttributeKey::WRAPPED_IN_PARENTHESES) === \true ? '(' . $content . ')' : $content;
     }
@@ -152,7 +125,7 @@ final class BetterStandardPrinter extends Standard
             return parent::pExpr_ArrowFunction($arrowFunction);
         }
         $indentSize = SimpleParameterProvider::provideIntParameter(Option::INDENT_SIZE);
-        $indent = \str_repeat($this->tabOrSpaceIndentCharacter, $this->indentLevel) . \str_repeat($this->tabOrSpaceIndentCharacter, $indentSize);
+        $indent = \str_repeat($this->getIndentCharacter(), $this->indentLevel) . \str_repeat($this->getIndentCharacter(), $indentSize);
         $text = "\n" . $indent;
         foreach ($comments as $key => $comment) {
             $commentText = $key > 0 ? $indent . $comment->getText() : $comment->getText();
@@ -167,7 +140,7 @@ final class BetterStandardPrinter extends Standard
     {
         $level = \max($level, 0);
         $this->indentLevel = $level;
-        $this->nl = "\n" . \str_repeat($this->tabOrSpaceIndentCharacter, $level);
+        $this->nl = "\n" . \str_repeat($this->getIndentCharacter(), $level);
     }
     /**
      * This allows to use both spaces and tabs vs. original space-only
@@ -176,14 +149,14 @@ final class BetterStandardPrinter extends Standard
     {
         $indentSize = SimpleParameterProvider::provideIntParameter(Option::INDENT_SIZE);
         $this->indentLevel += $indentSize;
-        $this->nl .= \str_repeat($this->tabOrSpaceIndentCharacter, $indentSize);
+        $this->nl .= \str_repeat($this->getIndentCharacter(), $indentSize);
     }
     /**
      * This allows to use both spaces and tabs vs. original space-only
      */
     protected function outdent() : void
     {
-        if ($this->tabOrSpaceIndentCharacter === ' ') {
+        if ($this->getIndentCharacter() === ' ') {
             // - 4 spaces
             \assert($this->indentLevel >= 4);
             $this->indentLevel -= 4;
@@ -192,7 +165,7 @@ final class BetterStandardPrinter extends Standard
             \assert($this->indentLevel >= 1);
             --$this->indentLevel;
         }
-        $this->nl = "\n" . \str_repeat($this->tabOrSpaceIndentCharacter, $this->indentLevel);
+        $this->nl = "\n" . \str_repeat($this->getIndentCharacter(), $this->indentLevel);
     }
     /**
      * @param mixed[] $nodes
@@ -203,7 +176,6 @@ final class BetterStandardPrinter extends Standard
     {
         // reindex positions for printer
         $nodes = \array_values($nodes);
-        $this->moveCommentsFromAttributeObjectToCommentsAttribute($nodes);
         $content = parent::pArray($nodes, $origNodes, $pos, $indentAdjustment, $parentNodeType, $subNodeName, $fixup);
         if ($content === null) {
             return $content;
@@ -248,7 +220,7 @@ final class BetterStandardPrinter extends Standard
         if ($closure->uses === []) {
             return $closureContent;
         }
-        return Strings::replace($closureContent, self::USE_REGEX, '$1 (');
+        return \str_replace(' use(', ' use (', (string) $closureContent);
     }
     /**
      * Do not add "()" on Expressions
@@ -298,14 +270,6 @@ final class BetterStandardPrinter extends Standard
         return parent::pScalar_String($string);
     }
     /**
-     * @param Node[] $nodes
-     */
-    protected function pStmts(array $nodes, bool $indent = \true) : string
-    {
-        $this->moveCommentsFromAttributeObjectToCommentsAttribute($nodes);
-        return parent::pStmts($nodes, $indent);
-    }
-    /**
      * "...$params) : ReturnType"
      * ↓
      * "...$params): ReturnType"
@@ -335,22 +299,6 @@ final class BetterStandardPrinter extends Standard
             return '(' . $pExprTernary . ')';
         }
         return parent::pExpr_Ternary($ternary);
-    }
-    /**
-     * Remove extra \\ from FQN use imports, for easier use in the code
-     */
-    protected function pStmt_Use(Use_ $use) : string
-    {
-        if ($use->type !== Use_::TYPE_NORMAL) {
-            return parent::pStmt_Use($use);
-        }
-        foreach ($use->uses as $useUse) {
-            if (!$useUse->name instanceof FullyQualified) {
-                continue;
-            }
-            $useUse->name = new Name($useUse->name->toString());
-        }
-        return parent::pStmt_Use($use);
     }
     protected function pScalar_EncapsedStringPart(EncapsedStringPart $encapsedStringPart) : string
     {
@@ -405,6 +353,13 @@ final class BetterStandardPrinter extends Standard
         return $this->pAttrGroups($param->attrGroups) . $this->pModifiers($param->flags) . ($param->type instanceof Node ? $this->p($param->type) . ' ' : '') . ($param->byRef ? '&' : '') . ($param->variadic ? '...' : '') . $this->p($param->var) . ($param->default instanceof Expr ? ' = ' . $this->p($param->default) : '');
     }
     /**
+     * Must be a method to be able to react to changed parameter in tests
+     */
+    private function getIndentCharacter() : string
+    {
+        return SimpleParameterProvider::provideStringParameter(Option::INDENT_CHAR, ' ');
+    }
+    /**
      * @param \PhpParser\Node\Scalar\LNumber|\PhpParser\Node\Scalar\DNumber $lNumber
      */
     private function shouldPrintNewRawValue($lNumber) : bool
@@ -422,19 +377,6 @@ final class BetterStandardPrinter extends Standard
             return $stmts[0]->stmts;
         }
         return $stmts;
-    }
-    /**
-     * @param array<Node|null> $nodes
-     */
-    private function moveCommentsFromAttributeObjectToCommentsAttribute(array $nodes) : void
-    {
-        // move phpdoc from node to "comment" attribute
-        foreach ($nodes as $node) {
-            if (!$node instanceof Stmt && !$node instanceof Param) {
-                continue;
-            }
-            $this->docBlockUpdater->updateNodeWithPhpDocInfo($node);
-        }
     }
     /**
      * @param Node[] $nodes

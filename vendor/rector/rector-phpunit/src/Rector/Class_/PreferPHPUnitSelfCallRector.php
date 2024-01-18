@@ -8,8 +8,8 @@ use PhpParser\Node\Expr\MethodCall;
 use PhpParser\Node\Expr\StaticCall;
 use PhpParser\Node\Stmt\Class_;
 use PHPStan\Type\ObjectType;
-use Rector\Core\Rector\AbstractRector;
 use Rector\PHPUnit\NodeAnalyzer\TestsNodeAnalyzer;
+use Rector\Rector\AbstractRector;
 use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
 use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
 /**
@@ -82,7 +82,7 @@ CODE_SAMPLE
             if (!$this->isObjectType($node->var, new ObjectType('PHPUnit\\Framework\\TestCase'))) {
                 return null;
             }
-            if (!$this->isName($node->name, 'assert*')) {
+            if (\strncmp($methodName, 'assert', \strlen('assert')) !== 0) {
                 return null;
             }
             $hasChanged = \true;

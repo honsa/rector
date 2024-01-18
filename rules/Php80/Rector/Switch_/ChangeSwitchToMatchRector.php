@@ -9,14 +9,14 @@ use PhpParser\Node\Expr\Assign;
 use PhpParser\Node\Stmt\Expression;
 use PhpParser\Node\Stmt\Return_;
 use PhpParser\Node\Stmt\Switch_;
-use Rector\Core\Contract\PhpParser\Node\StmtsAwareInterface;
-use Rector\Core\Rector\AbstractRector;
-use Rector\Core\ValueObject\PhpVersionFeature;
+use Rector\Contract\PhpParser\Node\StmtsAwareInterface;
 use Rector\Php80\NodeAnalyzer\MatchSwitchAnalyzer;
 use Rector\Php80\NodeFactory\MatchFactory;
 use Rector\Php80\NodeResolver\SwitchExprsResolver;
 use Rector\Php80\ValueObject\CondAndExpr;
 use Rector\Php80\ValueObject\MatchResult;
+use Rector\Rector\AbstractRector;
+use Rector\ValueObject\PhpVersionFeature;
 use Rector\VersionBonding\Contract\MinPhpVersionInterface;
 use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
 use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
@@ -117,6 +117,7 @@ CODE_SAMPLE
                 }
                 $assign = new Assign($assignVar, $match);
                 $node->stmts[$key] = new Expression($assign);
+                $this->mirrorComments($node->stmts[$key], $stmt);
                 $hasChanged = \true;
                 continue;
             }
@@ -124,6 +125,7 @@ CODE_SAMPLE
                 continue;
             }
             $node->stmts[$key] = $isReturn ? new Return_($match) : new Expression($match);
+            $this->mirrorComments($node->stmts[$key], $stmt);
             $hasChanged = \true;
         }
         if ($hasChanged) {

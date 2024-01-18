@@ -271,6 +271,7 @@ require_once __DIR__ . '/vendor/phpstan/phpdoc-parser/src/Ast/ConstExpr/ConstExp
 require_once __DIR__ . '/vendor/phpstan/phpdoc-parser/src/Ast/ConstExpr/ConstExprStringNode.php';
 require_once __DIR__ . '/vendor/phpstan/phpdoc-parser/src/Ast/ConstExpr/ConstExprTrueNode.php';
 require_once __DIR__ . '/vendor/phpstan/phpdoc-parser/src/Ast/ConstExpr/ConstFetchNode.php';
+require_once __DIR__ . '/vendor/phpstan/phpdoc-parser/src/Ast/ConstExpr/DoctrineConstExprStringNode.php';
 require_once __DIR__ . '/vendor/phpstan/phpdoc-parser/src/Ast/ConstExpr/QuoteAwareConstExprStringNode.php';
 require_once __DIR__ . '/vendor/phpstan/phpdoc-parser/src/Ast/NodeTraverser.php';
 require_once __DIR__ . '/vendor/phpstan/phpdoc-parser/src/Ast/NodeVisitor/CloningVisitor.php';
@@ -297,6 +298,8 @@ require_once __DIR__ . '/vendor/phpstan/phpdoc-parser/src/Ast/PhpDoc/PhpDocNode.
 require_once __DIR__ . '/vendor/phpstan/phpdoc-parser/src/Ast/PhpDoc/PhpDocTagNode.php';
 require_once __DIR__ . '/vendor/phpstan/phpdoc-parser/src/Ast/PhpDoc/PhpDocTextNode.php';
 require_once __DIR__ . '/vendor/phpstan/phpdoc-parser/src/Ast/PhpDoc/PropertyTagValueNode.php';
+require_once __DIR__ . '/vendor/phpstan/phpdoc-parser/src/Ast/PhpDoc/RequireExtendsTagValueNode.php';
+require_once __DIR__ . '/vendor/phpstan/phpdoc-parser/src/Ast/PhpDoc/RequireImplementsTagValueNode.php';
 require_once __DIR__ . '/vendor/phpstan/phpdoc-parser/src/Ast/PhpDoc/ReturnTagValueNode.php';
 require_once __DIR__ . '/vendor/phpstan/phpdoc-parser/src/Ast/PhpDoc/SelfOutTagValueNode.php';
 require_once __DIR__ . '/vendor/phpstan/phpdoc-parser/src/Ast/PhpDoc/TemplateTagValueNode.php';

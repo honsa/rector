@@ -1,7 +1,7 @@
 <?php
 
 declare (strict_types=1);
-namespace Rector\Core\PhpParser\Node\Value;
+namespace Rector\PhpParser\Node\Value;
 
 use PhpParser\ConstExprEvaluationException;
 use PhpParser\ConstExprEvaluator;
@@ -18,17 +18,18 @@ use PHPStan\Reflection\ReflectionProvider;
 use PHPStan\Type\Constant\ConstantArrayType;
 use PHPStan\Type\ConstantScalarType;
 use PHPStan\Type\TypeWithClassName;
-use Rector\Core\Enum\ObjectReference;
-use Rector\Core\Exception\ShouldNotHappenException;
-use Rector\Core\NodeAnalyzer\ConstFetchAnalyzer;
-use Rector\Core\Provider\CurrentFileProvider;
-use Rector\Core\Reflection\ReflectionResolver;
-use Rector\Core\Util\Reflection\PrivatesAccessor;
+use Rector\Enum\ObjectReference;
+use Rector\Exception\ShouldNotHappenException;
+use Rector\NodeAnalyzer\ConstFetchAnalyzer;
 use Rector\NodeNameResolver\NodeNameResolver;
 use Rector\NodeTypeResolver\Node\AttributeKey;
 use Rector\NodeTypeResolver\NodeTypeResolver;
+use Rector\Provider\CurrentFileProvider;
+use Rector\Reflection\ClassReflectionAnalyzer;
+use Rector\Reflection\ReflectionResolver;
+use TypeError;
 /**
- * @see \Rector\Core\Tests\PhpParser\Node\Value\ValueResolverTest
+ * @see \Rector\Tests\PhpParser\Node\Value\ValueResolverTest
  * @todo make use of constant type of $scope->getType()
  */
 final class ValueResolver
@@ -45,7 +46,7 @@ final class ValueResolver
     private $nodeTypeResolver;
     /**
      * @readonly
-     * @var \Rector\Core\NodeAnalyzer\ConstFetchAnalyzer
+     * @var \Rector\NodeAnalyzer\ConstFetchAnalyzer
      */
     private $constFetchAnalyzer;
     /**
@@ -55,24 +56,24 @@ final class ValueResolver
     private $reflectionProvider;
     /**
      * @readonly
-     * @var \Rector\Core\Provider\CurrentFileProvider
+     * @var \Rector\Provider\CurrentFileProvider
      */
     private $currentFileProvider;
     /**
      * @readonly
-     * @var \Rector\Core\Reflection\ReflectionResolver
+     * @var \Rector\Reflection\ReflectionResolver
      */
     private $reflectionResolver;
     /**
      * @readonly
-     * @var \Rector\Core\Util\Reflection\PrivatesAccessor
+     * @var \Rector\Reflection\ClassReflectionAnalyzer
      */
-    private $privatesAccessor;
+    private $classReflectionAnalyzer;
     /**
      * @var \PhpParser\ConstExprEvaluator|null
      */
     private $constExprEvaluator;
-    public function __construct(NodeNameResolver $nodeNameResolver, NodeTypeResolver $nodeTypeResolver, ConstFetchAnalyzer $constFetchAnalyzer, ReflectionProvider $reflectionProvider, CurrentFileProvider $currentFileProvider, ReflectionResolver $reflectionResolver, PrivatesAccessor $privatesAccessor)
+    public function __construct(NodeNameResolver $nodeNameResolver, NodeTypeResolver $nodeTypeResolver, ConstFetchAnalyzer $constFetchAnalyzer, ReflectionProvider $reflectionProvider, CurrentFileProvider $currentFileProvider, ReflectionResolver $reflectionResolver, ClassReflectionAnalyzer $classReflectionAnalyzer)
     {
         $this->nodeNameResolver = $nodeNameResolver;
         $this->nodeTypeResolver = $nodeTypeResolver;
@@ -80,7 +81,7 @@ final class ValueResolver
         $this->reflectionProvider = $reflectionProvider;
         $this->currentFileProvider = $currentFileProvider;
         $this->reflectionResolver = $reflectionResolver;
-        $this->privatesAccessor = $privatesAccessor;
+        $this->classReflectionAnalyzer = $classReflectionAnalyzer;
     }
     /**
      * @param mixed $value
@@ -178,7 +179,7 @@ final class ValueResolver
         try {
             $constExprEvaluator = $this->getConstExprEvaluator();
             return $constExprEvaluator->evaluateDirectly($expr);
-        } catch (ConstExprEvaluationException $exception) {
+        } catch (ConstExprEvaluationException|TypeError $exception) {
         }
         return null;
     }
@@ -236,7 +237,7 @@ final class ValueResolver
     private function resolveDirConstant() : string
     {
         $file = $this->currentFileProvider->getFile();
-        if (!$file instanceof \Rector\Core\ValueObject\Application\File) {
+        if (!$file instanceof \Rector\ValueObject\Application\File) {
             throw new ShouldNotHappenException();
         }
         return \dirname($file->getFilePath());
@@ -244,7 +245,7 @@ final class ValueResolver
     private function resolveFileConstant(File $file) : string
     {
         $file = $this->currentFileProvider->getFile();
-        if (!$file instanceof \Rector\Core\ValueObject\Application\File) {
+        if (!$file instanceof \Rector\ValueObject\Application\File) {
             throw new ShouldNotHappenException();
         }
         return $file->getFilePath();
@@ -311,9 +312,7 @@ final class ValueResolver
             throw new ShouldNotHappenException('Complete class parent node for to class const fetch, so "parent" references is resolvable to lookup parent class');
         }
         // ensure parent class name still resolved even not autoloaded
-        $nativeReflection = $classReflection->getNativeReflection();
-        $betterReflectionClass = $this->privatesAccessor->getPrivateProperty($nativeReflection, 'betterReflectionClass');
-        $parentClassName = $this->privatesAccessor->getPrivateProperty($betterReflectionClass, 'parentClassName');
+        $parentClassName = $this->classReflectionAnalyzer->resolveParentClassName($classReflection);
         if ($parentClassName === null) {
             throw new ShouldNotHappenException();
         }

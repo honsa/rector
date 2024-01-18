@@ -9,8 +9,8 @@ use PhpParser\Node\Expr\Ternary;
 use PhpParser\Node\Stmt\Expression;
 use PhpParser\Node\Stmt\If_;
 use PHPStan\Analyser\Scope;
-use Rector\Core\Rector\AbstractScopeAwareRector;
 use Rector\DeadCode\SideEffect\SideEffectNodeDetector;
+use Rector\Rector\AbstractScopeAwareRector;
 use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
 use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
 /**
@@ -70,7 +70,7 @@ CODE_SAMPLE
         if (!$ternary->if instanceof Expr) {
             return null;
         }
-        if ($this->sideEffectNodeDetector->detect($ternary->else, $scope)) {
+        if ($this->sideEffectNodeDetector->detect($ternary->else, $scope) || $this->sideEffectNodeDetector->detectCallExpr($ternary->else, $scope)) {
             return null;
         }
         return new If_($ternary->cond, ['stmts' => [new Expression($ternary->if)]]);

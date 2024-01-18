@@ -1,9 +1,11 @@
 <?php
 
 declare (strict_types=1);
-namespace RectorPrefix202307;
+namespace RectorPrefix202401;
 
 use Rector\Config\RectorConfig;
+use Rector\Php80\Rector\Class_\AnnotationToAttributeRector;
+use Rector\Php80\ValueObject\AnnotationToAttribute;
 use Rector\Renaming\Rector\ClassConstFetch\RenameClassConstFetchRector;
 use Rector\Renaming\Rector\MethodCall\RenameMethodRector;
 use Rector\Renaming\Rector\Name\RenameClassRector;
@@ -11,10 +13,22 @@ use Rector\Renaming\ValueObject\MethodCallRename;
 use Rector\Renaming\ValueObject\RenameClassAndConstFetch;
 use Rector\Symfony\Symfony62\Rector\Class_\MessageHandlerInterfaceToAttributeRector;
 use Rector\Symfony\Symfony62\Rector\Class_\MessageSubscriberInterfaceToAttributeRector;
+use Rector\Symfony\Symfony62\Rector\ClassMethod\ClassMethod\ArgumentValueResolverToValueResolverRector;
 use Rector\Symfony\Symfony62\Rector\ClassMethod\ParamConverterAttributeToMapEntityAttributeRector;
 use Rector\Symfony\Symfony62\Rector\MethodCall\SimplifyFormRenderingRector;
 return static function (RectorConfig $rectorConfig) : void {
     $rectorConfig->rule(SimplifyFormRenderingRector::class);
+    // change to attribute before rename
+    // https://symfony.com/blog/new-in-symfony-6-2-built-in-cache-security-template-and-doctrine-attributes
+    // @see https://github.com/rectorphp/rector-symfony/issues/535#issuecomment-1783983383
+    $rectorConfig->ruleWithConfiguration(AnnotationToAttributeRector::class, [
+        // @see https://github.com/symfony/symfony/pull/46907
+        new AnnotationToAttribute('Sensio\\Bundle\\FrameworkExtraBundle\\Configuration\\IsGranted'),
+        // @see https://github.com/symfony/symfony/pull/46880
+        new AnnotationToAttribute('Sensio\\Bundle\\FrameworkExtraBundle\\Configuration\\Cache'),
+        // @see https://github.com/symfony/symfony/pull/46906
+        new AnnotationToAttribute('Sensio\\Bundle\\FrameworkExtraBundle\\Configuration\\Template'),
+    ]);
     // https://symfony.com/blog/new-in-symfony-6-2-built-in-cache-security-template-and-doctrine-attributes
     $rectorConfig->ruleWithConfiguration(RenameClassRector::class, [
         // @see https://github.com/symfony/symfony/pull/46907
@@ -52,4 +66,6 @@ return static function (RectorConfig $rectorConfig) : void {
     // @see https://github.com/symfony/symfony/pull/47068
     $rectorConfig->rule(MessageHandlerInterfaceToAttributeRector::class);
     $rectorConfig->rule(MessageSubscriberInterfaceToAttributeRector::class);
+    // @see https://github.com/symfony/symfony/pull/47363
+    $rectorConfig->rule(ArgumentValueResolverToValueResolverRector::class);
 };

@@ -14,9 +14,9 @@ use PhpParser\Node\Scalar\LNumber;
 use PhpParser\Node\Scalar\MagicConst\Line;
 use PhpParser\Node\Scalar\String_;
 use PHPStan\Type\Constant\ConstantStringType;
-use Rector\Core\NodeAnalyzer\ExprAnalyzer;
-use Rector\Core\Rector\AbstractRector;
-use Rector\Core\ValueObject\PhpVersionFeature;
+use Rector\NodeAnalyzer\ExprAnalyzer;
+use Rector\Rector\AbstractRector;
+use Rector\ValueObject\PhpVersionFeature;
 use Rector\VersionBonding\Contract\MinPhpVersionInterface;
 use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
 use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
@@ -29,7 +29,7 @@ final class BinaryOpBetweenNumberAndStringRector extends AbstractRector implemen
 {
     /**
      * @readonly
-     * @var \Rector\Core\NodeAnalyzer\ExprAnalyzer
+     * @var \Rector\NodeAnalyzer\ExprAnalyzer
      */
     private $exprAnalyzer;
     public function __construct(ExprAnalyzer $exprAnalyzer)
@@ -88,17 +88,17 @@ CODE_SAMPLE
         if ($this->exprAnalyzer->isNonTypedFromParam($node->right)) {
             return null;
         }
-        if ($this->isStringOrStaticNonNumbericString($node->left) && $this->nodeTypeResolver->isNumberType($node->right)) {
+        if ($this->isStringOrStaticNonNumericString($node->left) && $this->nodeTypeResolver->isNumberType($node->right)) {
             $node->left = new LNumber(0);
             return $node;
         }
-        if ($this->isStringOrStaticNonNumbericString($node->right) && $this->nodeTypeResolver->isNumberType($node->left)) {
+        if ($this->isStringOrStaticNonNumericString($node->right) && $this->nodeTypeResolver->isNumberType($node->left)) {
             $node->right = new LNumber(0);
             return $node;
         }
         return null;
     }
-    private function isStringOrStaticNonNumbericString(Expr $expr) : bool
+    private function isStringOrStaticNonNumericString(Expr $expr) : bool
     {
         // replace only scalar values, not variables/constants/etc.
         if (!$expr instanceof Scalar && !$expr instanceof Variable) {

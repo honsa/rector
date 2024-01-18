@@ -3,7 +3,7 @@
 declare (strict_types=1);
 namespace Rector\CodingStyle\ClassNameImport;
 
-use RectorPrefix202307\Nette\Utils\Reflection;
+use RectorPrefix202401\Nette\Utils\Reflection;
 use PhpParser\Node;
 use PhpParser\Node\Identifier;
 use PhpParser\Node\Name;
@@ -17,15 +17,14 @@ use PHPStan\Reflection\ReflectionProvider;
 use Rector\BetterPhpDocParser\PhpDocInfo\PhpDocInfo;
 use Rector\BetterPhpDocParser\PhpDocInfo\PhpDocInfoFactory;
 use Rector\CodingStyle\NodeAnalyzer\UseImportNameMatcher;
-use Rector\Core\PhpParser\Node\BetterNodeFinder;
-use Rector\Core\Util\StringUtils;
-use Rector\Core\ValueObject\Application\File;
 use Rector\NodeNameResolver\NodeNameResolver;
 use Rector\NodeTypeResolver\Node\AttributeKey;
 use Rector\PhpDocParser\NodeTraverser\SimpleCallableNodeTraverser;
 use Rector\PhpDocParser\PhpDocParser\PhpDocNodeTraverser;
+use Rector\PhpParser\Node\BetterNodeFinder;
+use Rector\PhpParser\Node\CustomNode\FileWithoutNamespace;
+use Rector\ValueObject\Application\File;
 use ReflectionClass;
-use RectorPrefix202307\Symfony\Contracts\Service\Attribute\Required;
 /**
  * @see \Rector\Tests\CodingStyle\ClassNameImport\ShortNameResolver\ShortNameResolverTest
  */
@@ -48,7 +47,7 @@ final class ShortNameResolver
     private $reflectionProvider;
     /**
      * @readonly
-     * @var \Rector\Core\PhpParser\Node\BetterNodeFinder
+     * @var \Rector\PhpParser\Node\BetterNodeFinder
      */
     private $betterNodeFinder;
     /**
@@ -57,32 +56,21 @@ final class ShortNameResolver
      */
     private $useImportNameMatcher;
     /**
-     * @var string
-     * @see https://regex101.com/r/KphLd2/1
+     * @readonly
+     * @var \Rector\BetterPhpDocParser\PhpDocInfo\PhpDocInfoFactory
      */
-    private const BIG_LETTER_START_REGEX = '#^[A-Z]#';
+    private $phpDocInfoFactory;
     /**
      * @var array<string, string[]>
      */
     private $shortNamesByFilePath = [];
-    /**
-     * @var \Rector\BetterPhpDocParser\PhpDocInfo\PhpDocInfoFactory
-     */
-    private $phpDocInfoFactory;
-    public function __construct(SimpleCallableNodeTraverser $simpleCallableNodeTraverser, NodeNameResolver $nodeNameResolver, ReflectionProvider $reflectionProvider, BetterNodeFinder $betterNodeFinder, UseImportNameMatcher $useImportNameMatcher)
+    public function __construct(SimpleCallableNodeTraverser $simpleCallableNodeTraverser, NodeNameResolver $nodeNameResolver, ReflectionProvider $reflectionProvider, BetterNodeFinder $betterNodeFinder, UseImportNameMatcher $useImportNameMatcher, PhpDocInfoFactory $phpDocInfoFactory)
     {
         $this->simpleCallableNodeTraverser = $simpleCallableNodeTraverser;
         $this->nodeNameResolver = $nodeNameResolver;
         $this->reflectionProvider = $reflectionProvider;
         $this->betterNodeFinder = $betterNodeFinder;
         $this->useImportNameMatcher = $useImportNameMatcher;
-    }
-    // Avoids circular reference
-    /**
-     * @required
-     */
-    public function autowire(PhpDocInfoFactory $phpDocInfoFactory) : void
-    {
         $this->phpDocInfoFactory = $phpDocInfoFactory;
     }
     /**
@@ -105,9 +93,9 @@ final class ShortNameResolver
     public function resolveShortClassLikeNames(File $file) : array
     {
         $newStmts = $file->getNewStmts();
-        /** @var Namespace_[] $namespaces */
+        /** @var Namespace_[]|FileWithoutNamespace[] $namespaces */
         $namespaces = \array_filter($newStmts, static function (Stmt $stmt) : bool {
-            return $stmt instanceof Namespace_;
+            return $stmt instanceof Namespace_ || $stmt instanceof FileWithoutNamespace;
         });
         if (\count($namespaces) !== 1) {
             // only handle single namespace nodes
@@ -115,7 +103,7 @@ final class ShortNameResolver
         }
         $namespace = \current($namespaces);
         /** @var ClassLike[] $classLikes */
-        $classLikes = $this->betterNodeFinder->findInstanceOf($namespace, ClassLike::class);
+        $classLikes = $this->betterNodeFinder->findInstanceOf($namespace->stmts, ClassLike::class);
         $shortClassLikeNames = [];
         foreach ($classLikes as $classLike) {
             $shortClassLikeNames[] = $this->nodeNameResolver->getShortName($classLike);
@@ -176,7 +164,7 @@ final class ShortNameResolver
             $phpDocNodeTraverser->traverseWithCallable($phpDocInfo->getPhpDocNode(), '', static function ($node) use(&$shortNames) {
                 if ($node instanceof PhpDocTagNode) {
                     $shortName = \trim($node->name, '@');
-                    if (StringUtils::isMatch($shortName, self::BIG_LETTER_START_REGEX)) {
+                    if (\ucfirst($shortName) === $shortName) {
                         $shortNames[] = $shortName;
                     }
                     return null;

@@ -1,8 +1,8 @@
 <?php
 
-namespace RectorPrefix202307\React\EventLoop\Timer;
+namespace RectorPrefix202401\React\EventLoop\Timer;
 
-use RectorPrefix202307\React\EventLoop\TimerInterface;
+use RectorPrefix202401\React\EventLoop\TimerInterface;
 /**
  * The actual connection implementation for TimerInterface
  *

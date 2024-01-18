@@ -8,8 +8,8 @@ use PhpParser\Node\Arg;
 use PhpParser\Node\Expr\FuncCall;
 use PhpParser\Node\Name;
 use PhpParser\Node\Scalar\LNumber;
-use Rector\Core\Rector\AbstractRector;
-use Rector\Core\ValueObject\PhpVersionFeature;
+use Rector\Rector\AbstractRector;
+use Rector\ValueObject\PhpVersionFeature;
 use Rector\VersionBonding\Contract\MinPhpVersionInterface;
 use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
 use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
@@ -21,10 +21,10 @@ final class RandomFunctionRector extends AbstractRector implements MinPhpVersion
     /**
      * @var array<string, string>
      */
-    private const OLD_TO_NEW_FUNCTION_NAMES = ['getrandmax' => 'mt_getrandmax', 'srand' => 'mt_srand', 'mt_rand' => 'random_int', 'rand' => 'random_int'];
+    private const OLD_TO_NEW_FUNCTION_NAMES = ['getrandmax' => 'mt_getrandmax', 'srand' => 'mt_srand', 'rand' => 'random_int'];
     public function getRuleDefinition() : RuleDefinition
     {
-        return new RuleDefinition('Changes rand, srand, mt_rand and getrandmax to newer alternatives.', [new CodeSample('rand();', 'random_int();')]);
+        return new RuleDefinition('Changes rand, srand, and getrandmax to newer alternatives', [new CodeSample('rand();', 'random_int();')]);
     }
     /**
      * @return array<class-string<Node>>

@@ -1,4 +1,4 @@
-# 45 Rules Overview
+# 52 Rules Overview
 
 ## AddDoesNotPerformAssertionToNonAssertingTestRector
 
@@ -77,27 +77,6 @@ Change annotations with value to attribute
 
 - class: [`Rector\PHPUnit\AnnotationsToAttributes\Rector\Class_\AnnotationWithValueToAttributeRector`](../rules/AnnotationsToAttributes/Rector/Class_/AnnotationWithValueToAttributeRector.php)
 
-```php
-<?php
-
-declare(strict_types=1);
-
-use Rector\Config\RectorConfig;
-use Rector\PHPUnit\AnnotationsToAttributes\Rector\Class_\AnnotationWithValueToAttributeRector;
-use Rector\PHPUnit\ValueObject\AnnotationWithValueToAttribute;
-
-return static function (RectorConfig $rectorConfig): void {
-    $rectorConfig->ruleWithConfiguration(AnnotationWithValueToAttributeRector::class, [
-        new AnnotationWithValueToAttribute('backupGlobals', 'PHPUnit\Framework\Attributes\BackupGlobals', [
-            true,
-            false,
-        ]),
-    ]);
-};
-```
-
-↓
-
 ```diff
  use PHPUnit\Framework\TestCase;
 +use PHPUnit\Framework\Attributes\BackupGlobals;
@@ -149,6 +128,47 @@ Turns comparison operations to their method name alternatives in PHPUnit TestCas
 ```diff
 -$this->assertFalse($foo >= $bar, "message");
 +$this->assertLessThanOrEqual($bar, $foo, "message");
+```
+
+<br>
+
+## AssertEmptyNullableObjectToAssertInstanceofRector
+
+Change `assertNotEmpty()` on an object to more clear `assertInstanceof()`
+
+- class: [`Rector\PHPUnit\CodeQuality\Rector\MethodCall\AssertEmptyNullableObjectToAssertInstanceofRector`](../rules/CodeQuality/Rector/MethodCall/AssertEmptyNullableObjectToAssertInstanceofRector.php)
+
+```diff
+ use PHPUnit\Framework\TestCase;
+
+ class SomeClass extends TestCase
+ {
+     public function test()
+     {
+         $someObject = new stdClass();
+
+-        $this->assertNotEmpty($someObject);
++        $this->assertInstanceof(stdClass::class, $someObject);
+     }
+ }
+```
+
+<br>
+
+## AssertEqualsOrAssertSameFloatParameterToSpecificMethodsTypeRector
+
+Change `assertEquals()/assertSame()` method using float on expected argument to new specific alternatives.
+
+- class: [`Rector\PHPUnit\CodeQuality\Rector\MethodCall\AssertEqualsOrAssertSameFloatParameterToSpecificMethodsTypeRector`](../rules/CodeQuality/Rector/MethodCall/AssertEqualsOrAssertSameFloatParameterToSpecificMethodsTypeRector.php)
+
+```diff
+-$this->assertSame(10.20, $value);
+-$this->assertEquals(10.20, $value);
+-$this->assertEquals(10.200, $value);
++$this->assertEqualsWithDelta(10.20, $value, PHP_FLOAT_EPSILON);
++$this->assertEqualsWithDelta(10.20, $value, PHP_FLOAT_EPSILON);
++$this->assertEqualsWithDelta(10.200, $value, PHP_FLOAT_EPSILON);
+ $this->assertSame(10, $value);
 ```
 
 <br>
@@ -399,12 +419,12 @@ Change covers annotations with value to attribute
 - * @covers SomeClass
 - */
 +#[CoversClass(SomeClass::class)]
++#[CoversFunction('someFunction')]
  final class SomeTest extends TestCase
  {
 -    /**
--     * @covers ::someFunction
+-     * @covers ::someFunction()
 -     */
-+    #[CoversFunction('someFunction')]
      public function test()
      {
      }
@@ -456,9 +476,41 @@ Change dataProvider annotations to attribute
 -    /**
 -     * @dataProvider someMethod()
 -     */
-+    #[\PHPUnit\Framework\Attributes\DataProvider('test')]
++    #[\PHPUnit\Framework\Attributes\DataProvider('someMethod')]
      public function test(): void
      {
+     }
+ }
+```
+
+<br>
+
+## DataProviderArrayItemsNewLinedRector
+
+Change data provider in PHPUnit test case to newline per item
+
+- class: [`Rector\PHPUnit\CodeQuality\Rector\ClassMethod\DataProviderArrayItemsNewLinedRector`](../rules/CodeQuality/Rector/ClassMethod/DataProviderArrayItemsNewLinedRector.php)
+
+```diff
+ use PHPUnit\Framework\TestCase;
+
+ final class ImageBinaryTest extends TestCase
+ {
+     /**
+      * @dataProvider provideData()
+      */
+     public function testGetBytesSize(string $content, int $number): void
+     {
+         // ...
+     }
+
+     public static function provideData(): array
+     {
+-        return [['content', 8], ['content123', 11]];
++        return [
++            ['content', 8],
++            ['content123', 11]
++        ];
      }
  }
 ```
@@ -500,13 +552,11 @@ Change depends annotations with value to attribute
  final class SomeTest extends TestCase
  {
      public function testOne() {}
-     public function testTwo() {}
+
 -    /**
 -     * @depends testOne
--     * @depends testTwo
 -     */
 +    #[\PHPUnit\Framework\Attributes\Depends('testOne')]
-+    #[\PHPUnit\Framework\Attributes\Depends('testTwo')]
      public function testThree(): void
      {
      }
@@ -662,6 +712,34 @@ Turns PHPUnit TestCase assertObjectHasAttribute into `property_exists` compariso
 
 <br>
 
+## PublicDataProviderClassMethodRector
+
+Change data provider methods to public
+
+- class: [`Rector\PHPUnit\PHPUnit100\Rector\Class_\PublicDataProviderClassMethodRector`](../rules/PHPUnit100/Rector/Class_/PublicDataProviderClassMethodRector.php)
+
+```diff
+ use PHPUnit\Framework\TestCase;
+
+ final class SomeTest extends TestCase
+ {
+     /**
+      * @dataProvider provideData()
+      */
+     public function test()
+     {
+     }
+
+-    protected static function provideData()
++    public static function provideData()
+     {
+         yield [1];
+     }
+ }
+```
+
+<br>
+
 ## RemoveDataProviderTestPrefixRector
 
 Data provider methods cannot start with "test" prefix
@@ -740,7 +818,7 @@ Remove `expect($this->any())` from mocks as it has no added value
 
 Remove `"setMethods()"` method as never used
 
-- class: [`Rector\PHPUnit\CodeQuality\Rector\MethodCall\RemoveSetMethodsMethodCallRector`](../rules/CodeQuality/Rector/MethodCall/RemoveSetMethodsMethodCallRector.php)
+- class: [`Rector\PHPUnit\PHPUnit100\Rector\MethodCall\RemoveSetMethodsMethodCallRector`](../rules/PHPUnit100/Rector/MethodCall/RemoveSetMethodsMethodCallRector.php)
 
 ```diff
  use PHPUnit\Framework\TestCase;
@@ -977,6 +1055,60 @@ Change `@testWith()` annotation to #[TestWith] attribute
 
 <br>
 
+## TestWithToDataProviderRector
+
+Replace testWith annotation to data provider.
+
+- class: [`Rector\PHPUnit\CodeQuality\Rector\Class_\TestWithToDataProviderRector`](../rules/CodeQuality/Rector/Class_/TestWithToDataProviderRector.php)
+
+```diff
++public function dataProviderSum()
++{
++    return [
++        [0, 0, 0],
++        [0, 1, 1],
++        [1, 0, 1],
++        [1, 1, 3]
++    ];
++}
++
+ /**
+- * @testWith    [0, 0, 0]
+- * @testWith    [0, 1, 1]
+- * @testWith    [1, 0, 1]
+- * @testWith    [1, 1, 3]
++ * @dataProvider dataProviderSum
+  */
+-public function testSum(int $a, int $b, int $expected)
++public function test(int $a, int $b, int $expected)
+ {
+     $this->assertSame($expected, $a + $b);
+ }
+```
+
+<br>
+
+## TicketAnnotationToAttributeRector
+
+Change annotations with value to attribute
+
+- class: [`Rector\PHPUnit\AnnotationsToAttributes\Rector\Class_\TicketAnnotationToAttributeRector`](../rules/AnnotationsToAttributes/Rector/Class_/TicketAnnotationToAttributeRector.php)
+
+```diff
+ use PHPUnit\Framework\TestCase;
++use PHPUnit\Framework\Attributes\Ticket;
+
+-/**
+- * @ticket 123
+- */
++#[Ticket('123')]
+ final class SomeTest extends TestCase
+ {
+ }
+```
+
+<br>
+
 ## UseSpecificWillMethodRector
 
 Changes `$mock->will()` call to more specific method
@@ -1016,6 +1148,56 @@ Changes `->with()` to more specific method
              ->method('trans')
 -            ->with($this->equalTo('old max {{ max }}!'));
 +            ->with('old max {{ max }}!');
+     }
+ }
+```
+
+<br>
+
+## WithConsecutiveRector
+
+Refactor deprecated `withConsecutive()` to `willReturnCallback()` structure
+
+- class: [`Rector\PHPUnit\Rector\StmtsAwareInterface\WithConsecutiveRector`](../src/Rector/StmtsAwareInterface/WithConsecutiveRector.php)
+
+```diff
+ use PHPUnit\Framework\TestCase;
+
+ final class SomeTest extends TestCase
+ {
+     public function run()
+     {
+-        $this->personServiceMock->expects($this->exactly(2))
++        $matcher = $this->exactly(2);
++
++        $this->personServiceMock->expects($matcher)
+             ->method('prepare')
+-            ->withConsecutive(
+-                [1, 2],
+-                [3, 4],
+-            );
++            ->willReturnCallback(function () use ($matcher) {
++                return match ($matcher->numberOfInvocations()) {
++                    1 => [1, 2],
++                    2 => [3, 4]
++                };
++        });
+
+-        $this->userServiceMock->expects(self::exactly(2))
++        $matcher = self::exactly(2);
++
++        $this->userServiceMock->expects($matcher)
+             ->method('prepare')
+-            ->withConsecutive(
+-                [1, 2],
+-                [3, 4],
+-            );
++            ->willReturnCallback(function () use ($matcher) {
++                return match ($matcher->numberOfInvocations()) {
++                    1 => [1, 2],
++                    2 => [3, 4]
++                };
++        });
      }
  }
 ```

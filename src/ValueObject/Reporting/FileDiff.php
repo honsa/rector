@@ -1,14 +1,14 @@
 <?php
 
 declare (strict_types=1);
-namespace Rector\Core\ValueObject\Reporting;
+namespace Rector\ValueObject\Reporting;
 
-use RectorPrefix202307\Nette\Utils\Strings;
+use RectorPrefix202401\Nette\Utils\Strings;
 use Rector\ChangesReporting\ValueObject\RectorWithLineChange;
-use Rector\Core\Contract\Rector\RectorInterface;
-use Rector\Parallel\ValueObject\Name;
-use RectorPrefix202307\Symplify\EasyParallel\Contract\SerializableInterface;
-use RectorPrefix202307\Webmozart\Assert\Assert;
+use Rector\Contract\Rector\RectorInterface;
+use Rector\Parallel\ValueObject\BridgeItem;
+use RectorPrefix202401\Symplify\EasyParallel\Contract\SerializableInterface;
+use RectorPrefix202401\Webmozart\Assert\Assert;
 final class FileDiff implements SerializableInterface
 {
     /**
@@ -95,18 +95,19 @@ final class FileDiff implements SerializableInterface
      */
     public function jsonSerialize() : array
     {
-        return [Name::RELATIVE_FILE_PATH => $this->relativeFilePath, Name::DIFF => $this->diff, Name::DIFF_CONSOLE_FORMATTED => $this->diffConsoleFormatted, Name::RECTORS_WITH_LINE_CHANGES => $this->rectorsWithLineChanges];
+        return [BridgeItem::RELATIVE_FILE_PATH => $this->relativeFilePath, BridgeItem::DIFF => $this->diff, BridgeItem::DIFF_CONSOLE_FORMATTED => $this->diffConsoleFormatted, BridgeItem::RECTORS_WITH_LINE_CHANGES => $this->rectorsWithLineChanges];
     }
     /**
      * @param array<string, mixed> $json
+     * @return $this
      */
-    public static function decode(array $json) : SerializableInterface
+    public static function decode(array $json) : \RectorPrefix202401\Symplify\EasyParallel\Contract\SerializableInterface
     {
         $rectorWithLineChanges = [];
-        foreach ($json[Name::RECTORS_WITH_LINE_CHANGES] as $rectorWithLineChangesJson) {
+        foreach ($json[BridgeItem::RECTORS_WITH_LINE_CHANGES] as $rectorWithLineChangesJson) {
             $rectorWithLineChanges[] = RectorWithLineChange::decode($rectorWithLineChangesJson);
         }
-        return new self($json[Name::RELATIVE_FILE_PATH], $json[Name::DIFF], $json[Name::DIFF_CONSOLE_FORMATTED], $rectorWithLineChanges);
+        return new self($json[BridgeItem::RELATIVE_FILE_PATH], $json[BridgeItem::DIFF], $json[BridgeItem::DIFF_CONSOLE_FORMATTED], $rectorWithLineChanges);
     }
     /**
      * @template TType as object

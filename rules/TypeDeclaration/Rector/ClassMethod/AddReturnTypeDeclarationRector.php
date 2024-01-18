@@ -10,16 +10,17 @@ use PHPStan\Type\ArrayType;
 use PHPStan\Type\MixedType;
 use PHPStan\Type\ObjectType;
 use PHPStan\Type\Type;
-use Rector\Core\Contract\Rector\ConfigurableRectorInterface;
-use Rector\Core\Php\PhpVersionProvider;
-use Rector\Core\Rector\AbstractRector;
-use Rector\Core\ValueObject\PhpVersionFeature;
+use Rector\Contract\Rector\ConfigurableRectorInterface;
+use Rector\Php\PhpVersionProvider;
 use Rector\PHPStanStaticTypeMapper\Enum\TypeKind;
+use Rector\Rector\AbstractRector;
+use Rector\StaticTypeMapper\StaticTypeMapper;
 use Rector\TypeDeclaration\ValueObject\AddReturnTypeDeclaration;
+use Rector\ValueObject\PhpVersionFeature;
 use Rector\VendorLocker\ParentClassMethodTypeOverrideGuard;
 use Symplify\RuleDocGenerator\ValueObject\CodeSample\ConfiguredCodeSample;
 use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
-use RectorPrefix202307\Webmozart\Assert\Assert;
+use RectorPrefix202401\Webmozart\Assert\Assert;
 /**
  * @see \Rector\Tests\TypeDeclaration\Rector\ClassMethod\AddReturnTypeDeclarationRector\AddReturnTypeDeclarationRectorTest
  */
@@ -27,7 +28,7 @@ final class AddReturnTypeDeclarationRector extends AbstractRector implements Con
 {
     /**
      * @readonly
-     * @var \Rector\Core\Php\PhpVersionProvider
+     * @var \Rector\Php\PhpVersionProvider
      */
     private $phpVersionProvider;
     /**
@@ -36,6 +37,11 @@ final class AddReturnTypeDeclarationRector extends AbstractRector implements Con
      */
     private $parentClassMethodTypeOverrideGuard;
     /**
+     * @readonly
+     * @var \Rector\StaticTypeMapper\StaticTypeMapper
+     */
+    private $staticTypeMapper;
+    /**
      * @var AddReturnTypeDeclaration[]
      */
     private $methodReturnTypes = [];
@@ -43,10 +49,11 @@ final class AddReturnTypeDeclarationRector extends AbstractRector implements Con
      * @var bool
      */
     private $hasChanged = \false;
-    public function __construct(PhpVersionProvider $phpVersionProvider, ParentClassMethodTypeOverrideGuard $parentClassMethodTypeOverrideGuard)
+    public function __construct(PhpVersionProvider $phpVersionProvider, ParentClassMethodTypeOverrideGuard $parentClassMethodTypeOverrideGuard, StaticTypeMapper $staticTypeMapper)
     {
         $this->phpVersionProvider = $phpVersionProvider;
         $this->parentClassMethodTypeOverrideGuard = $parentClassMethodTypeOverrideGuard;
+        $this->staticTypeMapper = $staticTypeMapper;
     }
     public function getRuleDefinition() : RuleDefinition
     {

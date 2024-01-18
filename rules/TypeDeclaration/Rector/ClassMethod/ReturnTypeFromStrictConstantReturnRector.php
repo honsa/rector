@@ -7,10 +7,11 @@ use PhpParser\Node;
 use PhpParser\Node\Stmt\ClassMethod;
 use PHPStan\Analyser\Scope;
 use PHPStan\Type\Type;
-use Rector\Core\Rector\AbstractScopeAwareRector;
-use Rector\Core\ValueObject\PhpVersion;
 use Rector\PHPStanStaticTypeMapper\Enum\TypeKind;
+use Rector\Rector\AbstractScopeAwareRector;
+use Rector\StaticTypeMapper\StaticTypeMapper;
 use Rector\TypeDeclaration\TypeAnalyzer\StrictReturnClassConstReturnTypeAnalyzer;
+use Rector\ValueObject\PhpVersion;
 use Rector\VendorLocker\NodeVendorLocker\ClassMethodReturnTypeOverrideGuard;
 use Rector\VersionBonding\Contract\MinPhpVersionInterface;
 use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
@@ -30,10 +31,16 @@ final class ReturnTypeFromStrictConstantReturnRector extends AbstractScopeAwareR
      * @var \Rector\VendorLocker\NodeVendorLocker\ClassMethodReturnTypeOverrideGuard
      */
     private $classMethodReturnTypeOverrideGuard;
-    public function __construct(StrictReturnClassConstReturnTypeAnalyzer $strictReturnClassConstReturnTypeAnalyzer, ClassMethodReturnTypeOverrideGuard $classMethodReturnTypeOverrideGuard)
+    /**
+     * @readonly
+     * @var \Rector\StaticTypeMapper\StaticTypeMapper
+     */
+    private $staticTypeMapper;
+    public function __construct(StrictReturnClassConstReturnTypeAnalyzer $strictReturnClassConstReturnTypeAnalyzer, ClassMethodReturnTypeOverrideGuard $classMethodReturnTypeOverrideGuard, StaticTypeMapper $staticTypeMapper)
     {
         $this->strictReturnClassConstReturnTypeAnalyzer = $strictReturnClassConstReturnTypeAnalyzer;
         $this->classMethodReturnTypeOverrideGuard = $classMethodReturnTypeOverrideGuard;
+        $this->staticTypeMapper = $staticTypeMapper;
     }
     public function getRuleDefinition() : RuleDefinition
     {

@@ -3,19 +3,18 @@
 declare (strict_types=1);
 namespace Rector\Php74\Rector\LNumber;
 
-use RectorPrefix202307\Nette\Utils\Strings;
 use PhpParser\Node;
 use PhpParser\Node\Scalar\DNumber;
 use PhpParser\Node\Scalar\LNumber;
-use Rector\Core\Contract\Rector\ConfigurableRectorInterface;
-use Rector\Core\Rector\AbstractRector;
-use Rector\Core\Util\StringUtils;
-use Rector\Core\ValueObject\PhpVersionFeature;
+use Rector\Contract\Rector\ConfigurableRectorInterface;
 use Rector\NodeTypeResolver\Node\AttributeKey;
+use Rector\Rector\AbstractRector;
+use Rector\Util\StringUtils;
+use Rector\ValueObject\PhpVersionFeature;
 use Rector\VersionBonding\Contract\MinPhpVersionInterface;
 use Symplify\RuleDocGenerator\ValueObject\CodeSample\ConfiguredCodeSample;
 use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
-use RectorPrefix202307\Webmozart\Assert\Assert;
+use RectorPrefix202401\Webmozart\Assert\Assert;
 /**
  * @changelog https://wiki.php.net/rfc/numeric_literal_separator
  * @changelog https://github.com/nikic/PHP-Parser/pull/615
@@ -76,7 +75,7 @@ class SomeClass
     }
 }
 CODE_SAMPLE
-, [self::LIMIT_VALUE => 1000000])]);
+, [\Rector\Php74\Rector\LNumber\AddLiteralSeparatorToNumberRector::LIMIT_VALUE => 1000000])]);
     }
     /**
      * @return array<class-string<Node>>
@@ -142,7 +141,7 @@ CODE_SAMPLE
             return \true;
         }
         // too short
-        return Strings::length($rawValue) <= self::GROUP_SIZE;
+        return \strlen($rawValue) <= self::GROUP_SIZE;
     }
     /**
      * @return string[]

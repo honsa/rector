@@ -1,7 +1,7 @@
 <?php
 
 declare (strict_types=1);
-namespace RectorPrefix202307;
+namespace RectorPrefix202401;
 
 use Rector\CodeQuality\Rector\FunctionLike\SimplifyUselessVariableRector;
 use Rector\Config\RectorConfig;
@@ -17,6 +17,7 @@ use Rector\DeadCode\Rector\ClassMethod\RemoveUnusedPrivateMethodParameterRector;
 use Rector\DeadCode\Rector\ClassMethod\RemoveUnusedPrivateMethodRector;
 use Rector\DeadCode\Rector\ClassMethod\RemoveUnusedPromotedPropertyRector;
 use Rector\DeadCode\Rector\ClassMethod\RemoveUselessParamTagRector;
+use Rector\DeadCode\Rector\ClassMethod\RemoveUselessReturnExprInConstructRector;
 use Rector\DeadCode\Rector\ClassMethod\RemoveUselessReturnTagRector;
 use Rector\DeadCode\Rector\Concat\RemoveConcatAutocastRector;
 use Rector\DeadCode\Rector\ConstFetch\RemovePhpVersionIdCheckRector;
@@ -41,7 +42,6 @@ use Rector\DeadCode\Rector\PropertyProperty\RemoveNullPropertyInitializationRect
 use Rector\DeadCode\Rector\Return_\RemoveDeadConditionAboveReturnRector;
 use Rector\DeadCode\Rector\StaticCall\RemoveParentCallWithoutParentRector;
 use Rector\DeadCode\Rector\Stmt\RemoveUnreachableStatementRector;
-use Rector\DeadCode\Rector\StmtsAwareInterface\RemoveJustPropertyFetchForAssignRector;
 use Rector\DeadCode\Rector\Switch_\RemoveDuplicatedCaseInSwitchRector;
 use Rector\DeadCode\Rector\Ternary\TernaryToBooleanOrFalseToBooleanAndRector;
 use Rector\DeadCode\Rector\TryCatch\RemoveDeadTryCatchRector;
@@ -85,9 +85,9 @@ return static function (RectorConfig $rectorConfig) : void {
         RemoveNonExistingVarAnnotationRector::class,
         RemoveUselessVarTagRector::class,
         RemoveUnusedPromotedPropertyRector::class,
-        RemoveJustPropertyFetchForAssignRector::class,
         RemoveAlwaysTrueIfConditionRector::class,
         RemoveDeadZeroAndOneOperationRector::class,
         RemovePhpVersionIdCheckRector::class,
+        RemoveUselessReturnExprInConstructRector::class,
     ]);
 };

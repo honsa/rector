@@ -1,10 +1,10 @@
 <?php
 
-namespace RectorPrefix202307\React\Socket;
+namespace RectorPrefix202401\React\Socket;
 
-use RectorPrefix202307\React\EventLoop\Loop;
-use RectorPrefix202307\React\EventLoop\LoopInterface;
-use RectorPrefix202307\React\Promise;
+use RectorPrefix202401\React\EventLoop\Loop;
+use RectorPrefix202401\React\EventLoop\LoopInterface;
+use RectorPrefix202401\React\Promise;
 use BadMethodCallException;
 use InvalidArgumentException;
 use UnexpectedValueException;
@@ -35,7 +35,7 @@ final class SecureConnector implements ConnectorInterface
         $context = $this->context;
         $encryption = $this->streamEncryption;
         $connected = \false;
-        /** @var \React\Promise\PromiseInterface $promise */
+        /** @var \React\Promise\PromiseInterface<ConnectionInterface> $promise */
         $promise = $this->connector->connect(\str_replace('tls://', '', $uri))->then(function (ConnectionInterface $connection) use($context, $encryption, $uri, &$promise, &$connected) {
             // (unencrypted) TCP/IP connection succeeded
             $connected = \true;
@@ -78,7 +78,7 @@ final class SecureConnector implements ConnectorInterface
             }
             throw $e;
         });
-        return new \RectorPrefix202307\React\Promise\Promise(function ($resolve, $reject) use($promise) {
+        return new \RectorPrefix202401\React\Promise\Promise(function ($resolve, $reject) use($promise) {
             $promise->then($resolve, $reject);
         }, function ($_, $reject) use(&$promise, $uri, &$connected) {
             if ($connected) {

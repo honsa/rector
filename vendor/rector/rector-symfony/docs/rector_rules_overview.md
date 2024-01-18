@@ -1,4 +1,4 @@
-# 82 Rules Overview
+# 84 Rules Overview
 
 ## ActionSuffixRemoverRector
 
@@ -22,7 +22,7 @@ Removes Action suffixes from methods in Symfony Controllers
 
 Collect routes from Symfony project router and add Route annotation to controller action
 
-- class: [`Rector\Symfony\Rector\ClassMethod\AddRouteAnnotationRector`](../src/Rector/ClassMethod/AddRouteAnnotationRector.php)
+- class: [`Rector\Symfony\Configs\Rector\ClassMethod\AddRouteAnnotationRector`](../rules/Configs/Rector/ClassMethod/AddRouteAnnotationRector.php)
 
 ```diff
  use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -55,6 +55,55 @@ Change `$context->addViolationAt` to `$context->buildViolation` on Validator Exe
 +    ->atPath('property')
 +    ->setParameter('{{ value }}', $invalidValue)
 +    ->addViolation();
+```
+
+<br>
+
+## ArgumentValueResolverToValueResolverRector
+
+Replaces ArgumentValueResolverInterface by ValueResolverInterface
+
+- class: [`Rector\Symfony\Symfony62\Rector\ClassMethod\ClassMethod\ArgumentValueResolverToValueResolverRector`](../rules/Symfony62/Rector/ClassMethod/ClassMethod/ArgumentValueResolverToValueResolverRector.php)
+
+```diff
+-use Symfony\Component\HttpKernel\Controller\ArgumentValueResolverInterface;
++use Symfony\Component\HttpKernel\Controller\ValueResolverInterface;
+
+-final class EntityValueResolver implements ArgumentValueResolverInterface
++final class EntityValueResolver implements ValueResolverInterface
+ {
+-    public function supports(Request $request, ArgumentMetadata $argument): bool
+-    {
+-    }
+-
+     public function resolve(Request $request, ArgumentMetadata $argument): iterable
+     {
+     }
+ }
+```
+
+<br>
+
+## AssertSameResponseCodeWithDebugContentsRector
+
+Make assertSame(200, `$response->getStatusCode())` in tests comparing response code to include response contents for faster feedback
+
+- class: [`Rector\Symfony\CodeQuality\Rector\MethodCall\AssertSameResponseCodeWithDebugContentsRector`](../rules/CodeQuality/Rector/MethodCall/AssertSameResponseCodeWithDebugContentsRector.php)
+
+```diff
+ use PHPUnit\Framework\TestCase;
+
+ class SomeClass extends TestCase
+ {
+     public function run()
+     {
+         /** @var \Symfony\Component\HttpFoundation\Response $response */
+         $response = $this->processResult();
+
+-        $this->assertSame(200, $response->getStatusCode());
++        $this->assertSame(200, $response->getStatusCode(), $response->getContent());
+     }
+ }
 ```
 
 <br>
@@ -379,6 +428,27 @@ Migrates from deprecated `Definition/Alias->setPrivate()` to `Definition/Alias->
 
 <br>
 
+## DowngradeSymfonyCommandAttributeRector
+
+Downgrade Symfony Command Attribute
+
+- class: [`Rector\Symfony\DowngradeSymfony70\Rector\Class_\DowngradeSymfonyCommandAttributeRector`](../rules/DowngradeSymfony70/Rector/Class_/DowngradeSymfonyCommandAttributeRector.php)
+
+```diff
+ #[AsCommand(name: 'app:create-user', description: 'some description')]
+ class CreateUserCommand extends Command
+-{}
++{
++    protected function configure(): void
++    {
++        $this->setName('app:create-user');
++        $this->setDescription('some description');
++    }
++}
+```
+
+<br>
+
 ## ErrorNamesPropertyToConstantRector
 
 Turns old Constraint::$errorNames properties to use Constraint::ERROR_NAMES instead
@@ -543,40 +613,6 @@ Changes createForm(new FormType), add(new FormType) to ones with "FormType::clas
      {
 -        $form = $this->createForm(new TeamType);
 +        $form = $this->createForm(TeamType::class);
-     }
- }
-```
-
-<br>
-
-## FormTypeWithDependencyToOptionsRector
-
-Move constructor dependency from form type class to an `$options` parameter
-
-- class: [`Rector\Symfony\Symfony30\Rector\Class_\FormTypeWithDependencyToOptionsRector`](../rules/Symfony30/Rector/Class_/FormTypeWithDependencyToOptionsRector.php)
-
-```diff
- use Symfony\Component\Form\AbstractType;
- use Symfony\Component\Form\Extension\Core\Type\TextType;
- use Symfony\Component\Form\FormBuilderInterface;
-
- final class FormTypeWithDependency extends AbstractType
- {
--    private Agent $agent;
--
--    public function __construct(Agent $agent)
-+    public function buildForm(FormBuilderInterface $builder, array $options): void
-     {
--        $this->agent = $agent;
--    }
-+        $agent = $options['agent'];
-
--    public function buildForm(FormBuilderInterface $builder, array $options): void
--    {
--        if ($this->agent) {
-+        if ($agent) {
-             $builder->add('agent', TextType::class);
-         }
      }
  }
 ```
@@ -1314,26 +1350,6 @@ Replace defined `service()` argument in Symfony PHP config
 
 - class: [`Rector\Symfony\Symfony60\Rector\FuncCall\ReplaceServiceArgumentRector`](../rules/Symfony60/Rector/FuncCall/ReplaceServiceArgumentRector.php)
 
-```php
-<?php
-
-declare(strict_types=1);
-
-use PhpParser\Node\Scalar\String_;
-use Rector\Config\RectorConfig;
-use Rector\Symfony\Symfony60\Rector\FuncCall\ReplaceServiceArgumentRector;
-use Rector\Symfony\ValueObject\ReplaceServiceArgument;
-
-return static function (RectorConfig $rectorConfig): void {
-    $rectorConfig->ruleWithConfiguration(ReplaceServiceArgumentRector::class, [
-        new ReplaceServiceArgument('ContainerInterface', new String_('service_container', [
-        ])),
-    ]);
-};
-```
-
-↓
-
 ```diff
  use function Symfony\Component\DependencyInjection\Loader\Configurator\service;
 
@@ -1444,7 +1460,7 @@ Change RouteCollectionBuilder to RoutingConfiguratorRector
 
 Converts order-dependent arguments `args()` to named `arg()` call
 
-- class: [`Rector\Symfony\Rector\Closure\ServiceArgsToServiceNamedArgRector`](../src/Rector/Closure/ServiceArgsToServiceNamedArgRector.php)
+- class: [`Rector\Symfony\Configs\Rector\Closure\ServiceArgsToServiceNamedArgRector`](../rules/Configs/Rector/Closure/ServiceArgsToServiceNamedArgRector.php)
 
 ```diff
  use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
@@ -1464,7 +1480,7 @@ Converts order-dependent arguments `args()` to named `arg()` call
 
 Change `$service->set()` string names to class-type-based names, to allow `$container->get()` by types in Symfony 2.8. Provide XML config via `$rectorConfig->symfonyContainerXml(...);`
 
-- class: [`Rector\Symfony\Rector\Closure\ServiceSetStringNameToClassNameRector`](../src/Rector/Closure/ServiceSetStringNameToClassNameRector.php)
+- class: [`Rector\Symfony\Configs\Rector\Closure\ServiceSetStringNameToClassNameRector`](../rules/Configs/Rector/Closure/ServiceSetStringNameToClassNameRector.php)
 
 ```diff
  use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
@@ -1483,7 +1499,7 @@ Change `$service->set()` string names to class-type-based names, to allow `$cont
 
 Change `$services->set(...,` ...) to `$services->load(...,` ...) where meaningful
 
-- class: [`Rector\Symfony\Rector\Closure\ServiceSettersToSettersAutodiscoveryRector`](../src/Rector/Closure/ServiceSettersToSettersAutodiscoveryRector.php)
+- class: [`Rector\Symfony\Configs\Rector\Closure\ServiceSettersToSettersAutodiscoveryRector`](../rules/Configs/Rector/Closure/ServiceSettersToSettersAutodiscoveryRector.php)
 
 ```diff
  use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
@@ -1508,7 +1524,7 @@ Change `$services->set(...,` ...) to `$services->load(...,` ...) where meaningfu
 
 Change `$services->set(...,` ...)->tag(...) to `$services->defaults()->autodiscovery()` where meaningful
 
-- class: [`Rector\Symfony\Rector\Closure\ServiceTagsToDefaultsAutoconfigureRector`](../src/Rector/Closure/ServiceTagsToDefaultsAutoconfigureRector.php)
+- class: [`Rector\Symfony\Configs\Rector\Closure\ServiceTagsToDefaultsAutoconfigureRector`](../rules/Configs/Rector/Closure/ServiceTagsToDefaultsAutoconfigureRector.php)
 
 ```diff
  use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
@@ -1531,7 +1547,7 @@ Change `$services->set(...,` ...)->tag(...) to `$services->defaults()->autodisco
 
 Change `$services->set("name_type",` SomeType::class) to bare type, useful since Symfony 3.4
 
-- class: [`Rector\Symfony\Rector\Closure\ServicesSetNameToSetTypeRector`](../src/Rector/Closure/ServicesSetNameToSetTypeRector.php)
+- class: [`Rector\Symfony\Configs\Rector\Closure\ServicesSetNameToSetTypeRector`](../rules/Configs/Rector/Closure/ServicesSetNameToSetTypeRector.php)
 
 ```diff
  use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
@@ -1626,26 +1642,17 @@ Add config builder classes
 
 -return static function (ContainerConfigurator $containerConfigurator): void {
 -    $containerConfigurator->extension('security', [
--        'providers' => [
--            'webservice' => [
--                'id' => LoginServiceUserProvider::class,
--            ],
--        ],
 -        'firewalls' => [
 -            'dev' => [
 -                'pattern' => '^/(_(profiler|wdt)|css|images|js)/',
 -                'security' => false,
 -            ],
 -        ],
+-    ]);
 +return static function (SecurityConfig $securityConfig): void {
-+    $securityConfig->provider('webservice', [
-+        'id' => LoginServiceUserProvider::class,
-+    ]);
-+
-+    $securityConfig->firewall('dev', [
-+        'pattern' => '^/(_(profiler|wdt)|css|images|js)/',
-+        'security' => false,
-     ]);
++    $securityConfig->firewall('dev')
++        ->pattern('^/(_(profiler|wdt)|css|images|js)/')
++        ->security(false);
  };
 ```
 
@@ -1683,7 +1690,7 @@ Changes Process string argument to an array
 
 Changes `createMessage()` into a new Symfony\Component\Mime\Email
 
-- class: [`Rector\Symfony\Symfony53\Rector\MethodCall\SwiftCreateMessageToNewEmailRector`](../rules/Symfony53/Rector/MethodCall/SwiftCreateMessageToNewEmailRector.php)
+- class: [`Rector\Symfony\SwiftMailer\Rector\MethodCall\SwiftCreateMessageToNewEmailRector`](../rules/SwiftMailer/Rector/MethodCall/SwiftCreateMessageToNewEmailRector.php)
 
 ```diff
 -$email = $this->swift->createMessage('message');
@@ -1696,7 +1703,7 @@ Changes `createMessage()` into a new Symfony\Component\Mime\Email
 
 Changes `setBody()` method call on Swift_Message into a `html()` or `plain()` based on second argument
 
-- class: [`Rector\Symfony\Symfony53\Rector\MethodCall\SwiftSetBodyToHtmlPlainMethodCallRector`](../rules/Symfony53/Rector/MethodCall/SwiftSetBodyToHtmlPlainMethodCallRector.php)
+- class: [`Rector\Symfony\SwiftMailer\Rector\MethodCall\SwiftSetBodyToHtmlPlainMethodCallRector`](../rules/SwiftMailer/Rector/MethodCall/SwiftSetBodyToHtmlPlainMethodCallRector.php)
 
 ```diff
  $message = new Swift_Message();

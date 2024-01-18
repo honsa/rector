@@ -8,51 +8,51 @@
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
  */
-namespace RectorPrefix202307\Symfony\Component\Console;
+namespace RectorPrefix202401\Symfony\Component\Console;
 
-use RectorPrefix202307\Symfony\Component\Console\Command\Command;
-use RectorPrefix202307\Symfony\Component\Console\Command\CompleteCommand;
-use RectorPrefix202307\Symfony\Component\Console\Command\DumpCompletionCommand;
-use RectorPrefix202307\Symfony\Component\Console\Command\HelpCommand;
-use RectorPrefix202307\Symfony\Component\Console\Command\LazyCommand;
-use RectorPrefix202307\Symfony\Component\Console\Command\ListCommand;
-use RectorPrefix202307\Symfony\Component\Console\Command\SignalableCommandInterface;
-use RectorPrefix202307\Symfony\Component\Console\CommandLoader\CommandLoaderInterface;
-use RectorPrefix202307\Symfony\Component\Console\Completion\CompletionInput;
-use RectorPrefix202307\Symfony\Component\Console\Completion\CompletionSuggestions;
-use RectorPrefix202307\Symfony\Component\Console\Completion\Suggestion;
-use RectorPrefix202307\Symfony\Component\Console\Event\ConsoleCommandEvent;
-use RectorPrefix202307\Symfony\Component\Console\Event\ConsoleErrorEvent;
-use RectorPrefix202307\Symfony\Component\Console\Event\ConsoleSignalEvent;
-use RectorPrefix202307\Symfony\Component\Console\Event\ConsoleTerminateEvent;
-use RectorPrefix202307\Symfony\Component\Console\Exception\CommandNotFoundException;
-use RectorPrefix202307\Symfony\Component\Console\Exception\ExceptionInterface;
-use RectorPrefix202307\Symfony\Component\Console\Exception\LogicException;
-use RectorPrefix202307\Symfony\Component\Console\Exception\NamespaceNotFoundException;
-use RectorPrefix202307\Symfony\Component\Console\Exception\RuntimeException;
-use RectorPrefix202307\Symfony\Component\Console\Formatter\OutputFormatter;
-use RectorPrefix202307\Symfony\Component\Console\Helper\DebugFormatterHelper;
-use RectorPrefix202307\Symfony\Component\Console\Helper\DescriptorHelper;
-use RectorPrefix202307\Symfony\Component\Console\Helper\FormatterHelper;
-use RectorPrefix202307\Symfony\Component\Console\Helper\Helper;
-use RectorPrefix202307\Symfony\Component\Console\Helper\HelperSet;
-use RectorPrefix202307\Symfony\Component\Console\Helper\ProcessHelper;
-use RectorPrefix202307\Symfony\Component\Console\Helper\QuestionHelper;
-use RectorPrefix202307\Symfony\Component\Console\Input\ArgvInput;
-use RectorPrefix202307\Symfony\Component\Console\Input\ArrayInput;
-use RectorPrefix202307\Symfony\Component\Console\Input\InputArgument;
-use RectorPrefix202307\Symfony\Component\Console\Input\InputAwareInterface;
-use RectorPrefix202307\Symfony\Component\Console\Input\InputDefinition;
-use RectorPrefix202307\Symfony\Component\Console\Input\InputInterface;
-use RectorPrefix202307\Symfony\Component\Console\Input\InputOption;
-use RectorPrefix202307\Symfony\Component\Console\Output\ConsoleOutput;
-use RectorPrefix202307\Symfony\Component\Console\Output\ConsoleOutputInterface;
-use RectorPrefix202307\Symfony\Component\Console\Output\OutputInterface;
-use RectorPrefix202307\Symfony\Component\Console\SignalRegistry\SignalRegistry;
-use RectorPrefix202307\Symfony\Component\Console\Style\SymfonyStyle;
-use RectorPrefix202307\Symfony\Component\ErrorHandler\ErrorHandler;
-use RectorPrefix202307\Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
-use RectorPrefix202307\Symfony\Contracts\Service\ResetInterface;
+use RectorPrefix202401\Symfony\Component\Console\Command\Command;
+use RectorPrefix202401\Symfony\Component\Console\Command\CompleteCommand;
+use RectorPrefix202401\Symfony\Component\Console\Command\DumpCompletionCommand;
+use RectorPrefix202401\Symfony\Component\Console\Command\HelpCommand;
+use RectorPrefix202401\Symfony\Component\Console\Command\LazyCommand;
+use RectorPrefix202401\Symfony\Component\Console\Command\ListCommand;
+use RectorPrefix202401\Symfony\Component\Console\Command\SignalableCommandInterface;
+use RectorPrefix202401\Symfony\Component\Console\CommandLoader\CommandLoaderInterface;
+use RectorPrefix202401\Symfony\Component\Console\Completion\CompletionInput;
+use RectorPrefix202401\Symfony\Component\Console\Completion\CompletionSuggestions;
+use RectorPrefix202401\Symfony\Component\Console\Completion\Suggestion;
+use RectorPrefix202401\Symfony\Component\Console\Event\ConsoleCommandEvent;
+use RectorPrefix202401\Symfony\Component\Console\Event\ConsoleErrorEvent;
+use RectorPrefix202401\Symfony\Component\Console\Event\ConsoleSignalEvent;
+use RectorPrefix202401\Symfony\Component\Console\Event\ConsoleTerminateEvent;
+use RectorPrefix202401\Symfony\Component\Console\Exception\CommandNotFoundException;
+use RectorPrefix202401\Symfony\Component\Console\Exception\ExceptionInterface;
+use RectorPrefix202401\Symfony\Component\Console\Exception\LogicException;
+use RectorPrefix202401\Symfony\Component\Console\Exception\NamespaceNotFoundException;
+use RectorPrefix202401\Symfony\Component\Console\Exception\RuntimeException;
+use RectorPrefix202401\Symfony\Component\Console\Formatter\OutputFormatter;
+use RectorPrefix202401\Symfony\Component\Console\Helper\DebugFormatterHelper;
+use RectorPrefix202401\Symfony\Component\Console\Helper\DescriptorHelper;
+use RectorPrefix202401\Symfony\Component\Console\Helper\FormatterHelper;
+use RectorPrefix202401\Symfony\Component\Console\Helper\Helper;
+use RectorPrefix202401\Symfony\Component\Console\Helper\HelperSet;
+use RectorPrefix202401\Symfony\Component\Console\Helper\ProcessHelper;
+use RectorPrefix202401\Symfony\Component\Console\Helper\QuestionHelper;
+use RectorPrefix202401\Symfony\Component\Console\Input\ArgvInput;
+use RectorPrefix202401\Symfony\Component\Console\Input\ArrayInput;
+use RectorPrefix202401\Symfony\Component\Console\Input\InputArgument;
+use RectorPrefix202401\Symfony\Component\Console\Input\InputAwareInterface;
+use RectorPrefix202401\Symfony\Component\Console\Input\InputDefinition;
+use RectorPrefix202401\Symfony\Component\Console\Input\InputInterface;
+use RectorPrefix202401\Symfony\Component\Console\Input\InputOption;
+use RectorPrefix202401\Symfony\Component\Console\Output\ConsoleOutput;
+use RectorPrefix202401\Symfony\Component\Console\Output\ConsoleOutputInterface;
+use RectorPrefix202401\Symfony\Component\Console\Output\OutputInterface;
+use RectorPrefix202401\Symfony\Component\Console\SignalRegistry\SignalRegistry;
+use RectorPrefix202401\Symfony\Component\Console\Style\SymfonyStyle;
+use RectorPrefix202401\Symfony\Component\ErrorHandler\ErrorHandler;
+use RectorPrefix202401\Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
+use RectorPrefix202401\Symfony\Contracts\Service\ResetInterface;
 /**
  * An Application is the container for a collection of commands.
  *
@@ -98,6 +98,10 @@ class Application implements ResetInterface
      * @var bool
      */
     private $catchExceptions = \true;
+    /**
+     * @var bool
+     */
+    private $catchErrors = \false;
     /**
      * @var bool
      */
@@ -210,8 +214,11 @@ class Application implements ResetInterface
         $this->configureIO($input, $output);
         try {
             $exitCode = $this->doRun($input, $output);
-        } catch (\Exception $e) {
-            if (!$this->catchExceptions) {
+        } catch (\Throwable $e) {
+            if ($e instanceof \Exception && !$this->catchExceptions) {
+                throw $e;
+            }
+            if (!$e instanceof \Exception && !$this->catchErrors) {
                 throw $e;
             }
             $renderException($e);
@@ -414,6 +421,13 @@ class Application implements ResetInterface
         $this->catchExceptions = $boolean;
     }
     /**
+     * Sets whether to catch errors or not during commands execution.
+     */
+    public function setCatchErrors(bool $catchErrors = \true) : void
+    {
+        $this->catchErrors = $catchErrors;
+    }
+    /**
      * Gets whether to automatically exit after a command execution or not.
      */
     public function isAutoExitEnabled() : bool
@@ -559,7 +573,7 @@ class Application implements ResetInterface
     public function has(string $name) : bool
     {
         $this->init();
-        return isset($this->commands[$name]) || (($commandLoader = $this->commandLoader) ? $commandLoader->has($name) : null) && $this->add($this->commandLoader->get($name));
+        return isset($this->commands[$name]) || (($nullsafeVariable1 = $this->commandLoader) ? $nullsafeVariable1->has($name) : null) && $this->add($this->commandLoader->get($name));
     }
     /**
      * Returns an array of all unique namespaces used by currently registered commands.
@@ -914,12 +928,14 @@ class Application implements ResetInterface
                             $exitCode = $command->handleSignal($signal, $exitCode);
                             // BC layer for Symfony <= 5
                             if (null === $exitCode) {
-                                \RectorPrefix202307\trigger_deprecation('symfony/console', '6.3', 'Not returning an exit code from "%s::handleSignal()" is deprecated, return "false" to keep the command running or "0" to exit successfully.', \get_debug_type($command));
+                                trigger_deprecation('symfony/console', '6.3', 'Not returning an exit code from "%s::handleSignal()" is deprecated, return "false" to keep the command running or "0" to exit successfully.', \get_debug_type($command));
                                 $exitCode = 0;
                             }
                         }
                         if (\false !== $exitCode) {
-                            exit($exitCode);
+                            $event = new ConsoleTerminateEvent($command, $event->getInput(), $event->getOutput(), $exitCode, $signal);
+                            $this->dispatcher->dispatch($event, ConsoleEvents::TERMINATE);
+                            exit($event->getExitCode());
                         }
                     });
                 }
@@ -931,7 +947,7 @@ class Application implements ResetInterface
                     $exitCode = $command->handleSignal($signal);
                     // BC layer for Symfony <= 5
                     if (null === $exitCode) {
-                        \RectorPrefix202307\trigger_deprecation('symfony/console', '6.3', 'Not returning an exit code from "%s::handleSignal()" is deprecated, return "false" to keep the command running or "0" to exit successfully.', \get_debug_type($command));
+                        trigger_deprecation('symfony/console', '6.3', 'Not returning an exit code from "%s::handleSignal()" is deprecated, return "false" to keep the command running or "0" to exit successfully.', \get_debug_type($command));
                         $exitCode = 0;
                     }
                     if (\false !== $exitCode) {

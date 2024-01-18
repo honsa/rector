@@ -1,31 +1,33 @@
 <?php
 
 declare (strict_types=1);
-namespace Rector\Core\Console\Command;
+namespace Rector\Console\Command;
 
+use Rector\Application\ApplicationFileProcessor;
+use Rector\Autoloading\AdditionalAutoloader;
 use Rector\Caching\Detector\ChangedFilesDetector;
 use Rector\ChangesReporting\Output\JsonOutputFormatter;
-use Rector\Core\Application\ApplicationFileProcessor;
-use Rector\Core\Autoloading\AdditionalAutoloader;
-use Rector\Core\Configuration\ConfigInitializer;
-use Rector\Core\Configuration\Option;
-use Rector\Core\Console\ExitCode;
-use Rector\Core\Console\Output\OutputFormatterCollector;
-use Rector\Core\Contract\Console\OutputStyleInterface;
-use Rector\Core\Exception\ShouldNotHappenException;
-use Rector\Core\StaticReflection\DynamicSourceLocatorDecorator;
-use Rector\Core\Util\MemoryLimiter;
-use Rector\Core\ValueObject\Configuration;
-use Rector\Core\ValueObject\ProcessResult;
-use Rector\Core\ValueObjectFactory\ProcessResultFactory;
-use RectorPrefix202307\Symfony\Component\Console\Application;
-use RectorPrefix202307\Symfony\Component\Console\Input\InputInterface;
-use RectorPrefix202307\Symfony\Component\Console\Output\OutputInterface;
-final class ProcessCommand extends \Rector\Core\Console\Command\AbstractProcessCommand
+use Rector\Configuration\ConfigInitializer;
+use Rector\Configuration\ConfigurationFactory;
+use Rector\Configuration\Option;
+use Rector\Console\ExitCode;
+use Rector\Console\Output\OutputFormatterCollector;
+use Rector\Console\ProcessConfigureDecorator;
+use Rector\Exception\ShouldNotHappenException;
+use Rector\StaticReflection\DynamicSourceLocatorDecorator;
+use Rector\Util\MemoryLimiter;
+use Rector\ValueObject\Configuration;
+use Rector\ValueObject\ProcessResult;
+use RectorPrefix202401\Symfony\Component\Console\Application;
+use RectorPrefix202401\Symfony\Component\Console\Command\Command;
+use RectorPrefix202401\Symfony\Component\Console\Input\InputInterface;
+use RectorPrefix202401\Symfony\Component\Console\Output\OutputInterface;
+use RectorPrefix202401\Symfony\Component\Console\Style\SymfonyStyle;
+final class ProcessCommand extends Command
 {
     /**
      * @readonly
-     * @var \Rector\Core\Autoloading\AdditionalAutoloader
+     * @var \Rector\Autoloading\AdditionalAutoloader
      */
     private $additionalAutoloader;
     /**
@@ -35,56 +37,57 @@ final class ProcessCommand extends \Rector\Core\Console\Command\AbstractProcessC
     private $changedFilesDetector;
     /**
      * @readonly
-     * @var \Rector\Core\Configuration\ConfigInitializer
+     * @var \Rector\Configuration\ConfigInitializer
      */
     private $configInitializer;
     /**
      * @readonly
-     * @var \Rector\Core\Application\ApplicationFileProcessor
+     * @var \Rector\Application\ApplicationFileProcessor
      */
     private $applicationFileProcessor;
     /**
      * @readonly
-     * @var \Rector\Core\ValueObjectFactory\ProcessResultFactory
-     */
-    private $processResultFactory;
-    /**
-     * @readonly
-     * @var \Rector\Core\StaticReflection\DynamicSourceLocatorDecorator
+     * @var \Rector\StaticReflection\DynamicSourceLocatorDecorator
      */
     private $dynamicSourceLocatorDecorator;
     /**
      * @readonly
-     * @var \Rector\Core\Console\Output\OutputFormatterCollector
+     * @var \Rector\Console\Output\OutputFormatterCollector
      */
     private $outputFormatterCollector;
     /**
      * @readonly
-     * @var \Rector\Core\Contract\Console\OutputStyleInterface
+     * @var \Symfony\Component\Console\Style\SymfonyStyle
      */
-    private $rectorOutputStyle;
+    private $symfonyStyle;
     /**
      * @readonly
-     * @var \Rector\Core\Util\MemoryLimiter
+     * @var \Rector\Util\MemoryLimiter
      */
     private $memoryLimiter;
-    public function __construct(AdditionalAutoloader $additionalAutoloader, ChangedFilesDetector $changedFilesDetector, ConfigInitializer $configInitializer, ApplicationFileProcessor $applicationFileProcessor, ProcessResultFactory $processResultFactory, DynamicSourceLocatorDecorator $dynamicSourceLocatorDecorator, OutputFormatterCollector $outputFormatterCollector, OutputStyleInterface $rectorOutputStyle, MemoryLimiter $memoryLimiter)
+    /**
+     * @readonly
+     * @var \Rector\Configuration\ConfigurationFactory
+     */
+    private $configurationFactory;
+    public function __construct(AdditionalAutoloader $additionalAutoloader, ChangedFilesDetector $changedFilesDetector, ConfigInitializer $configInitializer, ApplicationFileProcessor $applicationFileProcessor, DynamicSourceLocatorDecorator $dynamicSourceLocatorDecorator, OutputFormatterCollector $outputFormatterCollector, SymfonyStyle $symfonyStyle, MemoryLimiter $memoryLimiter, ConfigurationFactory $configurationFactory)
     {
         $this->additionalAutoloader = $additionalAutoloader;
         $this->changedFilesDetector = $changedFilesDetector;
         $this->configInitializer = $configInitializer;
         $this->applicationFileProcessor = $applicationFileProcessor;
-        $this->processResultFactory = $processResultFactory;
         $this->dynamicSourceLocatorDecorator = $dynamicSourceLocatorDecorator;
         $this->outputFormatterCollector = $outputFormatterCollector;
-        $this->rectorOutputStyle = $rectorOutputStyle;
+        $this->symfonyStyle = $symfonyStyle;
         $this->memoryLimiter = $memoryLimiter;
+        $this->configurationFactory = $configurationFactory;
         parent::__construct();
     }
     protected function configure() : void
     {
         $this->setName('process');
         $this->setDescription('Upgrades or refactors source code with provided rectors');
+        ProcessConfigureDecorator::decorate($this);
         parent::configure();
     }
     protected function execute(InputInterface $input, OutputInterface $output) : int
@@ -98,7 +101,7 @@ final class ProcessCommand extends \Rector\Core\Console\Command\AbstractProcessC
         $this->memoryLimiter->adjust($configuration);
         // disable console output in case of json output formatter
         if ($configuration->getOutputFormat() === JsonOutputFormatter::NAME) {
-            $this->rectorOutputStyle->setVerbosity(OutputInterface::VERBOSITY_QUIET);
+            $this->symfonyStyle->setVerbosity(OutputInterface::VERBOSITY_QUIET);
         }
         $this->additionalAutoloader->autoloadInput($input);
         $this->additionalAutoloader->autoloadPaths();
@@ -106,18 +109,17 @@ final class ProcessCommand extends \Rector\Core\Console\Command\AbstractProcessC
         // 1. add files and directories to static locator
         $this->dynamicSourceLocatorDecorator->addPaths($paths);
         if ($this->dynamicSourceLocatorDecorator->isPathsEmpty()) {
-            $this->rectorOutputStyle->error('The given paths do not match any files');
+            $this->symfonyStyle->error('The given paths do not match any files');
             return ExitCode::FAILURE;
         }
         // MAIN PHASE
         // 2. run Rector
-        $systemErrorsAndFileDiffs = $this->applicationFileProcessor->run($configuration, $input);
+        $processResult = $this->applicationFileProcessor->run($configuration, $input);
         // REPORTING PHASE
-        // 3. reporting phase
+        // 3. reporting phaseRunning 2nd time with collectors data
         // report diffs and errors
         $outputFormat = $configuration->getOutputFormat();
         $outputFormatter = $this->outputFormatterCollector->getByName($outputFormat);
-        $processResult = $this->processResultFactory->create($systemErrorsAndFileDiffs);
         $outputFormatter->report($processResult, $configuration);
         return $this->resolveReturnCode($processResult, $configuration);
     }
@@ -143,7 +145,7 @@ final class ProcessCommand extends \Rector\Core\Console\Command\AbstractProcessC
     private function resolveReturnCode(ProcessResult $processResult, Configuration $configuration) : int
     {
         // some system errors were found → fail
-        if ($processResult->getErrors() !== []) {
+        if ($processResult->getSystemErrors() !== []) {
             return ExitCode::FAILURE;
         }
         // inverse error code for CI dry-run

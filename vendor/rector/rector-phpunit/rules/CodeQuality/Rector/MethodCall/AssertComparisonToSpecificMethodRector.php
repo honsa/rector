@@ -19,10 +19,10 @@ use PhpParser\Node\Expr\MethodCall;
 use PhpParser\Node\Expr\StaticCall;
 use PHPStan\Type\Constant\ConstantArrayType;
 use PHPStan\Type\ConstantScalarType;
-use Rector\Core\Rector\AbstractRector;
 use Rector\PHPUnit\NodeAnalyzer\IdentifierManipulator;
 use Rector\PHPUnit\NodeAnalyzer\TestsNodeAnalyzer;
 use Rector\PHPUnit\ValueObject\BinaryOpWithAssertMethod;
+use Rector\Rector\AbstractRector;
 use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
 use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
 /**
@@ -111,7 +111,7 @@ final class AssertComparisonToSpecificMethodRector extends AbstractRector
         }
         unset($oldArguments[0]);
         $newArgs = [$firstArgument, $secondArgument];
-        $node->args = $this->appendArgs($newArgs, $oldArguments);
+        $node->args = \array_merge($newArgs, $oldArguments);
     }
     private function isConstantValue(Expr $expr) : bool
     {

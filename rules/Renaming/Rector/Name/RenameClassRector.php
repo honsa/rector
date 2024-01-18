@@ -5,21 +5,22 @@ namespace Rector\Renaming\Rector\Name;
 
 use PhpParser\Node;
 use PhpParser\Node\FunctionLike;
-use PhpParser\Node\Name;
+use PhpParser\Node\Name\FullyQualified;
 use PhpParser\Node\Stmt\ClassLike;
+use PhpParser\Node\Stmt\Declare_;
 use PhpParser\Node\Stmt\Expression;
+use PhpParser\Node\Stmt\If_;
 use PhpParser\Node\Stmt\Namespace_;
 use PhpParser\Node\Stmt\Property;
-use Rector\Core\Configuration\RenamedClassesDataCollector;
-use Rector\Core\Contract\Rector\ConfigurableRectorInterface;
-use Rector\Core\Rector\AbstractRector;
-use Rector\NodeNameResolver\NodeNameResolver;
+use Rector\Configuration\RenamedClassesDataCollector;
+use Rector\Contract\Rector\ConfigurableRectorInterface;
 use Rector\NodeTypeResolver\Node\AttributeKey;
-use Rector\Renaming\Helper\RenameClassCallbackHandler;
+use Rector\PhpParser\Node\CustomNode\FileWithoutNamespace;
+use Rector\Rector\AbstractRector;
 use Rector\Renaming\NodeManipulator\ClassRenamer;
 use Symplify\RuleDocGenerator\ValueObject\CodeSample\ConfiguredCodeSample;
 use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
-use RectorPrefix202307\Webmozart\Assert\Assert;
+use RectorPrefix202401\Webmozart\Assert\Assert;
 /**
  * @see \Rector\Tests\Renaming\Rector\Name\RenameClassRector\RenameClassRectorTest
  */
@@ -27,7 +28,7 @@ final class RenameClassRector extends AbstractRector implements ConfigurableRect
 {
     /**
      * @readonly
-     * @var \Rector\Core\Configuration\RenamedClassesDataCollector
+     * @var \Rector\Configuration\RenamedClassesDataCollector
      */
     private $renamedClassesDataCollector;
     /**
@@ -36,19 +37,22 @@ final class RenameClassRector extends AbstractRector implements ConfigurableRect
      */
     private $classRenamer;
     /**
-     * @readonly
-     * @var \Rector\Renaming\Helper\RenameClassCallbackHandler
+     * @var bool
      */
-    private $renameClassCallbackHandler;
-    /**
-     * @var string
-     */
-    public const CALLBACKS = '#callbacks#';
-    public function __construct(RenamedClassesDataCollector $renamedClassesDataCollector, ClassRenamer $classRenamer, RenameClassCallbackHandler $renameClassCallbackHandler)
+    private $isMayRequireRestructureNamespace = \false;
+    public function __construct(RenamedClassesDataCollector $renamedClassesDataCollector, ClassRenamer $classRenamer)
     {
         $this->renamedClassesDataCollector = $renamedClassesDataCollector;
         $this->classRenamer = $classRenamer;
-        $this->renameClassCallbackHandler = $renameClassCallbackHandler;
+    }
+    /**
+     * @param Node[] $nodes
+     * @return Node[]|null
+     */
+    public function beforeTraverse(array $nodes) : ?array
+    {
+        $this->isMayRequireRestructureNamespace = \false;
+        return parent::beforeTraverse($nodes);
     }
     public function getRuleDefinition() : RuleDefinition
     {
@@ -83,21 +87,21 @@ CODE_SAMPLE
      */
     public function getNodeTypes() : array
     {
-        return [Name::class, Property::class, FunctionLike::class, Expression::class, ClassLike::class, Namespace_::class];
+        return [FullyQualified::class, Property::class, FunctionLike::class, Expression::class, ClassLike::class, Namespace_::class, If_::class];
     }
     /**
-     * @param FunctionLike|Name|ClassLike|Expression|Namespace_|Property $node
+     * @param FunctionLike|FullyQualified|ClassLike|Expression|Namespace_|Property|If_ $node
      */
     public function refactor(Node $node) : ?Node
     {
         $oldToNewClasses = $this->renamedClassesDataCollector->getOldToNewClasses();
         if ($oldToNewClasses !== []) {
             $scope = $node->getAttribute(AttributeKey::SCOPE);
-            return $this->classRenamer->renameNode($node, $oldToNewClasses, $scope);
-        }
-        if ($this->renameClassCallbackHandler->hasOldToNewClassCallbacks()) {
-            $scope = $node->getAttribute(AttributeKey::SCOPE);
-            return $this->classRenamer->renameNode($node, $oldToNewClasses, $scope);
+            $renameNode = $this->classRenamer->renameNode($node, $oldToNewClasses, $scope);
+            if ($renameNode instanceof Namespace_) {
+                $this->isMayRequireRestructureNamespace = \true;
+            }
+            return $renameNode;
         }
         return null;
     }
@@ -106,25 +110,54 @@ CODE_SAMPLE
      */
     public function configure(array $configuration) : void
     {
-        $oldToNewClassCallbacks = $configuration[self::CALLBACKS] ?? [];
-        Assert::isArray($oldToNewClassCallbacks);
-        if ($oldToNewClassCallbacks !== []) {
-            Assert::allIsCallable($oldToNewClassCallbacks);
-            /** @var array<callable(ClassLike, NodeNameResolver): ?string> $oldToNewClassCallbacks */
-            $this->renameClassCallbackHandler->addOldToNewClassCallbacks($oldToNewClassCallbacks);
-            unset($configuration[self::CALLBACKS]);
-        }
         Assert::allString($configuration);
         Assert::allString(\array_keys($configuration));
-        $this->addOldToNewClasses($configuration);
+        $this->renamedClassesDataCollector->addOldToNewClasses($configuration);
     }
     /**
-     * @param mixed[] $oldToNewClasses
+     * @param Node[] $nodes
+     * @return null|Node[]
      */
-    private function addOldToNewClasses(array $oldToNewClasses) : void
+    public function afterTraverse(array $nodes) : ?array
     {
-        Assert::allString(\array_keys($oldToNewClasses));
-        Assert::allString($oldToNewClasses);
-        $this->renamedClassesDataCollector->addOldToNewClasses($oldToNewClasses);
+        if (!$this->isMayRequireRestructureNamespace) {
+            return parent::afterTraverse($nodes);
+        }
+        foreach ($nodes as $node) {
+            if ($node instanceof Namespace_) {
+                return parent::afterTraverse($nodes);
+            }
+            if (!$node instanceof FileWithoutNamespace) {
+                continue;
+            }
+            foreach ($node->stmts as $stmt) {
+                if ($stmt instanceof Namespace_) {
+                    $this->restructureUnderNamespace($node);
+                    return $node->stmts;
+                }
+            }
+        }
+        return parent::afterTraverse($nodes);
+    }
+    private function restructureUnderNamespace(FileWithoutNamespace $fileWithoutNamespace) : void
+    {
+        $stmtsBeforeNamespace = [];
+        foreach ($fileWithoutNamespace->stmts as $key => $stmt) {
+            if ($stmt instanceof Namespace_) {
+                if ($stmtsBeforeNamespace !== []) {
+                    $stmt->stmts = \array_values(\array_merge(\is_array($stmtsBeforeNamespace) ? $stmtsBeforeNamespace : \iterator_to_array($stmtsBeforeNamespace), $stmt->stmts));
+                }
+                break;
+            }
+            if ($stmt instanceof Declare_) {
+                continue;
+            }
+            $stmtsBeforeNamespace[] = $stmt;
+            unset($fileWithoutNamespace->stmts[$key]);
+        }
+        if ($stmtsBeforeNamespace === []) {
+            return;
+        }
+        $fileWithoutNamespace->stmts = \array_values($fileWithoutNamespace->stmts);
     }
 }

@@ -7,6 +7,8 @@ use PhpParser\Node;
 use PhpParser\Node\Expr;
 use PhpParser\Node\Expr\BinaryOp\BooleanAnd;
 use PhpParser\Node\Expr\Closure;
+use PhpParser\Node\Expr\ConstFetch;
+use PhpParser\Node\Scalar;
 use PhpParser\Node\Stmt;
 use PhpParser\Node\Stmt\Break_;
 use PhpParser\Node\Stmt\ClassMethod;
@@ -16,14 +18,14 @@ use PhpParser\Node\Stmt\Function_;
 use PhpParser\Node\Stmt\If_;
 use PhpParser\Node\Stmt\Namespace_;
 use PhpParser\Node\Stmt\Return_;
-use Rector\Core\NodeManipulator\IfManipulator;
-use Rector\Core\PhpParser\Node\CustomNode\FileWithoutNamespace;
-use Rector\Core\Rector\AbstractRector;
 use Rector\EarlyReturn\NodeAnalyzer\IfAndAnalyzer;
 use Rector\EarlyReturn\NodeAnalyzer\SimpleScalarAnalyzer;
 use Rector\EarlyReturn\NodeFactory\InvertedIfFactory;
 use Rector\NodeCollector\BinaryOpConditionsCollector;
+use Rector\NodeManipulator\IfManipulator;
 use Rector\NodeNestingScope\ContextAnalyzer;
+use Rector\PhpParser\Node\CustomNode\FileWithoutNamespace;
+use Rector\Rector\AbstractRector;
 use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
 use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
 /**
@@ -33,7 +35,7 @@ final class ChangeAndIfToEarlyReturnRector extends AbstractRector
 {
     /**
      * @readonly
-     * @var \Rector\Core\NodeManipulator\IfManipulator
+     * @var \Rector\NodeManipulator\IfManipulator
      */
     private $ifManipulator;
     /**
@@ -128,6 +130,9 @@ CODE_SAMPLE
                 continue;
             }
             $nextStmt = $stmts[$key + 1] ?? null;
+            if ($this->isComplexReturn($nextStmt)) {
+                return null;
+            }
             if ($this->shouldSkip($stmt, $nextStmt)) {
                 $newStmts[] = $stmt;
                 continue;
@@ -178,21 +183,21 @@ CODE_SAMPLE
      * @param Stmt[] $afters
      * @return Stmt[]
      */
-    private function processReplaceIfs(If_ $if, array $conditions, Return_ $ifNextReturnClone, array $afters, ?Stmt $nextStmt) : array
+    private function processReplaceIfs(If_ $if, array $conditions, Return_ $ifNextReturn, array $afters, ?Stmt $nextStmt) : array
     {
-        $ifs = $this->invertedIfFactory->createFromConditions($if, $conditions, $ifNextReturnClone, $nextStmt);
+        $ifs = $this->invertedIfFactory->createFromConditions($if, $conditions, $ifNextReturn, $nextStmt);
         $this->mirrorComments($ifs[0], $if);
         $result = \array_merge($ifs, $afters);
         if ($if->stmts[0] instanceof Return_) {
             return $result;
         }
-        if (!$ifNextReturnClone->expr instanceof Expr) {
+        if (!$ifNextReturn->expr instanceof Expr) {
             return $result;
         }
         if ($this->contextAnalyzer->isInLoop($if)) {
             return $result;
         }
-        return \array_merge($result, [$ifNextReturnClone]);
+        return \array_merge($result, [$ifNextReturn]);
     }
     private function shouldSkip(If_ $if, ?Stmt $nexStmt) : bool
     {
@@ -221,5 +226,18 @@ CODE_SAMPLE
             return \true;
         }
         return $nextStmt instanceof Return_;
+    }
+    private function isComplexReturn(?Stmt $stmt) : bool
+    {
+        if (!$stmt instanceof Return_) {
+            return \false;
+        }
+        if (!$stmt->expr instanceof Expr) {
+            return \false;
+        }
+        if ($stmt->expr instanceof ConstFetch) {
+            return \false;
+        }
+        return !$stmt->expr instanceof Scalar;
     }
 }
