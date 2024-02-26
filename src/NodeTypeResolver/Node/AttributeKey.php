@@ -99,10 +99,6 @@ final class AttributeKey
     /**
      * @var string
      */
-    public const PARAMETER_POSITION = 'parameter_position';
-    /**
-     * @var string
-     */
     public const FUNC_ARGS_TRAILING_COMMA = 'trailing_comma';
     /**
      * Helps with infinite loop detection
@@ -253,4 +249,8 @@ final class AttributeKey
      * @var string
      */
     public const IS_USED_AS_ARG_BY_REF_VALUE = 'is_used_as_arg_by_ref_value';
+    /**
+     * @var string
+     */
+    public const ATTRIBUTE_COMMENT = 'attribute_comment';
 }

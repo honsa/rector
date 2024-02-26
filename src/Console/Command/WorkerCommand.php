@@ -3,12 +3,11 @@
 declare (strict_types=1);
 namespace Rector\Console\Command;
 
-use RectorPrefix202401\Clue\React\NDJson\Decoder;
-use RectorPrefix202401\Clue\React\NDJson\Encoder;
-use PHPStan\Collectors\CollectedData;
-use RectorPrefix202401\React\EventLoop\StreamSelectLoop;
-use RectorPrefix202401\React\Socket\ConnectionInterface;
-use RectorPrefix202401\React\Socket\TcpConnector;
+use RectorPrefix202402\Clue\React\NDJson\Decoder;
+use RectorPrefix202402\Clue\React\NDJson\Encoder;
+use RectorPrefix202402\React\EventLoop\StreamSelectLoop;
+use RectorPrefix202402\React\Socket\ConnectionInterface;
+use RectorPrefix202402\React\Socket\TcpConnector;
 use Rector\Application\ApplicationFileProcessor;
 use Rector\Configuration\ConfigurationFactory;
 use Rector\Console\ProcessConfigureDecorator;
@@ -17,14 +16,14 @@ use Rector\StaticReflection\DynamicSourceLocatorDecorator;
 use Rector\Util\MemoryLimiter;
 use Rector\ValueObject\Configuration;
 use Rector\ValueObject\Error\SystemError;
-use RectorPrefix202401\Symfony\Component\Console\Command\Command;
-use RectorPrefix202401\Symfony\Component\Console\Input\InputInterface;
-use RectorPrefix202401\Symfony\Component\Console\Output\OutputInterface;
-use RectorPrefix202401\Symplify\EasyParallel\Enum\Action;
-use RectorPrefix202401\Symplify\EasyParallel\Enum\ReactCommand;
-use RectorPrefix202401\Symplify\EasyParallel\Enum\ReactEvent;
+use RectorPrefix202402\Symfony\Component\Console\Command\Command;
+use RectorPrefix202402\Symfony\Component\Console\Input\InputInterface;
+use RectorPrefix202402\Symfony\Component\Console\Output\OutputInterface;
+use RectorPrefix202402\Symplify\EasyParallel\Enum\Action;
+use RectorPrefix202402\Symplify\EasyParallel\Enum\ReactCommand;
+use RectorPrefix202402\Symplify\EasyParallel\Enum\ReactEvent;
 use Throwable;
-use RectorPrefix202401\Webmozart\Assert\Assert;
+use RectorPrefix202402\Webmozart\Assert\Assert;
 /**
  * Inspired at: https://github.com/phpstan/phpstan-src/commit/9124c66dcc55a222e21b1717ba5f60771f7dda92
  * https://github.com/phpstan/phpstan-src/blob/c471c7b050e0929daf432288770de673b394a983/src/Command/WorkerCommand.php
@@ -113,19 +112,6 @@ final class WorkerCommand extends Command
             if ($action !== Action::MAIN) {
                 return;
             }
-            $previouslyCollectedDataItems = $json[Bridge::PREVIOUSLY_COLLECTED_DATA] ?? [];
-            if ($previouslyCollectedDataItems !== []) {
-                // turn to value objects
-                $previouslyCollectedDatas = [];
-                foreach ($previouslyCollectedDataItems as $previouslyCollectedDataItem) {
-                    Assert::keyExists($previouslyCollectedDataItem, 'data');
-                    Assert::keyExists($previouslyCollectedDataItem, 'filePath');
-                    Assert::keyExists($previouslyCollectedDataItem, 'collectorType');
-                    $previouslyCollectedDatas[] = CollectedData::decode($previouslyCollectedDataItem);
-                }
-                $configuration->setCollectedData($previouslyCollectedDatas);
-                $configuration->enableSecondRun();
-            }
             /** @var string[] $filePaths */
             $filePaths = $json[Bridge::FILES] ?? [];
             Assert::notEmpty($filePaths);
@@ -133,7 +119,7 @@ final class WorkerCommand extends Command
             /**
              * this invokes all listeners listening $decoder->on(...) @see \Symplify\EasyParallel\Enum\ReactEvent::DATA
              */
-            $encoder->write([ReactCommand::ACTION => Action::RESULT, self::RESULT => [Bridge::FILE_DIFFS => $processResult->getFileDiffs(), Bridge::FILES_COUNT => \count($filePaths), Bridge::SYSTEM_ERRORS => $processResult->getSystemErrors(), Bridge::SYSTEM_ERRORS_COUNT => \count($processResult->getSystemErrors()), Bridge::COLLECTED_DATA => $processResult->getCollectedData()]]);
+            $encoder->write([ReactCommand::ACTION => Action::RESULT, self::RESULT => [Bridge::FILE_DIFFS => $processResult->getFileDiffs(), Bridge::FILES_COUNT => \count($filePaths), Bridge::SYSTEM_ERRORS => $processResult->getSystemErrors(), Bridge::SYSTEM_ERRORS_COUNT => \count($processResult->getSystemErrors())]]);
         });
         $decoder->on(ReactEvent::ERROR, $handleErrorCallback);
     }

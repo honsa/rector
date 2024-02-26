@@ -3,10 +3,10 @@
 declare (strict_types=1);
 namespace Rector\Testing\PHPUnit;
 
-use RectorPrefix202401\Illuminate\Container\RewindableGenerator;
+use RectorPrefix202402\Illuminate\Container\RewindableGenerator;
 use Iterator;
-use RectorPrefix202401\Nette\Utils\FileSystem;
-use RectorPrefix202401\Nette\Utils\Strings;
+use RectorPrefix202402\Nette\Utils\FileSystem;
+use RectorPrefix202402\Nette\Utils\Strings;
 use PHPUnit\Framework\ExpectationFailedException;
 use Rector\Application\ApplicationFileProcessor;
 use Rector\Autoloading\AdditionalAutoloader;
@@ -77,7 +77,7 @@ abstract class AbstractRectorTestCase extends \Rector\Testing\PHPUnit\AbstractLa
                 /** @var ResetableInterface $resetable */
                 $resetable->reset();
             }
-            $this->forgetRectorsRulesAndCollectors();
+            $this->forgetRectorsRules();
             $rectorConfig->resetRuleConfigurations();
             // this has to be always empty, so we can add new rules with their configuration
             $this->assertEmpty($rectorConfig->tagged(RectorInterface::class));
@@ -133,10 +133,10 @@ abstract class AbstractRectorTestCase extends \Rector\Testing\PHPUnit\AbstractLa
             throw new ShouldNotHappenException('Fixture file and input file cannot be the same: ' . $fixtureFilePath);
         }
         // write temp file
-        FileSystem::write($inputFilePath, $inputFileContents);
-        $this->doTestFileMatchesExpectedContent($inputFilePath, $expectedFileContents, $fixtureFilePath);
+        FileSystem::write($inputFilePath, $inputFileContents, null);
+        $this->doTestFileMatchesExpectedContent($inputFilePath, $inputFileContents, $expectedFileContents, $fixtureFilePath);
     }
-    protected function forgetRectorsRulesAndCollectors() : void
+    private function forgetRectorsRules() : void
     {
         $rectorConfig = self::getContainer();
         // 1. forget tagged services
@@ -169,11 +169,9 @@ abstract class AbstractRectorTestCase extends \Rector\Testing\PHPUnit\AbstractLa
             require_once __DIR__ . '/../../../vendor/scoper-autoload.php';
         }
     }
-    private function doTestFileMatchesExpectedContent(string $originalFilePath, string $expectedFileContents, string $fixtureFilePath) : void
+    private function doTestFileMatchesExpectedContent(string $originalFilePath, string $inputFileContents, string $expectedFileContents, string $fixtureFilePath) : void
     {
         SimpleParameterProvider::setParameter(Option::SOURCE, [$originalFilePath]);
-        // the original file content must be loaded first
-        $originalFileContent = FileSystem::read($originalFilePath);
         // the file is now changed (if any rule matches)
         $rectorTestResult = $this->processFilePath($originalFilePath);
         $changedContents = $rectorTestResult->getChangedContents();
@@ -190,7 +188,7 @@ abstract class AbstractRectorTestCase extends \Rector\Testing\PHPUnit\AbstractLa
         try {
             $this->assertSame($expectedFileContents, $changedContents, $failureMessage);
         } catch (ExpectationFailedException $exception) {
-            FixtureFileUpdater::updateFixtureContent($originalFileContent, $changedContents, $fixtureFilePath);
+            FixtureFileUpdater::updateFixtureContent($inputFileContents, $changedContents, $fixtureFilePath);
             // if not exact match, check the regex version (useful for generated hashes/uuids in the code)
             $this->assertStringMatchesFormat($expectedFileContents, $changedContents, $failureMessage);
         }

@@ -3,7 +3,7 @@
 declare (strict_types=1);
 namespace Rector\Symfony\Symfony43\Rector\MethodCall;
 
-use RectorPrefix202401\Nette\Utils\Strings;
+use RectorPrefix202402\Nette\Utils\Strings;
 use PhpParser\Node;
 use PhpParser\Node\Arg;
 use PhpParser\Node\Expr\MethodCall;
@@ -80,6 +80,9 @@ CODE_SAMPLE
             return null;
         }
         $tplName = $this->valueResolver->getValue($args[0]->value);
+        if ($tplName === null) {
+            return null;
+        }
         $matches = Strings::match($tplName, '/:/', \PREG_OFFSET_CAPTURE);
         if ($matches === null) {
             return null;

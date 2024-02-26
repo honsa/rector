@@ -3,11 +3,12 @@
 declare (strict_types=1);
 namespace Rector\Config;
 
-use RectorPrefix202401\Illuminate\Container\Container;
-use PHPStan\Collectors\Collector;
+use RectorPrefix202402\Illuminate\Container\Container;
 use Rector\Caching\Contract\ValueObject\Storage\CacheStorageInterface;
 use Rector\Configuration\Option;
 use Rector\Configuration\Parameter\SimpleParameterProvider;
+use Rector\Configuration\RectorConfigBuilder;
+use Rector\Contract\DependencyInjection\RelatedConfigInterface;
 use Rector\Contract\Rector\ConfigurableRectorInterface;
 use Rector\Contract\Rector\RectorInterface;
 use Rector\DependencyInjection\Laravel\ContainerMemento;
@@ -16,11 +17,11 @@ use Rector\Skipper\SkipCriteriaResolver\SkippedClassResolver;
 use Rector\Validation\RectorConfigValidator;
 use Rector\ValueObject\PhpVersion;
 use Rector\ValueObject\PolyfillPackage;
-use RectorPrefix202401\Symfony\Component\Console\Command\Command;
-use RectorPrefix202401\Symfony\Component\Console\Input\ArrayInput;
-use RectorPrefix202401\Symfony\Component\Console\Output\ConsoleOutput;
-use RectorPrefix202401\Symfony\Component\Console\Style\SymfonyStyle;
-use RectorPrefix202401\Webmozart\Assert\Assert;
+use RectorPrefix202402\Symfony\Component\Console\Command\Command;
+use RectorPrefix202402\Symfony\Component\Console\Input\ArrayInput;
+use RectorPrefix202402\Symfony\Component\Console\Output\ConsoleOutput;
+use RectorPrefix202402\Symfony\Component\Console\Style\SymfonyStyle;
+use RectorPrefix202402\Webmozart\Assert\Assert;
 /**
  * @api
  */
@@ -34,6 +35,10 @@ final class RectorConfig extends Container
      * @var string[]
      */
     private $autotagInterfaces = [Command::class];
+    public static function configure() : RectorConfigBuilder
+    {
+        return new RectorConfigBuilder();
+    }
     /**
      * @param string[] $paths
      */
@@ -80,11 +85,7 @@ final class RectorConfig extends Container
     {
         SimpleParameterProvider::setParameter(Option::PARALLEL, \false);
     }
-    /**
-     * Defaults in sync with https://phpstan.org/config-reference#parallel-processing
-     * as we run PHPStan as well
-     */
-    public function parallel(int $processTimeout = 120, int $maxNumberOfProcess = 32, int $jobSize = 20) : void
+    public function parallel(int $processTimeout = 120, int $maxNumberOfProcess = 16, int $jobSize = 16) : void
     {
         SimpleParameterProvider::setParameter(Option::PARALLEL, \true);
         SimpleParameterProvider::setParameter(Option::PARALLEL_JOB_TIMEOUT_IN_SECONDS, $processTimeout);
@@ -141,7 +142,7 @@ final class RectorConfig extends Container
         SimpleParameterProvider::addParameter(Option::PHPSTAN_FOR_RECTOR_PATHS, $filePaths);
     }
     /**
-     * @param class-string<ConfigurableRectorInterface&RectorInterface> $rectorClass
+     * @param class-string<ConfigurableRectorInterface> $rectorClass
      * @param mixed[] $configuration
      */
     public function ruleWithConfiguration(string $rectorClass, array $configuration) : void
@@ -151,8 +152,7 @@ final class RectorConfig extends Container
         Assert::isAOf($rectorClass, ConfigurableRectorInterface::class);
         // store configuration to cache
         $this->ruleConfigurations[$rectorClass] = \array_merge($this->ruleConfigurations[$rectorClass] ?? [], $configuration);
-        $this->singleton($rectorClass);
-        $this->tag($rectorClass, RectorInterface::class);
+        $this->rule($rectorClass);
         $this->afterResolving($rectorClass, function (ConfigurableRectorInterface $configurableRector) use($rectorClass) : void {
             $ruleConfiguration = $this->ruleConfigurations[$rectorClass];
             $configurableRector->configure($ruleConfiguration);
@@ -171,22 +171,11 @@ final class RectorConfig extends Container
         $this->tag($rectorClass, RectorInterface::class);
         // for cache invalidation in case of change
         SimpleParameterProvider::addParameter(Option::REGISTERED_RECTOR_RULES, $rectorClass);
-    }
-    /**
-     * @param array<class-string<Collector>> $collectorClasses
-     */
-    public function collectors(array $collectorClasses) : void
-    {
-        foreach ($collectorClasses as $collectorClass) {
-            $this->collector($collectorClass);
+        if (\is_a($rectorClass, RelatedConfigInterface::class, \true)) {
+            $configFile = $rectorClass::getConfigFile();
+            Assert::file($configFile, \sprintf('The config path "%s" in "%s::getConfigFile()" could not be found', $configFile, $rectorClass));
+            $this->import($configFile);
         }
-    }
-    /**
-     * @param class-string<Collector> $collectorClass
-     */
-    public function collector(string $collectorClass) : void
-    {
-        \trigger_error('collector have been deprecated as performance costly and not valuable');
     }
     /**
      * @param class-string<Command> $commandClass

@@ -3,13 +3,13 @@
 declare (strict_types=1);
 namespace Rector\Configuration;
 
-use RectorPrefix202401\Nette\Utils\FileSystem;
-use RectorPrefix202401\Nette\Utils\Strings;
+use RectorPrefix202402\Nette\Utils\FileSystem;
+use RectorPrefix202402\Nette\Utils\Strings;
 use Rector\Contract\Rector\RectorInterface;
 use Rector\FileSystem\InitFilePathsResolver;
 use Rector\Php\PhpVersionProvider;
 use Rector\PostRector\Contract\Rector\PostRectorInterface;
-use RectorPrefix202401\Symfony\Component\Console\Style\SymfonyStyle;
+use RectorPrefix202402\Symfony\Component\Console\Style\SymfonyStyle;
 final class ConfigInitializer
 {
     /**
@@ -50,14 +50,15 @@ final class ConfigInitializer
             return;
         }
         $response = $this->symfonyStyle->ask('No "rector.php" config found. Should we generate it for you?', 'yes');
-        if ($response !== 'yes') {
+        // be tolerant about input
+        if (!\in_array($response, ['yes', 'YES', 'y', 'Y'], \true)) {
             // okay, nothing we can do
             return;
         }
         $configContents = FileSystem::read(__DIR__ . '/../../templates/rector.php.dist');
         $configContents = $this->replacePhpLevelContents($configContents);
         $configContents = $this->replacePathsContents($configContents, $projectDirectory);
-        FileSystem::write($commonRectorConfigPath, $configContents);
+        FileSystem::write($commonRectorConfigPath, $configContents, null);
         $this->symfonyStyle->success('The config is added now. Re-run command to make Rector do the work!');
     }
     public function areSomeRectorsLoaded() : bool

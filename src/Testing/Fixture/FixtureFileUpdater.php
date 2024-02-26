@@ -3,7 +3,7 @@
 declare (strict_types=1);
 namespace Rector\Testing\Fixture;
 
-use RectorPrefix202401\Nette\Utils\FileSystem;
+use RectorPrefix202402\Nette\Utils\FileSystem;
 final class FixtureFileUpdater
 {
     /**
@@ -15,7 +15,7 @@ final class FixtureFileUpdater
             return;
         }
         $newOriginalContent = self::resolveNewFixtureContent($originalContent, $changedContent);
-        FileSystem::write($fixtureFilePath, $newOriginalContent);
+        FileSystem::write($fixtureFilePath, $newOriginalContent, null);
     }
     private static function resolveNewFixtureContent(string $originalContent, string $changedContent) : string
     {

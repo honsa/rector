@@ -101,6 +101,7 @@ Among there projects belong:
 * [laminas/laminas-servicemanager-migration](https://github.com/laminas/laminas-servicemanager-migration)
 * [cakephp/upgrade](https://github.com/cakephp/upgrade)
 * [driftingly/rector-laravel](https://github.com/driftingly/rector-laravel)
+* [contao/contao-rector](https://github.com/contao/contao-rector)
 
 <br>
 
@@ -143,12 +144,6 @@ $node = new String_('hello world!');
 
 // prints node to string, as PHP code displays it
 print_node($node);
-
-// dump nested node object with nested properties
-dump_node($node);
-
-// 2nd argument is how deep the nesting is - this makes sure the dump is short and useful
-dump_node($node, 1);
 ```
 
 <br>

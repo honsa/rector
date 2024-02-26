@@ -3,7 +3,7 @@
 declare (strict_types=1);
 namespace Rector\CodeQuality\Rector\FuncCall;
 
-use RectorPrefix202401\Nette\Utils\Strings;
+use RectorPrefix202402\Nette\Utils\Strings;
 use PhpParser\Node;
 use PhpParser\Node\Scalar\String_;
 use Rector\NodeNameResolver\Regex\RegexPatternDetector;
@@ -71,6 +71,9 @@ CODE_SAMPLE
             $originalValue = $node->value;
             $simplifiedValue = Strings::replace($node->value, '#' . \preg_quote($complexPattern, '#') . '#', $simple);
             if ($originalValue === $simplifiedValue) {
+                continue;
+            }
+            if (\strpos($originalValue, '[^' . $complexPattern) !== \false) {
                 continue;
             }
             $node->value = $simplifiedValue;

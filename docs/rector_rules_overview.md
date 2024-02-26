@@ -1,4 +1,4 @@
-# 354 Rules Overview
+# 363 Rules Overview
 
 <br>
 
@@ -6,7 +6,7 @@
 
 - [Arguments](#arguments) (4)
 
-- [CodeQuality](#codequality) (73)
+- [CodeQuality](#codequality) (74)
 
 - [CodingStyle](#codingstyle) (28)
 
@@ -14,7 +14,7 @@
 
 - [EarlyReturn](#earlyreturn) (9)
 
-- [Instanceof_](#instanceof) (1)
+- [Instanceof](#instanceof) (1)
 
 - [Naming](#naming) (6)
 
@@ -46,17 +46,17 @@
 
 - [Php83](#php83) (3)
 
-- [Privatization](#privatization) (4)
+- [Privatization](#privatization) (5)
 
 - [Removing](#removing) (5)
 
-- [Renaming](#renaming) (9)
+- [Renaming](#renaming) (10)
 
 - [Strict](#strict) (5)
 
-- [Transform](#transform) (22)
+- [Transform](#transform) (24)
 
-- [TypeDeclaration](#typedeclaration) (40)
+- [TypeDeclaration](#typedeclaration) (44)
 
 - [Visibility](#visibility) (3)
 
@@ -1346,6 +1346,30 @@ Change switch with only 1 check to if
          }
 
          return $result;
+     }
+ }
+```
+
+<br>
+
+### StaticToSelfStaticMethodCallOnFinalClassRector
+
+Change `static::methodCall()` to `self::methodCall()` on final class
+
+- class: [`Rector\CodeQuality\Rector\Class_\StaticToSelfStaticMethodCallOnFinalClassRector`](../rules/CodeQuality/Rector/Class_/StaticToSelfStaticMethodCallOnFinalClassRector.php)
+
+```diff
+ final class SomeClass
+ {
+     public function d()
+     {
+-        echo static::run();
++        echo self::run();
+     }
+
+     private static function run()
+     {
+         echo 'test';
      }
  }
 ```
@@ -3209,7 +3233,7 @@ Replace if conditioned variable override with direct return
 
 <br>
 
-## Instanceof_
+## Instanceof
 
 ### FlipNegatedTernaryInstanceofRector
 
@@ -4669,9 +4693,9 @@ Change annotation to attribute
  class SymfonyRoute
  {
 -    /**
--     * @Route("/path", name="action")
+-     * @Route("/path", name="action") api route
 -     */
-+    #[Route(path: '/path', name: 'action')]
++    #[Route(path: '/path', name: 'action')] // api route
      public function action()
      {
      }
@@ -5325,6 +5349,23 @@ Finalize every class that has no children
 
 <br>
 
+### FinalizeTestCaseClassRector
+
+PHPUnit test case will be finalized
+
+- class: [`Rector\Privatization\Rector\Class_\FinalizeTestCaseClassRector`](../rules/Privatization/Rector/Class_/FinalizeTestCaseClassRector.php)
+
+```diff
+-use PHPUnit\Framework\TestCase;
++final use PHPUnit\Framework\TestCase;
+
+ class SomeClass extends TestCase
+ {
+ }
+```
+
+<br>
+
 ### PrivatizeFinalClassMethodRector
 
 Change protected class method to private if possible
@@ -5556,6 +5597,21 @@ Replace constant by new ones
 +        return MYSQLI_ASSOC;
      }
  }
+```
+
+<br>
+
+### RenameFunctionLikeParamWithinCallLikeArgRector
+
+Rename param within closures and arrow functions based on use with specified method calls
+
+:wrench: **configure it!**
+
+- class: [`Rector\Renaming\Rector\FunctionLike\RenameFunctionLikeParamWithinCallLikeArgRector`](../rules/Renaming/Rector/FunctionLike/RenameFunctionLikeParamWithinCallLikeArgRector.php)
+
+```diff
+-(new SomeClass)->process(function ($param) {});
++(new SomeClass)->process(function ($parameter) {});
 ```
 
 <br>
@@ -5818,6 +5874,21 @@ Replace key value on specific attribute to class constant
 
 <br>
 
+### ConstFetchToClassConstFetchRector
+
+Change const fetch to class const fetch
+
+:wrench: **configure it!**
+
+- class: [`Rector\Transform\Rector\ConstFetch\ConstFetchToClassConstFetchRector`](../rules/Transform/Rector/ConstFetch/ConstFetchToClassConstFetchRector.php)
+
+```diff
+-$x = CONTEXT_COURSE
++$x = course::LEVEL
+```
+
+<br>
+
 ### FuncCallToConstFetchRector
 
 Changes use of function calls to use constants
@@ -6068,6 +6139,21 @@ Replaces properties assign calls be defined methods.
 
 <br>
 
+### RectorConfigBuilderRector
+
+Change RectorConfig to RectorConfigBuilder
+
+- class: [`Rector\Transform\Rector\FileWithoutNamespace\RectorConfigBuilderRector`](../rules/Transform/Rector/FileWithoutNamespace/RectorConfigBuilderRector.php)
+
+```diff
+-return static function (RectorConfig $rectorConfig): void {
+-    $rectorConfig->rule(SomeRector::class);
+-};
++return RectorConfig::configure()->rules([SomeRector::class]);
+```
+
+<br>
+
 ### ReplaceParentCallByPropertyCallRector
 
 Changes method calls in child of specific types to defined property method call
@@ -6236,6 +6322,34 @@ Add known return type to arrow function
 
 <br>
 
+### AddClosureVoidReturnTypeWhereNoReturnRector
+
+Add closure return type void if there is no return
+
+- class: [`Rector\TypeDeclaration\Rector\Closure\AddClosureVoidReturnTypeWhereNoReturnRector`](../rules/TypeDeclaration/Rector/Closure/AddClosureVoidReturnTypeWhereNoReturnRector.php)
+
+```diff
+-function () {
++function (): void {
+ }
+```
+
+<br>
+
+### AddFunctionVoidReturnTypeWhereNoReturnRector
+
+Add function return type void if there is no return
+
+- class: [`Rector\TypeDeclaration\Rector\Function_\AddFunctionVoidReturnTypeWhereNoReturnRector`](../rules/TypeDeclaration/Rector/Function_/AddFunctionVoidReturnTypeWhereNoReturnRector.php)
+
+```diff
+-function restore() {
++function restore(): void {
+ }
+```
+
+<br>
+
 ### AddMethodCallBasedStrictParamTypeRector
 
 Change private method param type to strict type, based on passed strict types
@@ -6303,6 +6417,21 @@ Add param types where needed
      {
      }
  }
+```
+
+<br>
+
+### AddParamTypeForFunctionLikeWithinCallLikeArgDeclarationRector
+
+Add param types where needed
+
+:wrench: **configure it!**
+
+- class: [`Rector\TypeDeclaration\Rector\FunctionLike\AddParamTypeForFunctionLikeWithinCallLikeArgDeclarationRector`](../rules/TypeDeclaration/Rector/FunctionLike/AddParamTypeForFunctionLikeWithinCallLikeArgDeclarationRector.php)
+
+```diff
+-(new SomeClass)->process(function ($parameter) {});
++(new SomeClass)->process(function (string $parameter) {});
 ```
 
 <br>
@@ -6428,6 +6557,26 @@ Changes defined return typehint of method and class.
  {
 -    public function getData()
 +    public function getData(): array
+     {
+     }
+ }
+```
+
+<br>
+
+### AddTestsVoidReturnTypeWhereNoReturnRector
+
+Add void to PHPUnit test methods
+
+- class: [`Rector\TypeDeclaration\Rector\Class_\AddTestsVoidReturnTypeWhereNoReturnRector`](../rules/TypeDeclaration/Rector/Class_/AddTestsVoidReturnTypeWhereNoReturnRector.php)
+
+```diff
+ use PHPUnit\Framework\TestCase;
+
+ class SomeClass extends TestCase
+ {
+-    public function testSomething()
++    public function testSomething(): void
      {
      }
  }

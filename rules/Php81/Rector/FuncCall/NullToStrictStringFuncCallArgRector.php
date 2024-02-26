@@ -20,6 +20,7 @@ use PHPStan\Type\ErrorType;
 use PHPStan\Type\MixedType;
 use PHPStan\Type\NullType;
 use PHPStan\Type\Type;
+use PHPStan\Type\UnionType;
 use Rector\NodeAnalyzer\ArgsAnalyzer;
 use Rector\NodeAnalyzer\PropertyFetchAnalyzer;
 use Rector\NodeTypeResolver\Node\AttributeKey;
@@ -168,7 +169,11 @@ CODE_SAMPLE
         if ($type->isString()->yes()) {
             return null;
         }
-        if (!$type instanceof MixedType && !$type instanceof NullType) {
+        $nativeType = $this->nodeTypeResolver->getNativeType($argValue);
+        if ($nativeType->isString()->yes()) {
+            return null;
+        }
+        if ($this->shouldSkipType($type)) {
             return null;
         }
         if ($argValue instanceof Encapsed) {
@@ -183,6 +188,26 @@ CODE_SAMPLE
         $args[$position]->value = new CastString_($argValue);
         $funcCall->args = $args;
         return $funcCall;
+    }
+    private function isValidUnionType(Type $type) : bool
+    {
+        if (!$type instanceof UnionType) {
+            return \false;
+        }
+        foreach ($type->getTypes() as $childType) {
+            if ($childType->isString()->yes()) {
+                continue;
+            }
+            if ($childType->isNull()->yes()) {
+                continue;
+            }
+            return \false;
+        }
+        return \true;
+    }
+    private function shouldSkipType(Type $type) : bool
+    {
+        return !$type instanceof MixedType && !$type instanceof NullType && !$this->isValidUnionType($type);
     }
     private function shouldSkipTrait(Expr $expr, Type $type, bool $isTrait) : bool
     {

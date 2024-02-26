@@ -17,31 +17,25 @@ use ReflectionClass;
 final class PhpVersionProvider
 {
     /**
-     * @readonly
-     * @var \Rector\Php\PhpVersionResolver\ProjectComposerJsonPhpVersionResolver
-     */
-    private $projectComposerJsonPhpVersionResolver;
-    /**
      * @var string
      * @see https://regex101.com/r/qBMnbl/1
      */
     private const VALID_PHP_VERSION_REGEX = '#^\\d{5,6}$#';
-    public function __construct(ProjectComposerJsonPhpVersionResolver $projectComposerJsonPhpVersionResolver)
-    {
-        $this->projectComposerJsonPhpVersionResolver = $projectComposerJsonPhpVersionResolver;
-    }
+    /**
+     * @var int|null
+     */
+    private $phpVersionFeatures = null;
     /**
      * @return PhpVersion::*
      */
     public function provide() : int
     {
-        $phpVersionFeatures = null;
         if (SimpleParameterProvider::hasParameter(Option::PHP_VERSION_FEATURES)) {
-            $phpVersionFeatures = SimpleParameterProvider::provideIntParameter(Option::PHP_VERSION_FEATURES);
-            $this->validatePhpVersionFeaturesParameter($phpVersionFeatures);
+            $this->phpVersionFeatures = SimpleParameterProvider::provideIntParameter(Option::PHP_VERSION_FEATURES);
+            $this->validatePhpVersionFeaturesParameter($this->phpVersionFeatures);
         }
-        if ($phpVersionFeatures > 0) {
-            return $phpVersionFeatures;
+        if ($this->phpVersionFeatures > 0) {
+            return $this->phpVersionFeatures;
         }
         // for tests
         if (StaticPHPUnitEnvironment::isPHPUnitRun()) {
@@ -50,13 +44,13 @@ final class PhpVersionProvider
         }
         $projectComposerJson = \getcwd() . '/composer.json';
         if (\file_exists($projectComposerJson)) {
-            $phpVersion = $this->projectComposerJsonPhpVersionResolver->resolve($projectComposerJson);
+            $phpVersion = ProjectComposerJsonPhpVersionResolver::resolve($projectComposerJson);
             if ($phpVersion !== null) {
-                return $phpVersion;
+                return $this->phpVersionFeatures = $phpVersion;
             }
         }
         // fallback to current PHP runtime version
-        return \PHP_VERSION_ID;
+        return $this->phpVersionFeatures = \PHP_VERSION_ID;
     }
     public function isAtLeastPhpVersion(int $phpVersion) : bool
     {

@@ -3,9 +3,10 @@
 declare (strict_types=1);
 namespace Rector\PhpParser\Printer;
 
-use RectorPrefix202401\Nette\Utils\Strings;
+use RectorPrefix202402\Nette\Utils\Strings;
 use PhpParser\Comment;
 use PhpParser\Node;
+use PhpParser\Node\AttributeGroup;
 use PhpParser\Node\Expr;
 use PhpParser\Node\Expr\Array_;
 use PhpParser\Node\Expr\ArrowFunction;
@@ -113,6 +114,15 @@ final class BetterStandardPrinter extends Standard
         $content = parent::p($node, $parentFormatPreserved);
         return $node->getAttribute(AttributeKey::WRAPPED_IN_PARENTHESES) === \true ? '(' . $content . ')' : $content;
     }
+    protected function pAttributeGroup(AttributeGroup $attributeGroup) : string
+    {
+        $ret = parent::pAttributeGroup($attributeGroup);
+        $comment = $attributeGroup->getAttribute(AttributeKey::ATTRIBUTE_COMMENT);
+        if (!\in_array($comment, ['', null], \true)) {
+            $ret .= ' // ' . $comment;
+        }
+        return $ret;
+    }
     protected function pExpr_ArrowFunction(ArrowFunction $arrowFunction) : string
     {
         if (!$arrowFunction->hasAttribute(AttributeKey::COMMENT_CLOSURE_RETURN_MIRRORED)) {
@@ -157,9 +167,9 @@ final class BetterStandardPrinter extends Standard
     protected function outdent() : void
     {
         if ($this->getIndentCharacter() === ' ') {
-            // - 4 spaces
-            \assert($this->indentLevel >= 4);
-            $this->indentLevel -= 4;
+            $indentSize = SimpleParameterProvider::provideIntParameter(Option::INDENT_SIZE);
+            \assert($this->indentLevel >= $indentSize);
+            $this->indentLevel -= $indentSize;
         } else {
             // - 1 tab
             \assert($this->indentLevel >= 1);
