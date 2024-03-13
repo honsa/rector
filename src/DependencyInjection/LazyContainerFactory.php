@@ -3,9 +3,9 @@
 declare (strict_types=1);
 namespace Rector\DependencyInjection;
 
-use RectorPrefix202402\Doctrine\Inflector\Inflector;
-use RectorPrefix202402\Doctrine\Inflector\Rules\English\InflectorFactory;
-use RectorPrefix202402\Illuminate\Container\Container;
+use RectorPrefix202403\Doctrine\Inflector\Inflector;
+use RectorPrefix202403\Doctrine\Inflector\Rules\English\InflectorFactory;
+use RectorPrefix202403\Illuminate\Container\Container;
 use PhpParser\Lexer;
 use PHPStan\Analyser\NodeScopeResolver;
 use PHPStan\Analyser\ScopeFactory;
@@ -101,7 +101,7 @@ use Rector\NodeTypeResolver\PHPStan\Scope\NodeVisitor\StaticVariableNodeVisitor;
 use Rector\NodeTypeResolver\PHPStan\Scope\NodeVisitor\StmtKeyNodeVisitor;
 use Rector\NodeTypeResolver\PHPStan\Scope\PHPStanNodeScopeResolver;
 use Rector\NodeTypeResolver\Reflection\BetterReflection\SourceLocatorProvider\DynamicSourceLocatorProvider;
-use Rector\Php80\AttributeDecorator\DoctrineCoverterterAttributeDecorator;
+use Rector\Php80\AttributeDecorator\DoctrineConverterAttributeDecorator;
 use Rector\Php80\AttributeDecorator\SensioParamConverterAttributeDecorator;
 use Rector\Php80\Contract\ConverterAttributeDecoratorInterface;
 use Rector\Php80\NodeManipulator\AttributeGroupNamedArgumentManipulator;
@@ -181,10 +181,10 @@ use Rector\StaticTypeMapper\PhpParser\UnionTypeNodeMapper;
 use Rector\StaticTypeMapper\StaticTypeMapper;
 use Rector\Utils\Command\MissingInSetCommand;
 use Rector\Utils\Command\OutsideAnySetCommand;
-use RectorPrefix202402\Symfony\Component\Console\Application;
-use RectorPrefix202402\Symfony\Component\Console\Command\Command;
-use RectorPrefix202402\Symfony\Component\Console\Style\SymfonyStyle;
-use RectorPrefix202402\Webmozart\Assert\Assert;
+use RectorPrefix202403\Symfony\Component\Console\Application;
+use RectorPrefix202403\Symfony\Component\Console\Command\Command;
+use RectorPrefix202403\Symfony\Component\Console\Style\SymfonyStyle;
+use RectorPrefix202403\Webmozart\Assert\Assert;
 final class LazyContainerFactory
 {
     /**
@@ -242,7 +242,7 @@ final class LazyContainerFactory
     /**
      * @var array<class-string<ConverterAttributeDecoratorInterface>>
      */
-    private const CONVERTER_ATTRIBUTE_DECORATOR_CLASSES = [SensioParamConverterAttributeDecorator::class, DoctrineCoverterterAttributeDecorator::class];
+    private const CONVERTER_ATTRIBUTE_DECORATOR_CLASSES = [SensioParamConverterAttributeDecorator::class, DoctrineConverterAttributeDecorator::class];
     /**
      * @api used as next rectorConfig factory
      */
