@@ -1,4 +1,4 @@
-# 364 Rules Overview
+# 365 Rules Overview
 
 <br>
 
@@ -46,6 +46,8 @@
 
 - [Php83](#php83) (3)
 
+- [Php84](#php84) (1)
+
 - [Privatization](#privatization) (5)
 
 - [Removing](#removing) (5)
@@ -54,7 +56,7 @@
 
 - [Strict](#strict) (5)
 
-- [Transform](#transform) (24)
+- [Transform](#transform) (25)
 
 - [TypeDeclaration](#typedeclaration) (45)
 
@@ -5328,6 +5330,21 @@ Combine separated host and port on `ldap_connect()` args
 
 <br>
 
+## Php84
+
+### ExplicitNullableParamTypeRector
+
+Make implicit nullable param to explicit
+
+- class: [`Rector\Php84\Rector\Param\ExplicitNullableParamTypeRector`](../rules/Php84/Rector/Param/ExplicitNullableParamTypeRector.php)
+
+```diff
+-function foo(string $param = null) {}
++function foo(?string $param = null) {}
+```
+
+<br>
+
 ## Privatization
 
 ### FinalizeClassesWithoutChildrenRector
@@ -5848,6 +5865,21 @@ Add interface by used trait
  {
      use SomeTrait;
  }
+```
+
+<br>
+
+### ArrayDimFetchToMethodCallRector
+
+Change array dim fetch to method call
+
+:wrench: **configure it!**
+
+- class: [`Rector\Transform\Rector\ArrayDimFetch\ArrayDimFetchToMethodCallRector`](../rules/Transform/Rector/ArrayDimFetch/ArrayDimFetchToMethodCallRector.php)
+
+```diff
+-$app['someService'];
++$app->make('someService');
 ```
 
 <br>

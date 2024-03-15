@@ -4,7 +4,7 @@
 
 namespace Composer\Autoload;
 
-class ComposerStaticInit2d887a2f87c676eb32b3e04612865e54
+class ComposerStaticInit1738583af5734d6ba4a4af91c9f317d8
 {
     public static $files = array (
         'ad155f8f1cf0d418fe49e248db8c661b' => __DIR__ . '/..' . '/react/promise/src/functions_include.php',
@@ -2140,6 +2140,7 @@ class ComposerStaticInit2d887a2f87c676eb32b3e04612865e54
         'Rector\\Php83\\Rector\\ClassConst\\AddTypeToConstRector' => __DIR__ . '/../..' . '/rules/Php83/Rector/ClassConst/AddTypeToConstRector.php',
         'Rector\\Php83\\Rector\\ClassMethod\\AddOverrideAttributeToOverriddenMethodsRector' => __DIR__ . '/../..' . '/rules/Php83/Rector/ClassMethod/AddOverrideAttributeToOverriddenMethodsRector.php',
         'Rector\\Php83\\Rector\\FuncCall\\CombineHostPortLdapUriRector' => __DIR__ . '/../..' . '/rules/Php83/Rector/FuncCall/CombineHostPortLdapUriRector.php',
+        'Rector\\Php84\\Rector\\Param\\ExplicitNullableParamTypeRector' => __DIR__ . '/../..' . '/rules/Php84/Rector/Param/ExplicitNullableParamTypeRector.php',
         'Rector\\PhpAttribute\\AnnotationToAttributeMapper' => __DIR__ . '/../..' . '/src/PhpAttribute/AnnotationToAttributeMapper.php',
         'Rector\\PhpAttribute\\AnnotationToAttributeMapper\\ArrayAnnotationToAttributeMapper' => __DIR__ . '/../..' . '/src/PhpAttribute/AnnotationToAttributeMapper/ArrayAnnotationToAttributeMapper.php',
         'Rector\\PhpAttribute\\AnnotationToAttributeMapper\\ArrayItemNodeAnnotationToAttributeMapper' => __DIR__ . '/../..' . '/src/PhpAttribute/AnnotationToAttributeMapper/ArrayItemNodeAnnotationToAttributeMapper.php',
@@ -2504,6 +2505,7 @@ class ComposerStaticInit2d887a2f87c676eb32b3e04612865e54
         'Rector\\Transform\\NodeAnalyzer\\FuncCallStaticCallToMethodCallAnalyzer' => __DIR__ . '/../..' . '/rules/Transform/NodeAnalyzer/FuncCallStaticCallToMethodCallAnalyzer.php',
         'Rector\\Transform\\NodeFactory\\PropertyFetchFactory' => __DIR__ . '/../..' . '/rules/Transform/NodeFactory/PropertyFetchFactory.php',
         'Rector\\Transform\\NodeTypeAnalyzer\\TypeProvidingExprFromClassResolver' => __DIR__ . '/../..' . '/rules/Transform/NodeTypeAnalyzer/TypeProvidingExprFromClassResolver.php',
+        'Rector\\Transform\\Rector\\ArrayDimFetch\\ArrayDimFetchToMethodCallRector' => __DIR__ . '/../..' . '/rules/Transform/Rector/ArrayDimFetch/ArrayDimFetchToMethodCallRector.php',
         'Rector\\Transform\\Rector\\Assign\\PropertyAssignToMethodCallRector' => __DIR__ . '/../..' . '/rules/Transform/Rector/Assign/PropertyAssignToMethodCallRector.php',
         'Rector\\Transform\\Rector\\Assign\\PropertyFetchToMethodCallRector' => __DIR__ . '/../..' . '/rules/Transform/Rector/Assign/PropertyFetchToMethodCallRector.php',
         'Rector\\Transform\\Rector\\Attribute\\AttributeKeyToClassConstFetchRector' => __DIR__ . '/../..' . '/rules/Transform/Rector/Attribute/AttributeKeyToClassConstFetchRector.php',
@@ -2528,6 +2530,7 @@ class ComposerStaticInit2d887a2f87c676eb32b3e04612865e54
         'Rector\\Transform\\Rector\\StaticCall\\StaticCallToMethodCallRector' => __DIR__ . '/../..' . '/rules/Transform/Rector/StaticCall/StaticCallToMethodCallRector.php',
         'Rector\\Transform\\Rector\\StaticCall\\StaticCallToNewRector' => __DIR__ . '/../..' . '/rules/Transform/Rector/StaticCall/StaticCallToNewRector.php',
         'Rector\\Transform\\Rector\\String_\\StringToClassConstantRector' => __DIR__ . '/../..' . '/rules/Transform/Rector/String_/StringToClassConstantRector.php',
+        'Rector\\Transform\\ValueObject\\ArrayDimFetchToMethodCall' => __DIR__ . '/../..' . '/rules/Transform/ValueObject/ArrayDimFetchToMethodCall.php',
         'Rector\\Transform\\ValueObject\\AttributeKeyToClassConstFetch' => __DIR__ . '/../..' . '/rules/Transform/ValueObject/AttributeKeyToClassConstFetch.php',
         'Rector\\Transform\\ValueObject\\ClassMethodReference' => __DIR__ . '/../..' . '/rules/Transform/ValueObject/ClassMethodReference.php',
         'Rector\\Transform\\ValueObject\\ConstFetchToClassConstFetch' => __DIR__ . '/../..' . '/rules/Transform/ValueObject/ConstFetchToClassConstFetch.php',
@@ -2703,9 +2706,9 @@ class ComposerStaticInit2d887a2f87c676eb32b3e04612865e54
     public static function getInitializer(ClassLoader $loader)
     {
         return \Closure::bind(function () use ($loader) {
-            $loader->prefixLengthsPsr4 = ComposerStaticInit2d887a2f87c676eb32b3e04612865e54::$prefixLengthsPsr4;
-            $loader->prefixDirsPsr4 = ComposerStaticInit2d887a2f87c676eb32b3e04612865e54::$prefixDirsPsr4;
-            $loader->classMap = ComposerStaticInit2d887a2f87c676eb32b3e04612865e54::$classMap;
+            $loader->prefixLengthsPsr4 = ComposerStaticInit1738583af5734d6ba4a4af91c9f317d8::$prefixLengthsPsr4;
+            $loader->prefixDirsPsr4 = ComposerStaticInit1738583af5734d6ba4a4af91c9f317d8::$prefixDirsPsr4;
+            $loader->classMap = ComposerStaticInit1738583af5734d6ba4a4af91c9f317d8::$classMap;
 
         }, null, ClassLoader::class);
     }

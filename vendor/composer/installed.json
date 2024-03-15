@@ -504,8 +504,8 @@
         },
         {
             "name": "illuminate\/container",
-            "version": "v10.48.1",
-            "version_normalized": "10.48.1.0",
+            "version": "v10.48.3",
+            "version_normalized": "10.48.3.0",
             "source": {
                 "type": "git",
                 "url": "https:\/\/github.com\/illuminate\/container.git",
@@ -532,7 +532,7 @@
                     "dev-master": "10.x-dev"
                 },
                 "patches_applied": [
-                    "https:\/\/raw.githubusercontent.com\/rectorphp\/vendor-patches\/main\/patches\/\/illuminate-container-container-php.patch"
+                    "https:\/\/raw.githubusercontent.com\/rectorphp\/vendor-patches\/main\/patches\/illuminate-container-container-php.patch"
                 ]
             },
             "installation-source": "dist",
@@ -561,8 +561,8 @@
         },
         {
             "name": "illuminate\/contracts",
-            "version": "v10.48.1",
-            "version_normalized": "10.48.1.0",
+            "version": "v10.48.3",
+            "version_normalized": "10.48.3.0",
             "source": {
                 "type": "git",
                 "url": "https:\/\/github.com\/illuminate\/contracts.git",
