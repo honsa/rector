@@ -172,7 +172,11 @@ class TypeParser
             if ($constExpr instanceof Ast\ConstExpr\ConstExprArrayNode) {
                 throw new \PHPStan\PhpDocParser\Parser\ParserException($currentTokenValue, $currentTokenType, $currentTokenOffset, Lexer::TOKEN_IDENTIFIER, null, $currentTokenLine);
             }
-            return $this->enrichWithAttributes($tokens, new Ast\Type\ConstTypeNode($constExpr), $startLine, $startIndex);
+            $type = $this->enrichWithAttributes($tokens, new Ast\Type\ConstTypeNode($constExpr), $startLine, $startIndex);
+            if ($tokens->isCurrentTokenType(Lexer::TOKEN_OPEN_SQUARE_BRACKET)) {
+                $type = $this->tryParseArrayOrOffsetAccess($tokens, $type);
+            }
+            return $type;
         } catch (LogicException $e) {
             throw new \PHPStan\PhpDocParser\Parser\ParserException($currentTokenValue, $currentTokenType, $currentTokenOffset, Lexer::TOKEN_IDENTIFIER, null, $currentTokenLine);
         }
@@ -357,6 +361,9 @@ class TypeParser
         } else {
             $description = '';
         }
+        if ($name === '') {
+            throw new LogicException('Template tag name cannot be empty.');
+        }
         return new Ast\PhpDoc\TemplateTagValueNode($name, $bound, $description, $default);
     }
     /** @phpstan-impure */
@@ -497,9 +504,9 @@ class TypeParser
             if ($constExpr instanceof Ast\ConstExpr\ConstExprArrayNode) {
                 throw new \PHPStan\PhpDocParser\Parser\ParserException($currentTokenValue, $currentTokenType, $currentTokenOffset, Lexer::TOKEN_IDENTIFIER, null, $currentTokenLine);
             }
-            $type = new Ast\Type\ConstTypeNode($constExpr);
+            $type = $this->enrichWithAttributes($tokens, new Ast\Type\ConstTypeNode($constExpr), $startLine, $startIndex);
             if ($tokens->isCurrentTokenType(Lexer::TOKEN_OPEN_SQUARE_BRACKET)) {
-                $type = $this->tryParseArrayOrOffsetAccess($tokens, $this->enrichWithAttributes($tokens, $type, $startLine, $startIndex));
+                $type = $this->tryParseArrayOrOffsetAccess($tokens, $type);
             }
             return $type;
         } catch (LogicException $e) {

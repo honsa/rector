@@ -4,6 +4,7 @@ declare (strict_types=1);
 namespace Rector\Configuration;
 
 use Rector\Caching\Contract\ValueObject\Storage\CacheStorageInterface;
+use Rector\Config\Level\CodeQualityLevel;
 use Rector\Config\Level\DeadCodeLevel;
 use Rector\Config\Level\TypeDeclarationLevel;
 use Rector\Config\RectorConfig;
@@ -22,8 +23,8 @@ use Rector\Symfony\Set\JMSSetList;
 use Rector\Symfony\Set\SensiolabsSetList;
 use Rector\Symfony\Set\SymfonySetList;
 use Rector\ValueObject\PhpVersion;
-use RectorPrefix202403\Symfony\Component\Finder\Finder;
-use RectorPrefix202403\Webmozart\Assert\Assert;
+use RectorPrefix202406\Symfony\Component\Finder\Finder;
+use RectorPrefix202406\Webmozart\Assert\Assert;
 /**
  * @api
  */
@@ -140,13 +141,21 @@ final class RectorConfigBuilder
     /**
      * To make sure type declarations set and level are not duplicated,
      * as both contain same rules
-     * @var bool
+     * @var bool|null
      */
-    private $isTypeCoverageLevelUsed = \false;
+    private $isTypeCoverageLevelUsed;
     /**
-     * @var bool
+     * @var bool|null
      */
-    private $isDeadCodeLevelUsed = \false;
+    private $isDeadCodeLevelUsed;
+    /**
+     * @var bool|null
+     */
+    private $isCodeQualityLevelUsed;
+    /**
+     * @var bool|null
+     */
+    private $isFluentNewLine;
     /**
      * @var RegisteredService[]
      */
@@ -154,13 +163,18 @@ final class RectorConfigBuilder
     public function __invoke(RectorConfig $rectorConfig) : void
     {
         $uniqueSets = \array_unique($this->sets);
-        if (\in_array(SetList::TYPE_DECLARATION, $uniqueSets, \true) && $this->isTypeCoverageLevelUsed) {
+        if (\in_array(SetList::TYPE_DECLARATION, $uniqueSets, \true) && $this->isTypeCoverageLevelUsed === \true) {
             throw new InvalidConfigurationException(\sprintf('Your config already enables type declarations set.%sRemove "->withTypeCoverageLevel()" as it only duplicates it, or remove type declaration set.', \PHP_EOL));
         }
-        if (\in_array(SetList::DEAD_CODE, $uniqueSets, \true) && $this->isDeadCodeLevelUsed) {
+        if (\in_array(SetList::DEAD_CODE, $uniqueSets, \true) && $this->isDeadCodeLevelUsed === \true) {
             throw new InvalidConfigurationException(\sprintf('Your config already enables dead code set.%sRemove "->withDeadCodeLevel()" as it only duplicates it, or remove dead code set.', \PHP_EOL));
         }
-        $rectorConfig->sets($uniqueSets);
+        if (\in_array(SetList::CODE_QUALITY, $uniqueSets, \true) && $this->isCodeQualityLevelUsed === \true) {
+            throw new InvalidConfigurationException(\sprintf('Your config already enables code quality set.%sRemove "->withCodeQualityLevel()" as it only duplicates it, or remove code quality set.', \PHP_EOL));
+        }
+        if ($uniqueSets !== []) {
+            $rectorConfig->sets($uniqueSets);
+        }
         if ($this->paths !== []) {
             $rectorConfig->paths($this->paths);
         }
@@ -174,8 +188,12 @@ final class RectorConfigBuilder
                 $rectorConfig->tag($registerService->getClassName(), $registerService->getTag());
             }
         }
-        $rectorConfig->skip($this->skip);
-        $rectorConfig->rules($this->rules);
+        if ($this->skip !== []) {
+            $rectorConfig->skip($this->skip);
+        }
+        if ($this->rules !== []) {
+            $rectorConfig->rules($this->rules);
+        }
         foreach ($this->rulesWithConfigurations as $rectorClass => $configurations) {
             foreach ($configurations as $configuration) {
                 $rectorConfig->ruleWithConfiguration($rectorClass, $configuration);
@@ -233,6 +251,9 @@ final class RectorConfigBuilder
         }
         if ($this->symfonyContainerPhpFile !== null) {
             $rectorConfig->symfonyContainerPhp($this->symfonyContainerPhpFile);
+        }
+        if ($this->isFluentNewLine !== null) {
+            $rectorConfig->newLineOnFluentCall($this->isFluentNewLine);
         }
     }
     /**
@@ -362,7 +383,7 @@ final class RectorConfigBuilder
         }
         return $this;
     }
-    public function withPreparedSets(bool $deadCode = \false, bool $codeQuality = \false, bool $codingStyle = \false, bool $typeDeclarations = \false, bool $privatization = \false, bool $naming = \false, bool $instanceOf = \false, bool $earlyReturn = \false, bool $strictBooleans = \false) : self
+    public function withPreparedSets(bool $deadCode = \false, bool $codeQuality = \false, bool $codingStyle = \false, bool $typeDeclarations = \false, bool $privatization = \false, bool $naming = \false, bool $instanceOf = \false, bool $earlyReturn = \false, bool $strictBooleans = \false, bool $carbon = \false, bool $rectorPreset = \false) : self
     {
         if ($deadCode) {
             $this->sets[] = SetList::DEAD_CODE;
@@ -390,6 +411,12 @@ final class RectorConfigBuilder
         }
         if ($strictBooleans) {
             $this->sets[] = SetList::STRICT_BOOLEANS;
+        }
+        if ($carbon) {
+            $this->sets[] = SetList::CARBON;
+        }
+        if ($rectorPreset) {
+            $this->sets[] = SetList::RECTOR_PRESET;
         }
         return $this;
     }
@@ -533,6 +560,25 @@ final class RectorConfigBuilder
         $this->isTypeCoverageLevelUsed = \true;
         $levelRules = LevelRulesResolver::resolve($level, TypeDeclarationLevel::RULES, 'RectorConfig::withTypeCoverageLevel()');
         $this->rules = \array_merge($this->rules, $levelRules);
+        return $this;
+    }
+    /**
+     * @experimental Raise your code quality from the safest rules
+     * to more affecting ones, one level at a time
+     */
+    public function withCodeQualityLevel(int $level) : self
+    {
+        $this->isCodeQualityLevelUsed = \true;
+        $levelRules = LevelRulesResolver::resolve($level, CodeQualityLevel::RULES, 'RectorConfig::withCodeQualityLevel()');
+        $this->rules = \array_merge($this->rules, $levelRules);
+        foreach (CodeQualityLevel::RULES_WITH_CONFIGURATION as $rectorClass => $configuration) {
+            $this->rulesWithConfigurations[$rectorClass][] = $configuration;
+        }
+        return $this;
+    }
+    public function withFluentCallNewLine(bool $isFluentNewLine = \true) : self
+    {
+        $this->isFluentNewLine = $isFluentNewLine;
         return $this;
     }
     public function registerService(string $className, ?string $alias = null, ?string $tag = null) : self

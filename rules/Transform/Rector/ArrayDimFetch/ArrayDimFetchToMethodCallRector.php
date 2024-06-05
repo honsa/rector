@@ -14,7 +14,7 @@ use Rector\Rector\AbstractRector;
 use Rector\Transform\ValueObject\ArrayDimFetchToMethodCall;
 use Symplify\RuleDocGenerator\ValueObject\CodeSample\ConfiguredCodeSample;
 use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
-use RectorPrefix202403\Webmozart\Assert\Assert;
+use RectorPrefix202406\Webmozart\Assert\Assert;
 /**
  * @see \Rector\Tests\Transform\Rector\ArrayDimFetch\ArrayDimFetchToMethodCallRector\ArrayDimFetchToMethodCallRectorTest
  */
@@ -32,7 +32,7 @@ CODE_SAMPLE
 , <<<'CODE_SAMPLE'
 $app->make('someService');
 CODE_SAMPLE
-, [new ArrayDimFetchToMethodCall('SomeClass', 'make')])]);
+, [new ArrayDimFetchToMethodCall(new ObjectType('SomeClass'), 'make')])]);
     }
     public function getNodeTypes() : array
     {
@@ -46,12 +46,12 @@ CODE_SAMPLE
         if (!$node->var instanceof Variable) {
             return null;
         }
+        if (!$node->dim instanceof Node) {
+            return null;
+        }
         foreach ($this->arrayDimFetchToMethodCalls as $arrayDimFetchToMethodCall) {
-            if (!$node->dim instanceof Node) {
-                return null;
-            }
-            if (!$this->isObjectType($node->var, new ObjectType($arrayDimFetchToMethodCall->getClass()))) {
-                return null;
+            if (!$this->isObjectType($node->var, $arrayDimFetchToMethodCall->getObjectType())) {
+                continue;
             }
             return new MethodCall($node->var, $arrayDimFetchToMethodCall->getMethod(), [new Arg($node->dim)]);
         }

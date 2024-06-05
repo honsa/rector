@@ -1,4 +1,4 @@
-# 84 Rules Overview
+# 85 Rules Overview
 
 ## ActionSuffixRemoverRector
 
@@ -110,7 +110,7 @@ Make assertSame(200, `$response->getStatusCode())` in tests comparing response c
 
 ## AuthorizationCheckerIsGrantedExtractorRector
 
-Change `$this->authorizationChecker->isGranted([$a, $b])` to `$this->authorizationChecker->isGranted($a) || $this->authorizationChecker->isGranted($b)`
+Change `$this->authorizationChecker->isGranted([$a, $b])` to `$this->authorizationChecker->isGranted($a) || `$this->authorizationChecker->isGranted($b)`,` also updates AbstractController usages
 
 - class: [`Rector\Symfony\Symfony44\Rector\MethodCall\AuthorizationCheckerIsGrantedExtractorRector`](../rules/Symfony44/Rector/MethodCall/AuthorizationCheckerIsGrantedExtractorRector.php)
 
@@ -1695,6 +1695,36 @@ Changes `createMessage()` into a new Symfony\Component\Mime\Email
 ```diff
 -$email = $this->swift->createMessage('message');
 +$email = new \Symfony\Component\Mime\Email();
+```
+
+<br>
+
+## SwiftMessageToEmailRector
+
+Convert `\Swift_Message` into an \Symfony\Component\Mime\Email
+
+- class: [`Rector\Symfony\SwiftMailer\Rector\ClassMethod\SwiftMessageToEmailRector`](../rules/SwiftMailer/Rector/ClassMethod/SwiftMessageToEmailRector.php)
+
+```diff
+-$message = (new \Swift_Message('Hello Email'))
+-        ->setFrom('send@example.com')
+-        ->setTo(['recipient@example.com' => 'Recipient'])
+-        ->setBody(
+-            $this->renderView(
+-                'emails/registration.html.twig',
+-                ['name' => $name]
+-            ),
+-            'text/html'
+-        )
++$message = (new Email())
++    ->from(new Address('send@example.com'))
++    ->to(new Address('recipient@example.com', 'Recipient'))
++    ->subject('Hello Email')
++    ->html($this->renderView(
++        'emails/registration.html.twig',
++        ['name' => $name]
++    ))
++;
 ```
 
 <br>

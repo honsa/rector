@@ -1,4 +1,4 @@
-# 365 Rules Overview
+# 380 Rules Overview
 
 <br>
 
@@ -6,11 +6,13 @@
 
 - [Arguments](#arguments) (4)
 
-- [CodeQuality](#codequality) (74)
+- [Carbon](#carbon) (4)
+
+- [CodeQuality](#codequality) (75)
 
 - [CodingStyle](#codingstyle) (28)
 
-- [DeadCode](#deadcode) (42)
+- [DeadCode](#deadcode) (45)
 
 - [EarlyReturn](#earlyreturn) (9)
 
@@ -42,7 +44,7 @@
 
 - [Php81](#php81) (9)
 
-- [Php82](#php82) (4)
+- [Php82](#php82) (5)
 
 - [Php83](#php83) (3)
 
@@ -58,7 +60,7 @@
 
 - [Transform](#transform) (25)
 
-- [TypeDeclaration](#typedeclaration) (45)
+- [TypeDeclaration](#typedeclaration) (50)
 
 - [Visibility](#visibility) (3)
 
@@ -138,6 +140,78 @@ Replaces defined map of arguments in defined methods and their calls.
  $someObject = new SomeClass;
 -$someObject->someMethod(SomeClass::OLD_CONSTANT);
 +$someObject->someMethod(false);
+```
+
+<br>
+
+## Carbon
+
+### DateFuncCallToCarbonRector
+
+Convert `date()` function call to `Carbon::now()->format(*)`
+
+- class: [`Rector\Carbon\Rector\FuncCall\DateFuncCallToCarbonRector`](../rules/Carbon/Rector/FuncCall/DateFuncCallToCarbonRector.php)
+
+```diff
+ class SomeClass
+ {
+     public function run()
+     {
+-        $date = date('Y-m-d');
++        $date = \Carbon\Carbon::now()->format('Y-m-d');
+     }
+ }
+```
+
+<br>
+
+### DateTimeInstanceToCarbonRector
+
+Convert new `DateTime()` to Carbon::*()
+
+- class: [`Rector\Carbon\Rector\New_\DateTimeInstanceToCarbonRector`](../rules/Carbon/Rector/New_/DateTimeInstanceToCarbonRector.php)
+
+```diff
+-$date = new \DateTime('today');
++$date = \Carbon\Carbon::today();
+```
+
+<br>
+
+### DateTimeMethodCallToCarbonRector
+
+Convert new `DateTime()` with a method call to Carbon::*()
+
+- class: [`Rector\Carbon\Rector\MethodCall\DateTimeMethodCallToCarbonRector`](../rules/Carbon/Rector/MethodCall/DateTimeMethodCallToCarbonRector.php)
+
+```diff
+ class SomeClass
+ {
+     public function run()
+     {
+-        $date = (new \DateTime('today +20 day'))->format('Y-m-d');
++        $date = \Carbon\Carbon::today()->addDays(20)->format('Y-m-d')
+     }
+ }
+```
+
+<br>
+
+### TimeFuncCallToCarbonRector
+
+Convert `time()` function call to `Carbon::now()->timestamp`
+
+- class: [`Rector\Carbon\Rector\FuncCall\TimeFuncCallToCarbonRector`](../rules/Carbon/Rector/FuncCall/TimeFuncCallToCarbonRector.php)
+
+```diff
+ class SomeClass
+ {
+     public function run()
+     {
+-        $time = time();
++        $time = \Carbon\Carbon::now()->timestamp;
+     }
+ }
 ```
 
 <br>
@@ -543,6 +617,32 @@ Make if conditions more explicit
 +        if (count($items) === 0) {
              return 'no items';
          }
+     }
+ }
+```
+
+<br>
+
+### ExplicitReturnNullRector
+
+Add explicit return null to method/function that returns a value, but missed main return
+
+- class: [`Rector\CodeQuality\Rector\ClassMethod\ExplicitReturnNullRector`](../rules/CodeQuality/Rector/ClassMethod/ExplicitReturnNullRector.php)
+
+```diff
+ class SomeClass
+ {
+     /**
+-     * @return string|void
++     * @return string|null
+      */
+     public function run(int $number)
+     {
+         if ($number > 50) {
+             return 'yes';
+         }
++
++        return null;
      }
  }
 ```
@@ -2157,6 +2257,29 @@ Removes recasting of the same type
 
 <br>
 
+### ReduceAlwaysFalseIfOrRector
+
+Reduce always false in a if ( || ) condition
+
+- class: [`Rector\DeadCode\Rector\If_\ReduceAlwaysFalseIfOrRector`](../rules/DeadCode/Rector/If_/ReduceAlwaysFalseIfOrRector.php)
+
+```diff
+ class SomeClass
+ {
+     public function run(int $number)
+     {
+-        if (! is_int($number) || $number > 50) {
++        if ($number > 50) {
+             return 'yes';
+         }
+
+         return 'no';
+     }
+ }
+```
+
+<br>
+
 ### RemoveAlwaysTrueIfConditionRector
 
 Remove if condition that is always true
@@ -2798,6 +2921,25 @@ Remove unused promoted property
 
 <br>
 
+### RemoveUnusedPublicMethodParameterRector
+
+Remove unused parameter in public method on final class without extends and interface
+
+- class: [`Rector\DeadCode\Rector\ClassMethod\RemoveUnusedPublicMethodParameterRector`](../rules/DeadCode/Rector/ClassMethod/RemoveUnusedPublicMethodParameterRector.php)
+
+```diff
+ final class SomeClass
+ {
+-    public function run($a, $b)
++    public function run($a)
+     {
+         echo $a;
+     }
+ }
+```
+
+<br>
+
 ### RemoveUnusedVariableAssignRector
 
 Remove unused assigns to variables
@@ -2831,6 +2973,29 @@ Remove `@param` docblock with same type as parameter type
       */
      public function foo(string $a, string $b)
      {
+     }
+ }
+```
+
+<br>
+
+### RemoveUselessReadOnlyTagRector
+
+Remove useless `@readonly` annotation on native readonly type
+
+- class: [`Rector\DeadCode\Rector\Property\RemoveUselessReadOnlyTagRector`](../rules/DeadCode/Rector/Property/RemoveUselessReadOnlyTagRector.php)
+
+```diff
+ final class SomeClass
+ {
+-    /**
+-     * @readonly
+-     */
+     private readonly string $name;
+
+     public function __construct(string $name)
+     {
+         $this->name = $name;
      }
  }
 ```
@@ -5274,6 +5439,20 @@ Change deprecated utf8_decode and utf8_encode to mb_convert_encoding
 
 <br>
 
+### VariableInStringInterpolationFixerRector
+
+Replace deprecated "${var}" to "{$var}"
+
+- class: [`Rector\Php82\Rector\Encapsed\VariableInStringInterpolationFixerRector`](../rules/Php82/Rector/Encapsed/VariableInStringInterpolationFixerRector.php)
+
+```diff
+ $c = "football";
+-echo "I like playing ${c}";
++echo "I like playing {$c}";
+```
+
+<br>
+
 ## Php83
 
 ### AddOverrideAttributeToOverriddenMethodsRector
@@ -5303,7 +5482,7 @@ Add override attribute to overridden methods
 
 ### AddTypeToConstRector
 
-Add const to type
+Add type to constants
 
 - class: [`Rector\Php83\Rector\ClassConst\AddTypeToConstRector`](../rules/Php83/Rector/ClassConst/AddTypeToConstRector.php)
 
@@ -5373,10 +5552,10 @@ PHPUnit test case will be finalized
 - class: [`Rector\Privatization\Rector\Class_\FinalizeTestCaseClassRector`](../rules/Privatization/Rector/Class_/FinalizeTestCaseClassRector.php)
 
 ```diff
--use PHPUnit\Framework\TestCase;
-+final use PHPUnit\Framework\TestCase;
+ use PHPUnit\Framework\TestCase;
 
- class SomeClass extends TestCase
+-class SomeClass extends TestCase
++final class SomeClass extends TestCase
  {
  }
 ```
@@ -6616,6 +6795,37 @@ Add void to PHPUnit test methods
 
 <br>
 
+### AddTypeFromResourceDocblockRector
+
+Add param and return types on resource docblock
+
+:wrench: **configure it!**
+
+- class: [`Rector\TypeDeclaration\Rector\ClassMethod\AddTypeFromResourceDocblockRector`](../rules/TypeDeclaration/Rector/ClassMethod/AddTypeFromResourceDocblockRector.php)
+
+```diff
+ class SomeClass
+ {
+-    /**
+-     * @param resource|null $resource
+-     */
+-    public function setResource($resource)
++    public function setResource(?App\ValueObject\Resource $resource)
+     {
+     }
+
+-    /**
+-     * @return resource|null
+-     */
+-    public function getResource()
++    public function getResource(): ?App\ValueObject\Resource
+     {
+     }
+ }
+```
+
+<br>
+
 ### AddVoidReturnTypeWhereNoReturnRector
 
 Add return type void to function like without any return
@@ -6681,7 +6891,7 @@ Change return type based on strict returns type operations
 
 ### ChildDoctrineRepositoryClassTypeRector
 
-Add return type to classes that extend `Doctrine\ORM\EntityRepository`
+Add return type to classes that extend `Doctrine\ORM\EntityRepository` based on return Doctrine method names
 
 - class: [`Rector\TypeDeclaration\Rector\Class_\ChildDoctrineRepositoryClassTypeRector`](../rules/TypeDeclaration/Rector/Class_/ChildDoctrineRepositoryClassTypeRector.php)
 
@@ -6739,6 +6949,24 @@ Change `empty()` on nullable object to instanceof check
 
          return true;
      }
+ }
+```
+
+<br>
+
+### IncreaseDeclareStrictTypesRector
+
+Add declare strict types to a limited amount of classes at a time, to try out in the wild and increase level gradually
+
+:wrench: **configure it!**
+
+- class: [`Rector\TypeDeclaration\Rector\StmtsAwareInterface\IncreaseDeclareStrictTypesRector`](../rules/TypeDeclaration/Rector/StmtsAwareInterface/IncreaseDeclareStrictTypesRector.php)
+
+```diff
++declare(strict_types=1);
++
+ function someFunction()
+ {
  }
 ```
 
@@ -6878,6 +7106,30 @@ Add "never" return-type for methods that never return anything
 +    public function run(): never
      {
          throw new InvalidException();
+     }
+ }
+```
+
+<br>
+
+### ReturnTypeFromReturnCastRector
+
+Add return type to function like with return cast
+
+- class: [`Rector\TypeDeclaration\Rector\ClassMethod\ReturnTypeFromReturnCastRector`](../rules/TypeDeclaration/Rector/ClassMethod/ReturnTypeFromReturnCastRector.php)
+
+```diff
+ final class SomeClass
+ {
+-    public function action($param)
++    public function action($param): array
+     {
+         try {
+             return (array) $param;
+         } catch (Exception $exception) {
+             // some logging
+             throw $exception;
+         }
      }
  }
 ```
@@ -7135,6 +7387,27 @@ Add return method return type based on strict typed property
 
 <br>
 
+### ReturnTypeFromSymfonySerializerRector
+
+Add return type from symfony serializer
+
+- class: [`Rector\TypeDeclaration\Rector\ClassMethod\ReturnTypeFromSymfonySerializerRector`](../rules/TypeDeclaration/Rector/ClassMethod/ReturnTypeFromSymfonySerializerRector.php)
+
+```diff
+ final class SomeClass
+ {
+     private \Symfony\Component\Serializer\Serializer $serializer;
+
+-    public function resolveEntity($data)
++    public function resolveEntity($data): SomeType
+     {
+         return $this->serializer->deserialize($data, SomeType::class, 'json');
+     }
+ }
+```
+
+<br>
+
 ### ReturnUnionTypeRector
 
 Add union return type
@@ -7218,6 +7491,23 @@ Add typed property from assigned types
      {
          $this->name = 'string';
      }
+ }
+```
+
+<br>
+
+### TypedPropertyFromJMSSerializerAttributeTypeRector
+
+Add typed property from JMS Serializer Type attribute
+
+- class: [`Rector\TypeDeclaration\Rector\Class_\TypedPropertyFromJMSSerializerAttributeTypeRector`](../rules/TypeDeclaration/Rector/Class_/TypedPropertyFromJMSSerializerAttributeTypeRector.php)
+
+```diff
+ final class SomeClass
+ {
+     #[\JMS\Serializer\Annotation\Type('string')]
+-    private $name;
++    private ?string $name = null;
  }
 ```
 

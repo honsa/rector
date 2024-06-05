@@ -10,6 +10,7 @@ use Rector\TypeDeclaration\Rector\Class_\ChildDoctrineRepositoryClassTypeRector;
 use Rector\TypeDeclaration\Rector\Class_\MergeDateTimePropertyTypeDeclarationRector;
 use Rector\TypeDeclaration\Rector\Class_\PropertyTypeFromStrictSetterGetterRector;
 use Rector\TypeDeclaration\Rector\Class_\ReturnTypeFromStrictTernaryRector;
+use Rector\TypeDeclaration\Rector\Class_\TypedPropertyFromJMSSerializerAttributeTypeRector;
 use Rector\TypeDeclaration\Rector\ClassMethod\AddMethodCallBasedStrictParamTypeRector;
 use Rector\TypeDeclaration\Rector\ClassMethod\AddParamTypeBasedOnPHPUnitDataProviderRector;
 use Rector\TypeDeclaration\Rector\ClassMethod\AddParamTypeFromPropertyTypeRector;
@@ -20,6 +21,7 @@ use Rector\TypeDeclaration\Rector\ClassMethod\NumericReturnTypeFromStrictScalarR
 use Rector\TypeDeclaration\Rector\ClassMethod\ParamTypeByMethodCallTypeRector;
 use Rector\TypeDeclaration\Rector\ClassMethod\ParamTypeByParentCallTypeRector;
 use Rector\TypeDeclaration\Rector\ClassMethod\ReturnNeverTypeRector;
+use Rector\TypeDeclaration\Rector\ClassMethod\ReturnTypeFromReturnCastRector;
 use Rector\TypeDeclaration\Rector\ClassMethod\ReturnTypeFromReturnDirectArrayRector;
 use Rector\TypeDeclaration\Rector\ClassMethod\ReturnTypeFromReturnNewRector;
 use Rector\TypeDeclaration\Rector\ClassMethod\ReturnTypeFromStrictBoolReturnExprRector;
@@ -31,6 +33,7 @@ use Rector\TypeDeclaration\Rector\ClassMethod\ReturnTypeFromStrictParamRector;
 use Rector\TypeDeclaration\Rector\ClassMethod\ReturnTypeFromStrictScalarReturnExprRector;
 use Rector\TypeDeclaration\Rector\ClassMethod\ReturnTypeFromStrictTypedCallRector;
 use Rector\TypeDeclaration\Rector\ClassMethod\ReturnTypeFromStrictTypedPropertyRector;
+use Rector\TypeDeclaration\Rector\ClassMethod\ReturnTypeFromSymfonySerializerRector;
 use Rector\TypeDeclaration\Rector\ClassMethod\ReturnUnionTypeRector;
 use Rector\TypeDeclaration\Rector\ClassMethod\StrictArrayParamDimFetchRector;
 use Rector\TypeDeclaration\Rector\ClassMethod\StrictStringParamConcatRector;
@@ -66,6 +69,8 @@ final class TypeDeclarationLevel
         ReturnTypeFromStrictScalarReturnExprRector::class,
         ReturnTypeFromReturnDirectArrayRector::class,
         ReturnTypeFromReturnNewRector::class,
+        ReturnTypeFromReturnCastRector::class,
+        ReturnTypeFromSymfonySerializerRector::class,
         AddVoidReturnTypeWhereNoReturnRector::class,
         // php 7.4
         EmptyOnNullableObjectToInstanceOfRector::class,
@@ -96,5 +101,6 @@ final class TypeDeclarationLevel
         ReturnNeverTypeRector::class,
         StrictArrayParamDimFetchRector::class,
         StrictStringParamConcatRector::class,
+        TypedPropertyFromJMSSerializerAttributeTypeRector::class,
     ];
 }
