@@ -19,6 +19,8 @@ use PHPStan\Analyser\MutatingScope;
 use PHPStan\Type\ObjectType;
 use PHPStan\Type\Type;
 use Rector\Application\ChangedNodeScopeRefresher;
+use Rector\Application\Provider\CurrentFileProvider;
+use Rector\BetterPhpDocParser\PhpDocInfo\PhpDocInfo;
 use Rector\ChangesReporting\ValueObject\RectorWithLineChange;
 use Rector\Contract\Rector\RectorInterface;
 use Rector\Exception\ShouldNotHappenException;
@@ -29,7 +31,6 @@ use Rector\NodeTypeResolver\NodeTypeResolver;
 use Rector\PhpDocParser\NodeTraverser\SimpleCallableNodeTraverser;
 use Rector\PhpParser\Comparing\NodeComparator;
 use Rector\PhpParser\Node\NodeFactory;
-use Rector\Provider\CurrentFileProvider;
 use Rector\Skipper\Skipper\Skipper;
 use Rector\ValueObject\Application\File;
 abstract class AbstractRector extends NodeVisitorAbstract implements RectorInterface
@@ -81,7 +82,7 @@ CODE_SAMPLE;
      */
     private $simpleCallableNodeTraverser;
     /**
-     * @var \Rector\Provider\CurrentFileProvider
+     * @var \Rector\Application\Provider\CurrentFileProvider
      */
     private $currentFileProvider;
     /**
@@ -240,7 +241,17 @@ CODE_SAMPLE;
         if ($oldNode instanceof InlineHTML) {
             return;
         }
-        $newNode->setAttribute(AttributeKey::PHP_DOC_INFO, $oldNode->getAttribute(AttributeKey::PHP_DOC_INFO));
+        $oldPhpDocInfo = $oldNode->getAttribute(AttributeKey::PHP_DOC_INFO);
+        $newPhpDocInfo = $newNode->getAttribute(AttributeKey::PHP_DOC_INFO);
+        if ($newPhpDocInfo instanceof PhpDocInfo) {
+            if (!$oldPhpDocInfo instanceof PhpDocInfo) {
+                return;
+            }
+            if ((string) $oldPhpDocInfo->getPhpDocNode() !== (string) $newPhpDocInfo->getPhpDocNode()) {
+                return;
+            }
+        }
+        $newNode->setAttribute(AttributeKey::PHP_DOC_INFO, $oldPhpDocInfo);
         if (!$newNode instanceof Nop) {
             $newNode->setAttribute(AttributeKey::COMMENTS, $oldNode->getAttribute(AttributeKey::COMMENTS));
         }

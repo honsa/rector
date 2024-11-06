@@ -3,15 +3,16 @@
 declare (strict_types=1);
 namespace Rector\Application;
 
-use RectorPrefix202406\Nette\Utils\FileSystem as UtilsFileSystem;
-use Rector\Caching\Cache;
+use RectorPrefix202411\Nette\Utils\FileSystem as UtilsFileSystem;
+use PHPStan\Parser\ParserErrorsException;
+use Rector\Application\Provider\CurrentFileProvider;
 use Rector\Caching\Detector\ChangedFilesDetector;
 use Rector\Configuration\Option;
 use Rector\Configuration\Parameter\SimpleParameterProvider;
-use Rector\Configuration\VendorMissAnalyseGuard;
-use Rector\NodeTypeResolver\Reflection\BetterReflection\SourceLocatorProvider\DynamicSourceLocatorProvider;
+use Rector\FileSystem\FilesFinder;
 use Rector\Parallel\Application\ParallelFileProcessor;
-use Rector\Provider\CurrentFileProvider;
+use Rector\PhpParser\Parser\ParserErrors;
+use Rector\Reporting\MissConfigurationReporter;
 use Rector\Testing\PHPUnit\StaticPHPUnitEnvironment;
 use Rector\Util\ArrayParametersMerger;
 use Rector\ValueObject\Application\File;
@@ -20,12 +21,11 @@ use Rector\ValueObject\Error\SystemError;
 use Rector\ValueObject\FileProcessResult;
 use Rector\ValueObject\ProcessResult;
 use Rector\ValueObject\Reporting\FileDiff;
-use Rector\ValueObjectFactory\Application\FileFactory;
-use RectorPrefix202406\Symfony\Component\Console\Input\InputInterface;
-use RectorPrefix202406\Symfony\Component\Console\Style\SymfonyStyle;
-use RectorPrefix202406\Symplify\EasyParallel\CpuCoreCountProvider;
-use RectorPrefix202406\Symplify\EasyParallel\Exception\ParallelShouldNotHappenException;
-use RectorPrefix202406\Symplify\EasyParallel\ScheduleFactory;
+use RectorPrefix202411\Symfony\Component\Console\Input\InputInterface;
+use RectorPrefix202411\Symfony\Component\Console\Style\SymfonyStyle;
+use RectorPrefix202411\Symplify\EasyParallel\CpuCoreCountProvider;
+use RectorPrefix202411\Symplify\EasyParallel\Exception\ParallelShouldNotHappenException;
+use RectorPrefix202411\Symplify\EasyParallel\ScheduleFactory;
 use Throwable;
 final class ApplicationFileProcessor
 {
@@ -36,9 +36,9 @@ final class ApplicationFileProcessor
     private $symfonyStyle;
     /**
      * @readonly
-     * @var \Rector\ValueObjectFactory\Application\FileFactory
+     * @var \Rector\FileSystem\FilesFinder
      */
-    private $fileFactory;
+    private $filesFinder;
     /**
      * @readonly
      * @var \Rector\Parallel\Application\ParallelFileProcessor
@@ -61,7 +61,7 @@ final class ApplicationFileProcessor
     private $changedFilesDetector;
     /**
      * @readonly
-     * @var \Rector\Provider\CurrentFileProvider
+     * @var \Rector\Application\Provider\CurrentFileProvider
      */
     private $currentFileProvider;
     /**
@@ -76,19 +76,9 @@ final class ApplicationFileProcessor
     private $arrayParametersMerger;
     /**
      * @readonly
-     * @var \Rector\Configuration\VendorMissAnalyseGuard
+     * @var \Rector\Reporting\MissConfigurationReporter
      */
-    private $vendorMissAnalyseGuard;
-    /**
-     * @readonly
-     * @var \Rector\NodeTypeResolver\Reflection\BetterReflection\SourceLocatorProvider\DynamicSourceLocatorProvider
-     */
-    private $dynamicSourceLocatorProvider;
-    /**
-     * @readonly
-     * @var \Rector\Caching\Cache
-     */
-    private $cache;
+    private $missConfigurationReporter;
     /**
      * @var string
      */
@@ -97,10 +87,10 @@ final class ApplicationFileProcessor
      * @var SystemError[]
      */
     private $systemErrors = [];
-    public function __construct(SymfonyStyle $symfonyStyle, FileFactory $fileFactory, ParallelFileProcessor $parallelFileProcessor, ScheduleFactory $scheduleFactory, CpuCoreCountProvider $cpuCoreCountProvider, ChangedFilesDetector $changedFilesDetector, CurrentFileProvider $currentFileProvider, \Rector\Application\FileProcessor $fileProcessor, ArrayParametersMerger $arrayParametersMerger, VendorMissAnalyseGuard $vendorMissAnalyseGuard, DynamicSourceLocatorProvider $dynamicSourceLocatorProvider, Cache $cache)
+    public function __construct(SymfonyStyle $symfonyStyle, FilesFinder $filesFinder, ParallelFileProcessor $parallelFileProcessor, ScheduleFactory $scheduleFactory, CpuCoreCountProvider $cpuCoreCountProvider, ChangedFilesDetector $changedFilesDetector, CurrentFileProvider $currentFileProvider, \Rector\Application\FileProcessor $fileProcessor, ArrayParametersMerger $arrayParametersMerger, MissConfigurationReporter $missConfigurationReporter)
     {
         $this->symfonyStyle = $symfonyStyle;
-        $this->fileFactory = $fileFactory;
+        $this->filesFinder = $filesFinder;
         $this->parallelFileProcessor = $parallelFileProcessor;
         $this->scheduleFactory = $scheduleFactory;
         $this->cpuCoreCountProvider = $cpuCoreCountProvider;
@@ -108,22 +98,17 @@ final class ApplicationFileProcessor
         $this->currentFileProvider = $currentFileProvider;
         $this->fileProcessor = $fileProcessor;
         $this->arrayParametersMerger = $arrayParametersMerger;
-        $this->vendorMissAnalyseGuard = $vendorMissAnalyseGuard;
-        $this->dynamicSourceLocatorProvider = $dynamicSourceLocatorProvider;
-        $this->cache = $cache;
+        $this->missConfigurationReporter = $missConfigurationReporter;
     }
     public function run(Configuration $configuration, InputInterface $input) : ProcessResult
     {
-        $filePaths = $this->fileFactory->findFilesInPaths($configuration->getPaths(), $configuration);
-        $this->verifyVendor($filePaths);
-        $this->verifySkippedRules();
+        $filePaths = $this->filesFinder->findFilesInPaths($configuration->getPaths(), $configuration);
+        $this->missConfigurationReporter->reportVendorInPaths($filePaths);
+        $this->missConfigurationReporter->reportStartWithShortOpenTag();
         // no files found
         if ($filePaths === []) {
             return new ProcessResult([], []);
         }
-        // ensure clear classnames collection caches on repetitive call
-        $key = $this->dynamicSourceLocatorProvider->getCacheClassNameKey();
-        $this->cache->clean($key);
         $this->configureCustomErrorHandler();
         /**
          * Mimic @see https://github.com/phpstan/phpstan-src/blob/ab154e1da54d42fec751e17a1199b3e07591e85e/src/Command/AnalyseApplication.php#L188C23-L244
@@ -147,8 +132,6 @@ final class ApplicationFileProcessor
         } else {
             $preFileCallback = null;
         }
-        // trigger cache class names collection
-        $this->dynamicSourceLocatorProvider->provide();
         if ($configuration->isParallel()) {
             $processResult = $this->runParallel($filePaths, $input, $postFileCallback);
         } else {
@@ -195,28 +178,6 @@ final class ApplicationFileProcessor
         }
         return new ProcessResult($systemErrors, $fileDiffs);
     }
-    /**
-     * @param string[] $filePaths
-     */
-    private function verifyVendor(array $filePaths) : void
-    {
-        if ($this->vendorMissAnalyseGuard->isVendorAnalyzed($filePaths)) {
-            $this->symfonyStyle->warning(\sprintf('Rector has detected a "/vendor" directory in your configured paths. If this is Composer\'s vendor directory, this is not necessary as it will be autoloaded. Scanning the Composer vendor directory will cause Rector to run much slower and possibly with errors.%sRemove "/vendor" from Rector paths and run again.', \PHP_EOL . \PHP_EOL));
-            \sleep(3);
-        }
-    }
-    private function verifySkippedRules() : void
-    {
-        $registeredRules = SimpleParameterProvider::provideArrayParameter(Option::REGISTERED_RECTOR_RULES);
-        $skippedRules = SimpleParameterProvider::provideArrayParameter(Option::SKIPPED_RECTOR_RULES);
-        $neverRegisteredSkippedRules = \array_unique(\array_diff($skippedRules, $registeredRules));
-        if ($neverRegisteredSkippedRules !== []) {
-            $total = \count($neverRegisteredSkippedRules);
-            $reportNeverRegisteredRules = \implode(\PHP_EOL, $neverRegisteredSkippedRules);
-            $this->symfonyStyle->warning(\sprintf('[Note] The following rule%s %s ignored, but %s actually never registered. You can remove %s from the withSkip([...]) method.%s%s', $total > 1 ? 's' : '', $total > 1 ? 'are' : 'is', $total > 1 ? 'they are' : 'it is', $total > 1 ? 'them' : 'it', \PHP_EOL, \PHP_EOL . $reportNeverRegisteredRules));
-            \sleep(3);
-        }
-    }
     private function processFile(File $file, Configuration $configuration) : FileProcessResult
     {
         $this->currentFileProvider->setFile($file);
@@ -235,6 +196,9 @@ final class ApplicationFileProcessor
             $errorMessage .= \PHP_EOL . 'Stack trace:' . \PHP_EOL . $throwable->getTraceAsString();
         } else {
             $errorMessage .= 'Run Rector with "--debug" option and post the report here: https://github.com/rectorphp/rector/issues/new';
+        }
+        if ($throwable instanceof ParserErrorsException) {
+            $throwable = new ParserErrors($throwable);
         }
         return new SystemError($errorMessage, $filePath, $throwable->getLine());
     }

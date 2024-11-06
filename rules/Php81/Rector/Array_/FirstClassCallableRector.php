@@ -27,8 +27,6 @@ use Rector\VersionBonding\Contract\MinPhpVersionInterface;
 use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
 use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
 /**
- * @changelog https://php.watch/versions/8.1/first-class-callable-syntax
- *
  * @see \Rector\Tests\Php81\Rector\Array_\FirstClassCallableRector\FirstClassCallableRectorTest
  */
 final class FirstClassCallableRector extends AbstractScopeAwareRector implements MinPhpVersionInterface
@@ -56,6 +54,7 @@ final class FirstClassCallableRector extends AbstractScopeAwareRector implements
     }
     public function getRuleDefinition() : RuleDefinition
     {
+        // see RFC https://wiki.php.net/rfc/first_class_callable_syntax
         return new RuleDefinition('Upgrade array callable to first class callable', [new CodeSample(<<<'CODE_SAMPLE'
 final class SomeClass
 {

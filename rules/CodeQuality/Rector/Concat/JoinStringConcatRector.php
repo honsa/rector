@@ -3,7 +3,7 @@
 declare (strict_types=1);
 namespace Rector\CodeQuality\Rector\Concat;
 
-use RectorPrefix202406\Nette\Utils\Strings;
+use RectorPrefix202411\Nette\Utils\Strings;
 use PhpParser\Node;
 use PhpParser\Node\Expr\BinaryOp\Concat;
 use PhpParser\Node\Scalar\String_;
@@ -66,13 +66,18 @@ CODE_SAMPLE
         if (!$node->right instanceof String_) {
             return null;
         }
+        $leftStartLine = $node->left->getStartLine();
+        $rightStartLine = $node->right->getStartLine();
+        if ($leftStartLine > 0 && $rightStartLine > 0 && $rightStartLine > $leftStartLine) {
+            return null;
+        }
         return $this->joinConcatIfStrings($node->left, $node->right);
     }
     private function joinConcatIfStrings(String_ $leftString, String_ $rightString) : ?String_
     {
         $leftValue = $leftString->value;
         $rightValue = $rightString->value;
-        if ($leftValue === "\n" || $rightValue === "\n") {
+        if (\strpos($leftValue, "\n") !== \false || \strpos($rightValue, "\n") !== \false) {
             return null;
         }
         $joinedStringValue = $leftValue . $rightValue;

@@ -14,8 +14,6 @@ use ReflectionMethod;
 use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
 use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
 /**
- * @changelog https://3v4l.org/RFYmn
- *
  * @see \Rector\Tests\CodingStyle\Rector\ClassMethod\MakeInheritedMethodVisibilitySameAsParentRector\MakeInheritedMethodVisibilitySameAsParentRectorTest
  */
 final class MakeInheritedMethodVisibilitySameAsParentRector extends AbstractRector
@@ -116,7 +114,7 @@ CODE_SAMPLE
                 /** @var ReflectionMethod $parentReflectionMethod */
                 $parentReflectionMethod = $nativeClassReflection->getMethod($methodName);
                 if ($this->isClassMethodCompatibleWithParentReflectionMethod($classMethod, $parentReflectionMethod)) {
-                    continue;
+                    continue 2;
                 }
                 $this->changeClassMethodVisibilityBasedOnReflectionMethod($classMethod, $parentReflectionMethod);
                 $hasChanged = \true;

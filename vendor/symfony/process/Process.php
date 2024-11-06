@@ -8,16 +8,16 @@
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
  */
-namespace RectorPrefix202406\Symfony\Component\Process;
+namespace RectorPrefix202411\Symfony\Component\Process;
 
-use RectorPrefix202406\Symfony\Component\Process\Exception\InvalidArgumentException;
-use RectorPrefix202406\Symfony\Component\Process\Exception\LogicException;
-use RectorPrefix202406\Symfony\Component\Process\Exception\ProcessFailedException;
-use RectorPrefix202406\Symfony\Component\Process\Exception\ProcessSignaledException;
-use RectorPrefix202406\Symfony\Component\Process\Exception\ProcessTimedOutException;
-use RectorPrefix202406\Symfony\Component\Process\Exception\RuntimeException;
-use RectorPrefix202406\Symfony\Component\Process\Pipes\UnixPipes;
-use RectorPrefix202406\Symfony\Component\Process\Pipes\WindowsPipes;
+use RectorPrefix202411\Symfony\Component\Process\Exception\InvalidArgumentException;
+use RectorPrefix202411\Symfony\Component\Process\Exception\LogicException;
+use RectorPrefix202411\Symfony\Component\Process\Exception\ProcessFailedException;
+use RectorPrefix202411\Symfony\Component\Process\Exception\ProcessSignaledException;
+use RectorPrefix202411\Symfony\Component\Process\Exception\ProcessTimedOutException;
+use RectorPrefix202411\Symfony\Component\Process\Exception\RuntimeException;
+use RectorPrefix202411\Symfony\Component\Process\Pipes\UnixPipes;
+use RectorPrefix202411\Symfony\Component\Process\Pipes\WindowsPipes;
 /**
  * Process is a thin wrapper around proc_* functions to easily
  * start independent PHP processes.
@@ -378,7 +378,7 @@ class Process implements \IteratorAggregate
             throw new RuntimeException(\sprintf('The provided cwd "%s" does not exist.', $this->cwd));
         }
         $process = @\proc_open($commandline, $descriptors, $this->processPipes->pipes, $this->cwd, $envPairs, $this->options);
-        if (!\is_resource($process)) {
+        if (!$process) {
             throw new RuntimeException('Unable to launch a new process.');
         }
         $this->process = $process;
@@ -1278,8 +1278,9 @@ class Process implements \IteratorAggregate
     private function close() : int
     {
         $this->processPipes->close();
-        if (\is_resource($this->process)) {
+        if ($this->process) {
             \proc_close($this->process);
+            $this->process = null;
         }
         $this->exitcode = $this->processInformation['exitcode'];
         $this->status = self::STATUS_TERMINATED;

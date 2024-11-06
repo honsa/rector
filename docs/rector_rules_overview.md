@@ -1,4 +1,8 @@
-# 380 Rules Overview
+# 382 Rules Overview
+
+**This overview is deprecated and replaced by more advanced web search. There you can search and filter by nodes, copy-paste configs for configurable rules and more.**
+
+Use https://getrector.com/find-rule instead!
 
 <br>
 
@@ -8,13 +12,13 @@
 
 - [Carbon](#carbon) (4)
 
-- [CodeQuality](#codequality) (75)
+- [CodeQuality](#codequality) (69)
 
-- [CodingStyle](#codingstyle) (28)
+- [CodingStyle](#codingstyle) (29)
 
 - [DeadCode](#deadcode) (45)
 
-- [EarlyReturn](#earlyreturn) (9)
+- [EarlyReturn](#earlyreturn) (8)
 
 - [Instanceof](#instanceof) (1)
 
@@ -38,11 +42,11 @@
 
 - [Php73](#php73) (9)
 
-- [Php74](#php74) (12)
+- [Php74](#php74) (14)
 
 - [Php80](#php80) (16)
 
-- [Php81](#php81) (9)
+- [Php81](#php81) (8)
 
 - [Php82](#php82) (5)
 
@@ -50,17 +54,17 @@
 
 - [Php84](#php84) (1)
 
-- [Privatization](#privatization) (5)
+- [Privatization](#privatization) (4)
 
 - [Removing](#removing) (5)
 
-- [Renaming](#renaming) (10)
+- [Renaming](#renaming) (11)
 
 - [Strict](#strict) (5)
 
 - [Transform](#transform) (25)
 
-- [TypeDeclaration](#typedeclaration) (50)
+- [TypeDeclaration](#typedeclaration) (57)
 
 - [Visibility](#visibility) (3)
 
@@ -326,25 +330,6 @@ Negated identical boolean compare to not identical compare (does not apply to no
 
 <br>
 
-### BoolvalToTypeCastRector
-
-Change `boolval()` to faster and readable (bool) `$value`
-
-- class: [`Rector\CodeQuality\Rector\FuncCall\BoolvalToTypeCastRector`](../rules/CodeQuality/Rector/FuncCall/BoolvalToTypeCastRector.php)
-
-```diff
- class SomeClass
- {
-     public function run($value)
-     {
--        return boolval($value);
-+        return (bool) $value;
-     }
- }
-```
-
-<br>
-
 ### CallUserFuncWithArrowFunctionToInlineRector
 
 Refactor `call_user_func()` with arrow function to direct call
@@ -358,35 +343,6 @@ Refactor `call_user_func()` with arrow function to direct call
      {
 -        $result = \call_user_func(fn () => 100);
 +        $result = 100;
-     }
- }
-```
-
-<br>
-
-### CallableThisArrayToAnonymousFunctionRector
-
-Convert [$this, "method"] to proper anonymous function
-
-- class: [`Rector\CodeQuality\Rector\Array_\CallableThisArrayToAnonymousFunctionRector`](../rules/CodeQuality/Rector/Array_/CallableThisArrayToAnonymousFunctionRector.php)
-
-```diff
- class SomeClass
- {
-     public function run()
-     {
-         $values = [1, 5, 3];
--        usort($values, [$this, 'compareSize']);
-+        usort($values, function ($first, $second) {
-+            return $this->compareSize($first, $second);
-+        });
-
-         return $values;
-     }
-
-     private function compareSize($first, $second)
-     {
-         return $first <=> $second;
      }
  }
 ```
@@ -667,27 +623,6 @@ Flip type control from null compare to use exclusive instanceof object
 
 <br>
 
-### FloatvalToTypeCastRector
-
-Change `floatval()` and `doubleval()` to faster and readable (float) `$value`
-
-- class: [`Rector\CodeQuality\Rector\FuncCall\FloatvalToTypeCastRector`](../rules/CodeQuality/Rector/FuncCall/FloatvalToTypeCastRector.php)
-
-```diff
- class SomeClass
- {
-     public function run($value)
-     {
--        $a = floatval($value);
--        $b = doubleval($value);
-+        $a = (float) $value;
-+        $b = (float) $value;
-     }
- }
-```
-
-<br>
-
 ### ForRepeatedCountToOwnVariableRector
 
 Change `count()` in for function to own variable
@@ -748,19 +683,6 @@ Simplify `foreach` loops into `in_array` when possible
 -
 -return false;
 +return in_array('something', $items, true);
-```
-
-<br>
-
-### GetClassToInstanceOfRector
-
-Changes comparison with get_class to instanceof
-
-- class: [`Rector\CodeQuality\Rector\Identical\GetClassToInstanceOfRector`](../rules/CodeQuality/Rector/Identical/GetClassToInstanceOfRector.php)
-
-```diff
--if (EventsListener::class === get_class($event->job)) { }
-+if ($event->job instanceof EventsListener) { }
 ```
 
 <br>
@@ -845,25 +767,6 @@ Change `is_a()` with object and class name check to instanceof
      {
 -        return is_a($object, SomeType::class);
 +        return $object instanceof SomeType;
-     }
- }
-```
-
-<br>
-
-### IntvalToTypeCastRector
-
-Change `intval()` to faster and readable (int) `$value`
-
-- class: [`Rector\CodeQuality\Rector\FuncCall\IntvalToTypeCastRector`](../rules/CodeQuality/Rector/FuncCall/IntvalToTypeCastRector.php)
-
-```diff
- class SomeClass
- {
-     public function run($value)
-     {
--        return intval($value);
-+        return (int) $value;
      }
  }
 ```
@@ -1396,6 +1299,8 @@ Simplify tautology ternary to value
 
 Removes useless variable assigns
 
+:wrench: **configure it!**
+
 - class: [`Rector\CodeQuality\Rector\FunctionLike\SimplifyUselessVariableRector`](../rules/CodeQuality/Rector/FunctionLike/SimplifyUselessVariableRector.php)
 
 ```diff
@@ -1403,6 +1308,18 @@ Removes useless variable assigns
 -    $a = true;
 -    return $a;
 +    return true;
+ };
+```
+
+<br>
+
+```diff
+ function () {
+     $a = 'Hello, ';
+-    $a .= 'World!';
+
+-    return $a;
++    return $a . 'World!';
  };
 ```
 
@@ -1491,25 +1408,6 @@ Changes strlen comparison to 0 to direct empty string compare
      {
 -        $empty = strlen($value) === 0;
 +        $empty = $value === '';
-     }
- }
-```
-
-<br>
-
-### StrvalToTypeCastRector
-
-Change `strval()` to faster and readable (string) `$value`
-
-- class: [`Rector\CodeQuality\Rector\FuncCall\StrvalToTypeCastRector`](../rules/CodeQuality/Rector/FuncCall/StrvalToTypeCastRector.php)
-
-```diff
- class SomeClass
- {
-     public function run($value)
-     {
--        return strval($value);
-+        return (string) $value;
      }
  }
 ```
@@ -1782,18 +1680,12 @@ Type and name of catch exception should match
 - class: [`Rector\CodingStyle\Rector\Catch_\CatchExceptionNameMatchingTypeRector`](../rules/CodingStyle/Rector/Catch_/CatchExceptionNameMatchingTypeRector.php)
 
 ```diff
- class SomeClass
- {
-     public function run()
-     {
-         try {
-             // ...
--        } catch (SomeException $typoException) {
--            $typoException->getMessage();
-+        } catch (SomeException $someException) {
-+            $someException->getMessage();
-         }
-     }
+ try {
+     // ...
+-} catch (SomeException $typoException) {
+-    $typoException->getMessage();
++} catch (SomeException $someException) {
++    $someException->getMessage();
  }
 ```
 
@@ -1841,6 +1733,8 @@ Change count array comparison to empty array comparison to improve performance
 
 Convert enscaped {$string} to more readable sprintf or concat, if no mask is used
 
+:wrench: **configure it!**
+
 - class: [`Rector\CodingStyle\Rector\Encapsed\EncapsedStringsToSprintfRector`](../rules/CodingStyle/Rector/Encapsed/EncapsedStringsToSprintfRector.php)
 
 ```diff
@@ -1849,6 +1743,16 @@ Convert enscaped {$string} to more readable sprintf or concat, if no mask is use
 
 -echo "Try {$allowed}";
 +echo 'Try ' . $allowed;
+```
+
+<br>
+
+```diff
+-echo "Unsupported format {$format} - use another";
++echo sprintf('Unsupported format %s - use another', $format);
+
+-echo "Try {$allowed}";
++echo sprintf('Try %s', $allowed);
 ```
 
 <br>
@@ -1864,6 +1768,25 @@ Refactor `func_get_args()` in to a variadic param
 +function run(...$args)
  {
 -    $args = \func_get_args();
+ }
+```
+
+<br>
+
+### FunctionFirstClassCallableRector
+
+Upgrade string callback functions to first class callable
+
+- class: [`Rector\CodingStyle\Rector\FuncCall\FunctionFirstClassCallableRector`](../rules/CodingStyle/Rector/FuncCall/FunctionFirstClassCallableRector.php)
+
+```diff
+ final class SomeClass
+ {
+     public function run(array $data)
+     {
+-        return array_map('trim', $data);
++        return array_map(trim(...), $data);
+     }
  }
 ```
 
@@ -1888,6 +1811,33 @@ Make method visibility same as parent one
  {
      protected function run()
      {
+     }
+ }
+```
+
+<br>
+
+### MultiDimensionalArrayToArrayDestructRector
+
+Change multidimensional array access in foreach to array destruct
+
+- class: [`Rector\CodingStyle\Rector\Foreach_\MultiDimensionalArrayToArrayDestructRector`](../rules/CodingStyle/Rector/Foreach_/MultiDimensionalArrayToArrayDestructRector.php)
+
+```diff
+ class SomeClass
+ {
+     /**
+      * @param array<int, array{id: int, name: string}> $users
+      */
+     public function run(array $users)
+     {
+-        foreach ($users as $user) {
+-            echo $user['id'];
+-            echo sprintf('Name: %s', $user['name']);
++        foreach ($users as ['id' => $id, 'name' => $name]) {
++            echo $id;
++            echo sprintf('Name: %s', $name);
+         }
      }
  }
 ```
@@ -2179,25 +2129,6 @@ Use `class` keyword for class name resolution in string instead of hardcoded str
 ```diff
 -$value = 'App\SomeClass::someMethod()';
 +$value = \App\SomeClass::class . '::someMethod()';
-```
-
-<br>
-
-### UseIncrementAssignRector
-
-Use ++ increment instead of `$var += 1`
-
-- class: [`Rector\CodingStyle\Rector\Plus\UseIncrementAssignRector`](../rules/CodingStyle/Rector/Plus/UseIncrementAssignRector.php)
-
-```diff
- class SomeClass
- {
-     public function run()
-     {
--        $style += 1;
-+        ++$style;
-     }
- }
 ```
 
 <br>
@@ -3152,35 +3083,6 @@ Remove php version checks if they are passed
 <br>
 
 ## EarlyReturn
-
-### ChangeAndIfToEarlyReturnRector
-
-Changes if && to early return
-
-- class: [`Rector\EarlyReturn\Rector\If_\ChangeAndIfToEarlyReturnRector`](../rules/EarlyReturn/Rector/If_/ChangeAndIfToEarlyReturnRector.php)
-
-```diff
- class SomeClass
- {
-     public function canDrive(Car $car)
-     {
--        if ($car->hasWheels && $car->hasFuel) {
--            return true;
-+        if (! $car->hasWheels) {
-+            return false;
-         }
-
--        return false;
-+        if (! $car->hasFuel) {
-+            return false;
-+        }
-+
-+        return true;
-     }
- }
-```
-
-<br>
 
 ### ChangeIfElseValueAssignToEarlyReturnRector
 
@@ -4213,7 +4115,7 @@ Change binary operation between some number + string to PHP 7.1 compatible versi
 -        $value = 5 + '';
 -        $value = 5.0 + 'hi';
 +        $value = 5 + 0;
-+        $value = 5.0 + 0;
++        $value = 5.0 + 0.0;
      }
  }
 ```
@@ -4730,6 +4632,19 @@ Change `filter_var()` with slash escaping to `addslashes()`
 
 <br>
 
+### HebrevcToNl2brHebrevRector
+
+Change hebrevc($str) to nl2br(hebrev($str))
+
+- class: [`Rector\Php74\Rector\FuncCall\HebrevcToNl2brHebrevRector`](../rules/Php74/Rector/FuncCall/HebrevcToNl2brHebrevRector.php)
+
+```diff
+-hebrevc($str);
++nl2br(hebrev($str));
+```
+
+<br>
+
 ### MbStrrposEncodingArgumentPositionRector
 
 Change `mb_strrpos()` encoding argument position
@@ -4816,6 +4731,19 @@ Add null default to properties with PHP 7.4 property nullable type
 -    public ?string $name;
 +    public ?string $name = null;
  }
+```
+
+<br>
+
+### RestoreIncludePathToIniRestoreRector
+
+Change `restore_include_path()` to ini_restore("include_path")
+
+- class: [`Rector\Php74\Rector\FuncCall\RestoreIncludePathToIniRestoreRector`](../rules/Php74/Rector/FuncCall/RestoreIncludePathToIniRestoreRector.php)
+
+```diff
+-restore_include_path();
++ini_restore('include_path');
 ```
 
 <br>
@@ -5185,22 +5113,6 @@ Add `Stringable` interface to classes with `__toString()` method
 
 ## Php81
 
-### FinalizePublicClassConstantRector
-
-Add final to constants that does not have children
-
-- class: [`Rector\Php81\Rector\ClassConst\FinalizePublicClassConstantRector`](../rules/Php81/Rector/ClassConst/FinalizePublicClassConstantRector.php)
-
-```diff
- class SomeClass
- {
--    public const NAME = 'value';
-+    final public const NAME = 'value';
- }
-```
-
-<br>
-
 ### FirstClassCallableRector
 
 Upgrade array callable to first class callable
@@ -5482,7 +5394,7 @@ Add override attribute to overridden methods
 
 ### AddTypeToConstRector
 
-Add type to constants
+Add type to constants based on their value
 
 - class: [`Rector\Php83\Rector\ClassConst\AddTypeToConstRector`](../rules/Php83/Rector/ClassConst/AddTypeToConstRector.php)
 
@@ -5525,25 +5437,6 @@ Make implicit nullable param to explicit
 <br>
 
 ## Privatization
-
-### FinalizeClassesWithoutChildrenRector
-
-Finalize every class that has no children
-
-- class: [`Rector\Privatization\Rector\Class_\FinalizeClassesWithoutChildrenRector`](../rules/Privatization/Rector/Class_/FinalizeClassesWithoutChildrenRector.php)
-
-```diff
--class FirstClass extends SecondClass
-+final class FirstClass extends SecondClass
- {
- }
-
- class SecondClass
- {
- }
-```
-
-<br>
 
 ### FinalizeTestCaseClassRector
 
@@ -5727,6 +5620,24 @@ Turns defined annotations above properties and methods to their new values.
      public function someMethod()
      {
      }
+ }
+```
+
+<br>
+
+### RenameAttributeRector
+
+Rename attribute class names
+
+:wrench: **configure it!**
+
+- class: [`Rector\Renaming\Rector\Class_\RenameAttributeRector`](../rules/Renaming/Rector/Class_/RenameAttributeRector.php)
+
+```diff
+-#[SimpleRoute()]
++#[BasicRoute()]
+ class SomeClass
+ {
  }
 ```
 
@@ -6533,6 +6444,21 @@ Add known return type to arrow function
 
 <br>
 
+### AddClosureNeverReturnTypeRector
+
+Add "never" return-type for closure that never return anything
+
+- class: [`Rector\TypeDeclaration\Rector\Closure\AddClosureNeverReturnTypeRector`](../rules/TypeDeclaration/Rector/Closure/AddClosureNeverReturnTypeRector.php)
+
+```diff
+-function () {
++function (): never {
+     throw new InvalidException();
+ }
+```
+
+<br>
+
 ### AddClosureVoidReturnTypeWhereNoReturnRector
 
 Add closure return type void if there is no return
@@ -6542,7 +6468,7 @@ Add closure return type void if there is no return
 ```diff
 -function () {
 +function (): void {
- }
+ };
 ```
 
 <br>
@@ -6866,11 +6792,34 @@ Change && and || between nullable objects to instanceof compares
 
 <br>
 
-### BoolReturnTypeFromStrictScalarReturnsRector
+### BoolReturnTypeFromBooleanConstReturnsRector
 
-Change return type based on strict returns type operations
+Add return bool, based on direct true/false returns
 
-- class: [`Rector\TypeDeclaration\Rector\ClassMethod\BoolReturnTypeFromStrictScalarReturnsRector`](../rules/TypeDeclaration/Rector/ClassMethod/BoolReturnTypeFromStrictScalarReturnsRector.php)
+- class: [`Rector\TypeDeclaration\Rector\ClassMethod\BoolReturnTypeFromBooleanConstReturnsRector`](../rules/TypeDeclaration/Rector/ClassMethod/BoolReturnTypeFromBooleanConstReturnsRector.php)
+
+```diff
+ class SomeClass
+ {
+-    public function resolve($value)
++    public function resolve($value): bool
+     {
+         if ($value) {
+             return false;
+         }
+
+         return true;
+     }
+ }
+```
+
+<br>
+
+### BoolReturnTypeFromBooleanStrictReturnsRector
+
+Add bool return type based on strict bool returns type operations
+
+- class: [`Rector\TypeDeclaration\Rector\ClassMethod\BoolReturnTypeFromBooleanStrictReturnsRector`](../rules/TypeDeclaration/Rector/ClassMethod/BoolReturnTypeFromBooleanStrictReturnsRector.php)
 
 ```diff
  class SomeClass
@@ -6878,10 +6827,6 @@ Change return type based on strict returns type operations
 -    public function resolve($first, $second)
 +    public function resolve($first, $second): bool
      {
-         if ($first) {
-             return false;
-         }
-
          return $first > $second;
      }
  }
@@ -6911,6 +6856,21 @@ Add return type to classes that extend `Doctrine\ORM\EntityRepository` based on 
          ]);
      }
  }
+```
+
+<br>
+
+### ClosureReturnTypeRector
+
+Add return type to closures based on known return values
+
+- class: [`Rector\TypeDeclaration\Rector\Closure\ClosureReturnTypeRector`](../rules/TypeDeclaration/Rector/Closure/ClosureReturnTypeRector.php)
+
+```diff
+-function () {
++function (): int {
+     return 100;
+ };
 ```
 
 <br>
@@ -6991,19 +6951,38 @@ Set DateTime to DateTimeInterface for DateTime property with DateTimeInterface d
 
 <br>
 
+### NumericReturnTypeFromStrictReturnsRector
+
+Add int/float return type based on strict typed returns
+
+- class: [`Rector\TypeDeclaration\Rector\ClassMethod\NumericReturnTypeFromStrictReturnsRector`](../rules/TypeDeclaration/Rector/ClassMethod/NumericReturnTypeFromStrictReturnsRector.php)
+
+```diff
+ class SomeClass
+ {
+-    public function increase($value)
++    public function increase($value): int
+     {
+         return ++$value;
+     }
+ }
+```
+
+<br>
+
 ### NumericReturnTypeFromStrictScalarReturnsRector
 
-Change numeric return type based on strict returns type operations
+Add int/float return type based on strict scalar returns type
 
 - class: [`Rector\TypeDeclaration\Rector\ClassMethod\NumericReturnTypeFromStrictScalarReturnsRector`](../rules/TypeDeclaration/Rector/ClassMethod/NumericReturnTypeFromStrictScalarReturnsRector.php)
 
 ```diff
  class SomeClass
  {
--    public function resolve(int $first, int $second)
-+    public function resolve(int $first, int $second): int
+-    public function getNumber()
++    public function getNumber(): int
      {
-         return $first - $second;
+         return 200;
      }
  }
 ```
@@ -7112,6 +7091,49 @@ Add "never" return-type for methods that never return anything
 
 <br>
 
+### ReturnNullableTypeRector
+
+Add basic ? nullable type to class methods and functions, as of PHP 7.1
+
+- class: [`Rector\TypeDeclaration\Rector\ClassMethod\ReturnNullableTypeRector`](../rules/TypeDeclaration/Rector/ClassMethod/ReturnNullableTypeRector.php)
+
+```diff
+ final class SomeClass
+ {
+-    public function getData()
++    public function getData(): ?int
+     {
+         if (rand(0, 1)) {
+             return null;
+         }
+
+         return 100;
+     }
+ }
+```
+
+<br>
+
+### ReturnTypeFromMockObjectRector
+
+Add known property and return MockObject types
+
+- class: [`Rector\TypeDeclaration\Rector\ClassMethod\ReturnTypeFromMockObjectRector`](../rules/TypeDeclaration/Rector/ClassMethod/ReturnTypeFromMockObjectRector.php)
+
+```diff
+ class SomeTest extends TestCase
+ {
+-    public function createSomeMock()
++    public function createSomeMock(): \PHPUnit\Framework\MockObject\MockObject
+     {
+         $someMock = $this->createMock(SomeClass::class);
+         return $someMock;
+     }
+ }
+```
+
+<br>
+
 ### ReturnTypeFromReturnCastRector
 
 Add return type to function like with return cast
@@ -7164,29 +7186,10 @@ Add return type to function like with return new
 ```diff
  final class SomeClass
  {
--    public function action()
-+    public function action(): Response
+-    public function create()
++    public function create(): Project
      {
-         return new Response();
-     }
- }
-```
-
-<br>
-
-### ReturnTypeFromStrictBoolReturnExprRector
-
-Add strict return type based on returned strict expr type
-
-- class: [`Rector\TypeDeclaration\Rector\ClassMethod\ReturnTypeFromStrictBoolReturnExprRector`](../rules/TypeDeclaration/Rector/ClassMethod/ReturnTypeFromStrictBoolReturnExprRector.php)
-
-```diff
- final class SomeClass
- {
--    public function run()
-+    public function run(): bool
-     {
-         return $this->first() && $this->somethingElse();
+         return new Project();
      }
  }
 ```
@@ -7235,7 +7238,7 @@ Add return type from strict return `$this`
 
 ### ReturnTypeFromStrictNativeCallRector
 
-Add strict return type based native function or class method return
+Add strict return type based native function or native method
 
 - class: [`Rector\TypeDeclaration\Rector\ClassMethod\ReturnTypeFromStrictNativeCallRector`](../rules/TypeDeclaration/Rector/ClassMethod/ReturnTypeFromStrictNativeCallRector.php)
 
@@ -7286,37 +7289,6 @@ Add return type based on strict parameter type
 +    public function resolve(ParamType $item): ParamType
      {
          return $item;
-     }
- }
-```
-
-<br>
-
-### ReturnTypeFromStrictScalarReturnExprRector
-
-Change return type based on strict scalar returns - string, int, float or bool
-
-:wrench: **configure it!**
-
-- class: [`Rector\TypeDeclaration\Rector\ClassMethod\ReturnTypeFromStrictScalarReturnExprRector`](../rules/TypeDeclaration/Rector/ClassMethod/ReturnTypeFromStrictScalarReturnExprRector.php)
-
-```diff
- final class SomeClass
- {
--    public function foo($value)
-+    public function foo($value): string
-     {
-         if ($value) {
-             return 'yes';
-         }
-
-         return 'no';
-     }
-
--    public function bar(string $value)
-+    public function bar(string $value): int
-     {
-         return strlen($value);
      }
  }
 ```
@@ -7473,6 +7445,52 @@ Add string type based on concat use
 
 <br>
 
+### StringReturnTypeFromStrictScalarReturnsRector
+
+Add string return type based on returned string scalar values
+
+- class: [`Rector\TypeDeclaration\Rector\ClassMethod\StringReturnTypeFromStrictScalarReturnsRector`](../rules/TypeDeclaration/Rector/ClassMethod/StringReturnTypeFromStrictScalarReturnsRector.php)
+
+```diff
+ final class SomeClass
+ {
+-    public function foo($condition)
++    public function foo($condition): string
+     {
+         if ($condition) {
+             return 'yes';
+         }
+
+         return 'no';
+     }
+ }
+```
+
+<br>
+
+### StringReturnTypeFromStrictStringReturnsRector
+
+Add string return type based on returned strict string values
+
+- class: [`Rector\TypeDeclaration\Rector\ClassMethod\StringReturnTypeFromStrictStringReturnsRector`](../rules/TypeDeclaration/Rector/ClassMethod/StringReturnTypeFromStrictStringReturnsRector.php)
+
+```diff
+ final class SomeClass
+ {
+-    public function foo($condition, $value)
++    public function foo($condition, $value): string;
+     {
+         if ($value) {
+             return 'yes';
+         }
+
+         return strtoupper($value);
+     }
+ }
+```
+
+<br>
+
 ### TypedPropertyFromAssignsRector
 
 Add typed property from assigned types
@@ -7490,6 +7508,29 @@ Add typed property from assigned types
      public function run()
      {
          $this->name = 'string';
+     }
+ }
+```
+
+<br>
+
+### TypedPropertyFromCreateMockAssignRector
+
+Add typed property from assigned mock
+
+- class: [`Rector\TypeDeclaration\Rector\Class_\TypedPropertyFromCreateMockAssignRector`](../rules/TypeDeclaration/Rector/Class_/TypedPropertyFromCreateMockAssignRector.php)
+
+```diff
+ use PHPUnit\Framework\TestCase;
+
+ final class SomeTest extends TestCase
+ {
+-    private $someProperty;
++    private \PHPUnit\Framework\MockObject\MockObject $someProperty;
+
+     protected function setUp(): void
+     {
+         $this->someProperty = $this->createMock(SomeMockedClass::class);
      }
  }
 ```

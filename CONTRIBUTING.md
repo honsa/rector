@@ -48,5 +48,27 @@ Do you want to **contribute a failing test**? [This tutorial will show you how](
 
 We would be happy to accept PRs that follow these guidelines.
 
+### Using Docker
+
+A `docker-compose.yml` file is provided to make it easier to run the CI checks locally.
+To use it, you need to have Docker installed on your machine, then you can build the image and execute the
+above commands in a docker container:
+
+```bash
+# Build the docker image
+docker compose build
+
+# Run the entire CI suite
+docker compose run php composer complete-check
+
+# Fix the coding standards
+docker compose run php composer fix-cs
+```
+
+## TroubleShooting
+If you are on macOS, and got hang on applying patch, you may need to install gpatch, you can install with:
+
+`brew install gpatch`
+
 ## Repository layout
 Documentation goes into `build/target-repository/docs`.
