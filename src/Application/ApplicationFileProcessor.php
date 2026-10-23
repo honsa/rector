@@ -3,7 +3,7 @@
 declare (strict_types=1);
 namespace Rector\Application;
 
-use RectorPrefix202411\Nette\Utils\FileSystem as UtilsFileSystem;
+use RectorPrefix202610\Nette\Utils\FileSystem as UtilsFileSystem;
 use PHPStan\Parser\ParserErrorsException;
 use Rector\Application\Provider\CurrentFileProvider;
 use Rector\Caching\Detector\ChangedFilesDetector;
@@ -11,8 +11,12 @@ use Rector\Configuration\Option;
 use Rector\Configuration\Parameter\SimpleParameterProvider;
 use Rector\FileSystem\FilesFinder;
 use Rector\Parallel\Application\ParallelFileProcessor;
+use Rector\Parallel\CpuCoreCountProvider;
+use Rector\Parallel\Exception\ParallelShouldNotHappenException;
+use Rector\Parallel\ScheduleFactory;
 use Rector\PhpParser\Parser\ParserErrors;
 use Rector\Reporting\MissConfigurationReporter;
+use Rector\Skipper\Skipper\Skipper;
 use Rector\Testing\PHPUnit\StaticPHPUnitEnvironment;
 use Rector\Util\ArrayParametersMerger;
 use Rector\ValueObject\Application\File;
@@ -21,64 +25,55 @@ use Rector\ValueObject\Error\SystemError;
 use Rector\ValueObject\FileProcessResult;
 use Rector\ValueObject\ProcessResult;
 use Rector\ValueObject\Reporting\FileDiff;
-use RectorPrefix202411\Symfony\Component\Console\Input\InputInterface;
-use RectorPrefix202411\Symfony\Component\Console\Style\SymfonyStyle;
-use RectorPrefix202411\Symplify\EasyParallel\CpuCoreCountProvider;
-use RectorPrefix202411\Symplify\EasyParallel\Exception\ParallelShouldNotHappenException;
-use RectorPrefix202411\Symplify\EasyParallel\ScheduleFactory;
+use RectorPrefix202610\Symfony\Component\Console\Input\InputInterface;
+use RectorPrefix202610\Symfony\Component\Console\Style\SymfonyStyle;
 use Throwable;
 final class ApplicationFileProcessor
 {
     /**
      * @readonly
-     * @var \Symfony\Component\Console\Style\SymfonyStyle
      */
-    private $symfonyStyle;
+    private SymfonyStyle $symfonyStyle;
     /**
      * @readonly
-     * @var \Rector\FileSystem\FilesFinder
      */
-    private $filesFinder;
+    private FilesFinder $filesFinder;
     /**
      * @readonly
-     * @var \Rector\Parallel\Application\ParallelFileProcessor
      */
-    private $parallelFileProcessor;
+    private ParallelFileProcessor $parallelFileProcessor;
     /**
      * @readonly
-     * @var \Symplify\EasyParallel\ScheduleFactory
      */
-    private $scheduleFactory;
+    private ScheduleFactory $scheduleFactory;
     /**
      * @readonly
-     * @var \Symplify\EasyParallel\CpuCoreCountProvider
      */
-    private $cpuCoreCountProvider;
+    private CpuCoreCountProvider $cpuCoreCountProvider;
     /**
      * @readonly
-     * @var \Rector\Caching\Detector\ChangedFilesDetector
      */
-    private $changedFilesDetector;
+    private ChangedFilesDetector $changedFilesDetector;
     /**
      * @readonly
-     * @var \Rector\Application\Provider\CurrentFileProvider
      */
-    private $currentFileProvider;
+    private CurrentFileProvider $currentFileProvider;
     /**
      * @readonly
-     * @var \Rector\Application\FileProcessor
      */
-    private $fileProcessor;
+    private \Rector\Application\FileProcessor $fileProcessor;
     /**
      * @readonly
-     * @var \Rector\Util\ArrayParametersMerger
      */
-    private $arrayParametersMerger;
+    private ArrayParametersMerger $arrayParametersMerger;
     /**
      * @readonly
-     * @var \Rector\Reporting\MissConfigurationReporter
      */
-    private $missConfigurationReporter;
+    private MissConfigurationReporter $missConfigurationReporter;
+    /**
+     * @readonly
+     */
+    private Skipper $skipper;
     /**
      * @var string
      */
@@ -86,8 +81,8 @@ final class ApplicationFileProcessor
     /**
      * @var SystemError[]
      */
-    private $systemErrors = [];
-    public function __construct(SymfonyStyle $symfonyStyle, FilesFinder $filesFinder, ParallelFileProcessor $parallelFileProcessor, ScheduleFactory $scheduleFactory, CpuCoreCountProvider $cpuCoreCountProvider, ChangedFilesDetector $changedFilesDetector, CurrentFileProvider $currentFileProvider, \Rector\Application\FileProcessor $fileProcessor, ArrayParametersMerger $arrayParametersMerger, MissConfigurationReporter $missConfigurationReporter)
+    private array $systemErrors = [];
+    public function __construct(SymfonyStyle $symfonyStyle, FilesFinder $filesFinder, ParallelFileProcessor $parallelFileProcessor, ScheduleFactory $scheduleFactory, CpuCoreCountProvider $cpuCoreCountProvider, ChangedFilesDetector $changedFilesDetector, CurrentFileProvider $currentFileProvider, \Rector\Application\FileProcessor $fileProcessor, ArrayParametersMerger $arrayParametersMerger, MissConfigurationReporter $missConfigurationReporter, Skipper $skipper)
     {
         $this->symfonyStyle = $symfonyStyle;
         $this->filesFinder = $filesFinder;
@@ -99,34 +94,37 @@ final class ApplicationFileProcessor
         $this->fileProcessor = $fileProcessor;
         $this->arrayParametersMerger = $arrayParametersMerger;
         $this->missConfigurationReporter = $missConfigurationReporter;
+        $this->skipper = $skipper;
     }
-    public function run(Configuration $configuration, InputInterface $input) : ProcessResult
+    public function run(Configuration $configuration, InputInterface $input): ProcessResult
     {
+        // scope the cache to this run's --only / --only-suffix selection before any cache read/write
+        $this->changedFilesDetector->setActiveScope($configuration->getOnlyRules(), $configuration->getOnlySuffix(), $configuration->getFilters());
         $filePaths = $this->filesFinder->findFilesInPaths($configuration->getPaths(), $configuration);
-        $this->missConfigurationReporter->reportVendorInPaths($filePaths);
-        $this->missConfigurationReporter->reportStartWithShortOpenTag();
         // no files found
         if ($filePaths === []) {
-            return new ProcessResult([], []);
+            return new ProcessResult([], [], 0);
         }
+        $this->missConfigurationReporter->reportVendorInPaths($filePaths);
+        $this->missConfigurationReporter->reportStartWithShortOpenTag();
         $this->configureCustomErrorHandler();
         /**
          * Mimic @see https://github.com/phpstan/phpstan-src/blob/ab154e1da54d42fec751e17a1199b3e07591e85e/src/Command/AnalyseApplication.php#L188C23-L244
          */
         if ($configuration->shouldShowProgressBar()) {
-            $fileCount = \count($filePaths);
+            $fileCount = count($filePaths);
             $this->symfonyStyle->progressStart($fileCount);
             $this->symfonyStyle->progressAdvance(0);
-            $postFileCallback = function (int $stepCount) : void {
+            $postFileCallback = function (int $stepCount): void {
                 $this->symfonyStyle->progressAdvance($stepCount);
                 // running in parallel here → nothing else to do
             };
         } else {
-            $postFileCallback = static function (int $stepCount) : void {
+            $postFileCallback = static function (int $stepCount): void {
             };
         }
         if ($configuration->isDebug()) {
-            $preFileCallback = function (string $filePath) : void {
+            $preFileCallback = function (string $filePath): void {
                 $this->symfonyStyle->writeln('[file] ' . $filePath);
             };
         } else {
@@ -138,6 +136,9 @@ final class ApplicationFileProcessor
             $processResult = $this->processFiles($filePaths, $configuration, $preFileCallback, $postFileCallback);
         }
         $processResult->addSystemErrors($this->systemErrors);
+        // path-only skips are matched in the main process while finding files; in parallel runs the
+        // result comes from workers only, so merge those marks back in to avoid false "unused skip"
+        $processResult->addUsedSkips($this->skipper->provideUsedSkips());
         $this->restoreErrorHandler();
         return $processResult;
     }
@@ -146,12 +147,16 @@ final class ApplicationFileProcessor
      * @param callable(string $file): void|null $preFileCallback
      * @param callable(int $fileCount): void|null $postFileCallback
      */
-    public function processFiles(array $filePaths, Configuration $configuration, ?callable $preFileCallback = null, ?callable $postFileCallback = null) : ProcessResult
+    public function processFiles(array $filePaths, Configuration $configuration, ?callable $preFileCallback = null, ?callable $postFileCallback = null): ProcessResult
     {
+        // also set here: parallel workers reach processFiles() via WorkerCommand, bypassing run()
+        $this->changedFilesDetector->setActiveScope($configuration->getOnlyRules(), $configuration->getOnlySuffix(), $configuration->getFilters());
         /** @var SystemError[] $systemErrors */
         $systemErrors = [];
         /** @var FileDiff[] $fileDiffs */
         $fileDiffs = [];
+        $totalChanged = 0;
+        $totalChangeCount = 0;
         foreach ($filePaths as $filePath) {
             if ($preFileCallback !== null) {
                 $preFileCallback($filePath);
@@ -163,10 +168,19 @@ final class ApplicationFileProcessor
                 $currentFileDiff = $fileProcessResult->getFileDiff();
                 if ($currentFileDiff instanceof FileDiff) {
                     $fileDiffs[] = $currentFileDiff;
+                    $totalChangeCount += count($currentFileDiff->getRectorChanges());
                 }
                 // progress bar on parallel handled on runParallel()
-                if (\is_callable($postFileCallback)) {
+                if (is_callable($postFileCallback)) {
                     $postFileCallback(1);
+                }
+                if ($fileProcessResult->hasChanged()) {
+                    ++$totalChanged;
+                }
+                // stop once the requested number of changes is reached, leaving the rest untouched
+                $maxChanges = $configuration->getMaxChanges();
+                if ($maxChanges !== null && $totalChangeCount >= $maxChanges) {
+                    break;
                 }
             } catch (Throwable $throwable) {
                 $this->changedFilesDetector->invalidateFile($filePath);
@@ -176,22 +190,25 @@ final class ApplicationFileProcessor
                 $systemErrors[] = $this->resolveSystemError($throwable, $filePath);
             }
         }
-        return new ProcessResult($systemErrors, $fileDiffs);
+        return new ProcessResult($systemErrors, $fileDiffs, $totalChanged, $this->skipper->provideUsedSkips());
     }
-    private function processFile(File $file, Configuration $configuration) : FileProcessResult
+    private function processFile(File $file, Configuration $configuration): FileProcessResult
     {
         $this->currentFileProvider->setFile($file);
         $fileProcessResult = $this->fileProcessor->processFile($file, $configuration);
         if ($fileProcessResult->getSystemErrors() !== []) {
             $this->changedFilesDetector->invalidateFile($file->getFilePath());
-        } elseif (!$configuration->isDryRun() || !$fileProcessResult->getFileDiff() instanceof FileDiff) {
+        } elseif (!$configuration->isDryRun() || !$fileProcessResult->hasChanged()) {
+            // gate on the actual content change, not on FileDiff: a FileDiff also carries reported line changes
+            // that print identically, and such files would otherwise be re-processed on every dry run
+            // selective runs are safe to cache now — the key is scoped to the rule selection
             $this->changedFilesDetector->cacheFile($file->getFilePath());
         }
         return $fileProcessResult;
     }
-    private function resolveSystemError(Throwable $throwable, string $filePath) : SystemError
+    private function resolveSystemError(Throwable $throwable, string $filePath): SystemError
     {
-        $errorMessage = \sprintf('System error: "%s"', $throwable->getMessage()) . \PHP_EOL;
+        $errorMessage = sprintf('System error: "%s"', $throwable->getMessage()) . \PHP_EOL;
         if ($this->symfonyStyle->isDebug()) {
             $errorMessage .= \PHP_EOL . 'Stack trace:' . \PHP_EOL . $throwable->getTraceAsString();
         } else {
@@ -205,51 +222,54 @@ final class ApplicationFileProcessor
     /**
      * Inspired by @see https://github.com/phpstan/phpstan-src/blob/89af4e7db257750cdee5d4259ad312941b6b25e8/src/Analyser/Analyser.php#L134
      */
-    private function configureCustomErrorHandler() : void
+    private function configureCustomErrorHandler(): void
     {
-        $errorHandlerCallback = function (int $code, string $message, string $file, int $line) : bool {
-            if ((\error_reporting() & $code) === 0) {
+        $errorHandlerCallback = function (int $code, string $message, string $file, int $line): bool {
+            if ((error_reporting() & $code) === 0) {
                 // silence @ operator
                 return \true;
             }
             // not relevant for us
-            if (\in_array($code, [\E_DEPRECATED, \E_WARNING], \true)) {
+            if (in_array($code, [\E_DEPRECATED, \E_WARNING], \true)) {
                 return \true;
             }
             $this->systemErrors[] = new SystemError($message, $file, $line);
             return \true;
         };
-        \set_error_handler($errorHandlerCallback);
+        set_error_handler($errorHandlerCallback);
     }
-    private function restoreErrorHandler() : void
+    private function restoreErrorHandler(): void
     {
-        \restore_error_handler();
+        restore_error_handler();
     }
     /**
      * @param string[] $filePaths
      * @param callable(int $stepCount): void $postFileCallback
      */
-    private function runParallel(array $filePaths, InputInterface $input, callable $postFileCallback) : ProcessResult
+    private function runParallel(array $filePaths, InputInterface $input, callable $postFileCallback): ProcessResult
     {
-        $schedule = $this->scheduleFactory->create($this->cpuCoreCountProvider->provide(), SimpleParameterProvider::provideIntParameter(Option::PARALLEL_JOB_SIZE), SimpleParameterProvider::provideIntParameter(Option::PARALLEL_MAX_NUMBER_OF_PROCESSES), $filePaths);
         $mainScript = $this->resolveCalledRectorBinary();
         if ($mainScript === null) {
             throw new ParallelShouldNotHappenException('[parallel] Main script was not found');
         }
+        $cpuCores = $this->cpuCoreCountProvider->provide();
+        $jobSize = SimpleParameterProvider::provideIntParameter(Option::PARALLEL_JOB_SIZE);
+        $maxNumberOfProcesses = SimpleParameterProvider::provideIntParameter(Option::PARALLEL_MAX_NUMBER_OF_PROCESSES);
+        $schedule = $this->scheduleFactory->create($cpuCores, $jobSize, $maxNumberOfProcesses, $filePaths);
         // mimics see https://github.com/phpstan/phpstan-src/commit/9124c66dcc55a222e21b1717ba5f60771f7dda92#diff-387b8f04e0db7a06678eb52ce0c0d0aff73e0d7d8fc5df834d0a5fbec198e5daR139
         return $this->parallelFileProcessor->process($schedule, $mainScript, $postFileCallback, $input);
     }
     /**
      * Path to called "rector" binary file, e.g. "vendor/bin/rector" returns "vendor/bin/rector" This is needed to re-call the
-     * ecs binary in sub-process in the same location.
+     * rector binary in sub-process in the same location.
      */
-    private function resolveCalledRectorBinary() : ?string
+    private function resolveCalledRectorBinary(): ?string
     {
         if (!isset($_SERVER[self::ARGV][0])) {
             return null;
         }
         $potentialRectorBinaryPath = $_SERVER[self::ARGV][0];
-        if (!\file_exists($potentialRectorBinaryPath)) {
+        if (!file_exists($potentialRectorBinaryPath)) {
             return null;
         }
         return $potentialRectorBinaryPath;

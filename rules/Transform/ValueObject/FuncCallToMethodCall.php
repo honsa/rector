@@ -5,23 +5,23 @@ namespace Rector\Transform\ValueObject;
 
 use PHPStan\Type\ObjectType;
 use Rector\Validation\RectorAssert;
+/**
+ * @api used in deprecated FuncCallToMethodCallRector configs
+ */
 final class FuncCallToMethodCall
 {
     /**
      * @readonly
-     * @var string
      */
-    private $oldFuncName;
+    private string $oldFuncName;
     /**
      * @readonly
-     * @var string
      */
-    private $newClassName;
+    private string $newClassName;
     /**
      * @readonly
-     * @var string
      */
-    private $newMethodName;
+    private string $newMethodName;
     public function __construct(string $oldFuncName, string $newClassName, string $newMethodName)
     {
         $this->oldFuncName = $oldFuncName;
@@ -31,15 +31,15 @@ final class FuncCallToMethodCall
         RectorAssert::className($newClassName);
         RectorAssert::methodName($newMethodName);
     }
-    public function getOldFuncName() : string
+    public function getOldFuncName(): string
     {
         return $this->oldFuncName;
     }
-    public function getNewObjectType() : ObjectType
+    public function getNewObjectType(): ObjectType
     {
         return new ObjectType($this->newClassName);
     }
-    public function getNewMethodName() : string
+    public function getNewMethodName(): string
     {
         return $this->newMethodName;
     }

@@ -15,13 +15,15 @@ use PhpParser\Node\Stmt\Function_;
 use PhpParser\Node\Stmt\Return_;
 use PhpParser\Node\UnionType as PhpParserUnionType;
 use PHPStan\Analyser\Scope;
-use PHPStan\Type\NullType;
 use PHPStan\Type\ObjectType;
 use PHPStan\Type\UnionType;
 use Rector\Php\PhpVersionProvider;
 use Rector\PhpParser\Node\BetterNodeFinder;
+use Rector\PHPStan\ScopeFetcher;
 use Rector\PHPStanStaticTypeMapper\Enum\TypeKind;
-use Rector\Rector\AbstractScopeAwareRector;
+use Rector\Rector\AbstractRector;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
 use Rector\StaticTypeMapper\StaticTypeMapper;
 use Rector\TypeDeclaration\NodeAnalyzer\ReturnAnalyzer;
 use Rector\TypeDeclaration\NodeAnalyzer\TypeNodeUnwrapper;
@@ -30,53 +32,43 @@ use Rector\TypeDeclaration\TypeInferer\ReturnTypeInferer;
 use Rector\ValueObject\PhpVersionFeature;
 use Rector\VendorLocker\NodeVendorLocker\ClassMethodReturnTypeOverrideGuard;
 use Rector\VersionBonding\Contract\MinPhpVersionInterface;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
 /**
  * @see \Rector\Tests\TypeDeclaration\Rector\ClassMethod\ReturnTypeFromStrictTypedCallRector\ReturnTypeFromStrictTypedCallRectorTest
  */
-final class ReturnTypeFromStrictTypedCallRector extends AbstractScopeAwareRector implements MinPhpVersionInterface
+final class ReturnTypeFromStrictTypedCallRector extends AbstractRector implements MinPhpVersionInterface
 {
     /**
      * @readonly
-     * @var \Rector\TypeDeclaration\NodeAnalyzer\TypeNodeUnwrapper
      */
-    private $typeNodeUnwrapper;
+    private TypeNodeUnwrapper $typeNodeUnwrapper;
     /**
      * @readonly
-     * @var \Rector\TypeDeclaration\TypeAnalyzer\ReturnStrictTypeAnalyzer
      */
-    private $returnStrictTypeAnalyzer;
+    private ReturnStrictTypeAnalyzer $returnStrictTypeAnalyzer;
     /**
      * @readonly
-     * @var \Rector\TypeDeclaration\TypeInferer\ReturnTypeInferer
      */
-    private $returnTypeInferer;
+    private ReturnTypeInferer $returnTypeInferer;
     /**
      * @readonly
-     * @var \Rector\PhpParser\Node\BetterNodeFinder
      */
-    private $betterNodeFinder;
+    private BetterNodeFinder $betterNodeFinder;
     /**
      * @readonly
-     * @var \Rector\Php\PhpVersionProvider
      */
-    private $phpVersionProvider;
+    private PhpVersionProvider $phpVersionProvider;
     /**
      * @readonly
-     * @var \Rector\VendorLocker\NodeVendorLocker\ClassMethodReturnTypeOverrideGuard
      */
-    private $classMethodReturnTypeOverrideGuard;
+    private ClassMethodReturnTypeOverrideGuard $classMethodReturnTypeOverrideGuard;
     /**
      * @readonly
-     * @var \Rector\TypeDeclaration\NodeAnalyzer\ReturnAnalyzer
      */
-    private $returnAnalyzer;
+    private ReturnAnalyzer $returnAnalyzer;
     /**
      * @readonly
-     * @var \Rector\StaticTypeMapper\StaticTypeMapper
      */
-    private $staticTypeMapper;
+    private StaticTypeMapper $staticTypeMapper;
     public function __construct(TypeNodeUnwrapper $typeNodeUnwrapper, ReturnStrictTypeAnalyzer $returnStrictTypeAnalyzer, ReturnTypeInferer $returnTypeInferer, BetterNodeFinder $betterNodeFinder, PhpVersionProvider $phpVersionProvider, ClassMethodReturnTypeOverrideGuard $classMethodReturnTypeOverrideGuard, ReturnAnalyzer $returnAnalyzer, StaticTypeMapper $staticTypeMapper)
     {
         $this->typeNodeUnwrapper = $typeNodeUnwrapper;
@@ -88,7 +80,7 @@ final class ReturnTypeFromStrictTypedCallRector extends AbstractScopeAwareRector
         $this->returnAnalyzer = $returnAnalyzer;
         $this->staticTypeMapper = $staticTypeMapper;
     }
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
         return new RuleDefinition('Add return type from strict return type of call', [new CodeSample(<<<'CODE_SAMPLE'
 final class SomeClass
@@ -123,18 +115,18 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [ClassMethod::class, Function_::class];
     }
-    public function provideMinPhpVersion() : int
+    public function provideMinPhpVersion(): int
     {
         return PhpVersionFeature::SCALAR_TYPES;
     }
     /**
      * @param ClassMethod|Function_ $node
      */
-    public function refactorWithScope(Node $node, Scope $scope) : ?Node
+    public function refactor(Node $node): ?Node
     {
         // already filled → skip
         if ($node->returnType instanceof Node) {
@@ -143,18 +135,19 @@ CODE_SAMPLE
         if ($node->stmts === null) {
             return null;
         }
+        $currentScopeReturns = $this->betterNodeFinder->findReturnsScoped($node);
+        if (!$this->returnAnalyzer->hasOnlyReturnWithExpr($node, $currentScopeReturns)) {
+            return null;
+        }
+        $scope = ScopeFetcher::fetch($node);
         if ($this->shouldSkip($node, $scope)) {
             return null;
         }
-        $currentScopeReturns = $this->betterNodeFinder->findReturnsScoped($node);
         $returnedStrictTypes = $this->returnStrictTypeAnalyzer->collectStrictReturnTypes($currentScopeReturns, $scope);
         if ($returnedStrictTypes === []) {
             return null;
         }
-        if (!$this->returnAnalyzer->hasOnlyReturnWithExpr($node, $currentScopeReturns)) {
-            return null;
-        }
-        if (\count($returnedStrictTypes) === 1) {
+        if (count($returnedStrictTypes) === 1) {
             return $this->refactorSingleReturnType($currentScopeReturns[0], $returnedStrictTypes[0], $node);
         }
         if ($this->phpVersionProvider->isAtLeastPhpVersion(PhpVersionFeature::UNION_TYPES)) {
@@ -175,7 +168,7 @@ CODE_SAMPLE
     /**
      * @param \PhpParser\Node\Stmt\ClassMethod|\PhpParser\Node\Stmt\Function_|\PhpParser\Node\Expr\Closure $node
      */
-    private function isUnionPossibleReturnsVoid($node) : bool
+    private function isUnionPossibleReturnsVoid($node): bool
     {
         $inferReturnType = $this->returnTypeInferer->inferFunctionLike($node);
         if ($inferReturnType instanceof UnionType) {
@@ -188,20 +181,21 @@ CODE_SAMPLE
         return \false;
     }
     /**
+     * @template TFunctionLike of ClassMethod|Function_|Closure
      * @param \PhpParser\Node\Stmt\ClassMethod|\PhpParser\Node\Stmt\Function_|\PhpParser\Node\Expr\Closure $node
-     * @return \PhpParser\Node\Expr\Closure|\PhpParser\Node\Stmt\ClassMethod|\PhpParser\Node\Stmt\Function_
+     * @return TFunctionLike
      */
     private function processSingleUnionType($node, UnionType $unionType, NullableType $nullableType)
     {
         $types = $unionType->getTypes();
-        $returnType = $types[0] instanceof ObjectType && $types[1] instanceof NullType ? new NullableType(new FullyQualified($types[0]->getClassName())) : $nullableType;
+        $returnType = $types[0] instanceof ObjectType && $types[1]->isNull()->yes() ? new NullableType(new FullyQualified($types[0]->getClassName())) : $nullableType;
         $node->returnType = $returnType;
         return $node;
     }
     /**
      * @param \PhpParser\Node\Stmt\ClassMethod|\PhpParser\Node\Stmt\Function_|\PhpParser\Node\Expr\Closure $node
      */
-    private function shouldSkip($node, Scope $scope) : bool
+    private function shouldSkip($node, Scope $scope): bool
     {
         if ($node->returnType instanceof Node) {
             return \true;
@@ -212,13 +206,14 @@ CODE_SAMPLE
         return $this->isUnionPossibleReturnsVoid($node);
     }
     /**
-     * @param \PhpParser\Node\Identifier|\PhpParser\Node\Name|\PhpParser\Node\NullableType|\PhpParser\Node\ComplexType $returnedStrictTypeNode
+     * @template TFunctionLike of ClassMethod|Function_|Closure
      * @param \PhpParser\Node\Stmt\ClassMethod|\PhpParser\Node\Stmt\Function_|\PhpParser\Node\Expr\Closure $functionLike
-     * @return \PhpParser\Node\Expr\Closure|\PhpParser\Node\Stmt\ClassMethod|\PhpParser\Node\Stmt\Function_
+     * @return TFunctionLike
+     * @param \PhpParser\Node\Identifier|\PhpParser\Node\Name|\PhpParser\Node\NullableType|\PhpParser\Node\ComplexType $returnedStrictTypeNode
      */
     private function refactorSingleReturnType(Return_ $return, $returnedStrictTypeNode, $functionLike)
     {
-        $resolvedType = $this->nodeTypeResolver->getType($return);
+        $resolvedType = $this->getType($return);
         if ($resolvedType instanceof UnionType) {
             if (!$returnedStrictTypeNode instanceof NullableType) {
                 return $functionLike;

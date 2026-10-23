@@ -5,16 +5,18 @@ namespace Rector\Symfony\Symfony25\Rector\MethodCall;
 
 use PhpParser\Node;
 use PhpParser\Node\Arg;
+use PhpParser\Node\ArrayItem;
 use PhpParser\Node\Expr\Array_;
-use PhpParser\Node\Expr\ArrayItem;
 use PhpParser\Node\Expr\MethodCall;
 use PhpParser\Node\Scalar\String_;
 use PHPStan\Type\ObjectType;
 use Rector\Exception\ShouldNotHappenException;
 use Rector\PhpParser\Node\Value\ValueResolver;
 use Rector\Rector\AbstractRector;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
+use Rector\VersionBonding\Contract\ComposerPackageConstraintInterface;
+use Rector\VersionBonding\ValueObject\ComposerPackageConstraint;
 /**
  * @changelog https://github.com/symfony/symfony/commit/feea36df99205fd12be52515edeb10fc18523232
  * @changelog https://github.com/symfony/symfony-docs/pull/3461
@@ -22,18 +24,21 @@ use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
  *
  * @see \Rector\Symfony\Tests\Symfony25\Rector\Array_\MaxLengthSymfonyFormOptionToAttrRector\MaxLengthSymfonyFormOptionToAttrRectorTest
  */
-final class MaxLengthSymfonyFormOptionToAttrRector extends AbstractRector
+final class MaxLengthSymfonyFormOptionToAttrRector extends AbstractRector implements ComposerPackageConstraintInterface
 {
     /**
      * @readonly
-     * @var \Rector\PhpParser\Node\Value\ValueResolver
      */
-    private $valueResolver;
+    private ValueResolver $valueResolver;
     public function __construct(ValueResolver $valueResolver)
     {
         $this->valueResolver = $valueResolver;
     }
-    public function getRuleDefinition() : RuleDefinition
+    public function provideComposerPackageConstraint(): ComposerPackageConstraint
+    {
+        return new ComposerPackageConstraint('symfony/form', '>=2.5 <5.0');
+    }
+    public function getRuleDefinition(): RuleDefinition
     {
         return new RuleDefinition('Change form option "max_length" to a form "attr" > "max_length"', [new CodeSample(<<<'CODE_SAMPLE'
 $formBuilder = new Symfony\Component\Form\FormBuilder();
@@ -54,14 +59,14 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [MethodCall::class];
     }
     /**
      * @param MethodCall $node
      */
-    public function refactor(Node $node) : ?Node
+    public function refactor(Node $node): ?Node
     {
         if (!$this->isFormCreateMethodCallMatch($node)) {
             return null;
@@ -95,7 +100,7 @@ CODE_SAMPLE
         $this->addArrayItemToAttrsItemOrCreateOne($optionsArray, $itemToAddToAttrs);
         return $node;
     }
-    private function matchAttrArrayItem(Array_ $array) : ?ArrayItem
+    private function matchAttrArrayItem(Array_ $array): ?ArrayItem
     {
         foreach ($array->items as $arrayItem) {
             if (!$arrayItem instanceof ArrayItem) {
@@ -111,7 +116,7 @@ CODE_SAMPLE
         }
         return null;
     }
-    private function addArrayItemToAttrsItemOrCreateOne(Array_ $array, ArrayItem $arrayItem) : Array_
+    private function addArrayItemToAttrsItemOrCreateOne(Array_ $array, ArrayItem $arrayItem): Array_
     {
         // rename
         $arrayItem->key = new String_('maxlength');
@@ -126,11 +131,11 @@ CODE_SAMPLE
         $array->items[] = new ArrayItem(new Array_([$arrayItem]), new String_('attr'));
         return $array;
     }
-    private function isFormCreateMethodCallMatch(MethodCall $methodCall) : bool
+    private function isFormCreateMethodCallMatch(MethodCall $methodCall): bool
     {
         if (!$this->isNames($methodCall->name, ['create', 'add'])) {
             return \false;
         }
-        return $this->isObjectType($methodCall->var, new ObjectType('Symfony\\Component\\Form\\FormFactoryInterface')) || $this->isObjectType($methodCall->var, new ObjectType('Symfony\\Component\\Form\\FormBuilderInterface'));
+        return $this->isObjectType($methodCall->var, new ObjectType('Symfony\Component\Form\FormFactoryInterface')) || $this->isObjectType($methodCall->var, new ObjectType('Symfony\Component\Form\FormBuilderInterface'));
     }
 }

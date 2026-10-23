@@ -11,28 +11,33 @@ use PhpParser\Node\Identifier;
 use PhpParser\Node\Scalar\String_;
 use PhpParser\Node\Stmt\Expression;
 use PHPStan\Type\ObjectType;
-use Rector\Contract\PhpParser\Node\StmtsAwareInterface;
+use Rector\PhpParser\Enum\NodeGroup;
 use Rector\PhpParser\Node\BetterNodeFinder;
 use Rector\Rector\AbstractRector;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
+use Rector\VersionBonding\Contract\ComposerPackageConstraintInterface;
+use Rector\VersionBonding\ValueObject\ComposerPackageConstraint;
 /**
  * @changelog https://github.com/symfony/symfony/pull/27476
  *
  * @see \Rector\Symfony\Tests\Symfony42\Rector\New_\RootNodeTreeBuilderRector\RootNodeTreeBuilderRectorTest
  */
-final class RootNodeTreeBuilderRector extends AbstractRector
+final class RootNodeTreeBuilderRector extends AbstractRector implements ComposerPackageConstraintInterface
 {
     /**
      * @readonly
-     * @var \Rector\PhpParser\Node\BetterNodeFinder
      */
-    private $betterNodeFinder;
+    private BetterNodeFinder $betterNodeFinder;
     public function __construct(BetterNodeFinder $betterNodeFinder)
     {
         $this->betterNodeFinder = $betterNodeFinder;
     }
-    public function getRuleDefinition() : RuleDefinition
+    public function provideComposerPackageConstraint(): ComposerPackageConstraint
+    {
+        return new ComposerPackageConstraint('symfony/config', '>=4.2 <7.0');
+    }
+    public function getRuleDefinition(): RuleDefinition
     {
         return new RuleDefinition('Changes TreeBuilder with root() call to constructor passed root and getRootNode() call', [new CodeSample(<<<'CODE_SAMPLE'
 use Symfony\Component\Config\Definition\Builder\TreeBuilder;
@@ -53,14 +58,14 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
-        return [StmtsAwareInterface::class];
+        return NodeGroup::STMTS_AWARE;
     }
     /**
-     * @param StmtsAwareInterface $node
+     * @param StmtsAware $node
      */
-    public function refactor(Node $node) : ?Node
+    public function refactor(Node $node): ?Node
     {
         if ($node->stmts === null) {
             return null;
@@ -81,7 +86,7 @@ CODE_SAMPLE
             if (isset($new->getArgs()[1])) {
                 continue;
             }
-            if (!$this->isObjectType($new->class, new ObjectType('Symfony\\Component\\Config\\Definition\\Builder\\TreeBuilder'))) {
+            if (!$this->isObjectType($new->class, new ObjectType('Symfony\Component\Config\Definition\Builder\TreeBuilder'))) {
                 continue;
             }
             $rootMethodCallNode = $this->getRootMethodCallNode($node);
@@ -98,14 +103,17 @@ CODE_SAMPLE
         }
         return null;
     }
-    private function getRootMethodCallNode(StmtsAwareInterface $stmtsAware) : ?Node
+    /**
+     * @param StmtsAware $stmtsAware
+     */
+    private function getRootMethodCallNode(Node $stmtsAware): ?Node
     {
         $methodCalls = $this->betterNodeFinder->findInstanceOf($stmtsAware, MethodCall::class);
         foreach ($methodCalls as $methodCall) {
             if (!$this->isName($methodCall->name, 'root')) {
                 continue;
             }
-            if (!$this->isObjectType($methodCall->var, new ObjectType('Symfony\\Component\\Config\\Definition\\Builder\\TreeBuilder'))) {
+            if (!$this->isObjectType($methodCall->var, new ObjectType('Symfony\Component\Config\Definition\Builder\TreeBuilder'))) {
                 continue;
             }
             if (!isset($methodCall->getArgs()[0])) {

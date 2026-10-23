@@ -8,7 +8,7 @@
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
  */
-namespace RectorPrefix202411\Symfony\Component\Console\Helper;
+namespace RectorPrefix202610\Symfony\Component\Console\Helper;
 
 /**
  * Simple output wrapper for "tagged outputs" instead of wordwrap(). This solution is based on a StackOverflow
@@ -43,18 +43,15 @@ namespace RectorPrefix202411\Symfony\Component\Console\Helper;
  */
 final class OutputWrapper
 {
-    /**
-     * @var bool
-     */
-    private $allowCutUrls = \false;
+    private bool $allowCutUrls = \false;
     private const TAG_OPEN_REGEX_SEGMENT = '[a-z](?:[^\\\\<>]*+ | \\\\.)*';
     private const TAG_CLOSE_REGEX_SEGMENT = '[a-z][^<>]*+';
-    private const URL_PATTERN = 'https?://\\S+';
+    private const URL_PATTERN = 'https?://\S+';
     public function __construct(bool $allowCutUrls = \false)
     {
         $this->allowCutUrls = $allowCutUrls;
     }
-    public function wrap(string $text, int $width, string $break = "\n") : string
+    public function wrap(string $text, int $width, string $break = "\n"): string
     {
         if (!$width) {
             return $text;
@@ -66,10 +63,13 @@ final class OutputWrapper
             $patternBlocks[] = self::URL_PATTERN;
         }
         $patternBlocks[] = '.';
-        $blocks = \implode('|', $patternBlocks);
+        $blocks = implode('|', $patternBlocks);
         $rowPattern = "(?:{$blocks}){$limitPattern}";
-        $pattern = \sprintf('#(?:((?>(%1$s)((?<=[^\\S\\r\\n])[^\\S\\r\\n]?|(?=\\r?\\n)|$|[^\\S\\r\\n]))|(%1$s))(?:\\r?\\n)?|(?:\\r?\\n|$))#imux', $rowPattern);
-        $output = \rtrim(\preg_replace($pattern, '\\1' . $break, $text), $break);
-        return \str_replace(' ' . $break, $break, $output);
+        // the u modifier counts characters instead of bytes, but preg_replace() returns null
+        // on malformed UTF-8, which would empty the text
+        $modifiers = preg_match('//u', $text) ? 'imux' : 'imx';
+        $pattern = \sprintf('#(?:((?>(%1$s)((?<=[^\S\r\n])[^\S\r\n]?|(?=\r?\n)|$|[^\S\r\n]))|(%1$s))(?:\r?\n)?|(?:\r?\n|$))#%2$s', $rowPattern, $modifiers);
+        $output = rtrim(preg_replace($pattern, '\1' . $break, $text), $break);
+        return str_replace(' ' . $break, $break, $output);
     }
 }

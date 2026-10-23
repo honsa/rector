@@ -8,20 +8,20 @@ use PhpParser\Node\Arg;
 use PhpParser\Node\Expr\FuncCall;
 use PhpParser\Node\Name;
 use Rector\Rector\AbstractRector;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
 use Rector\ValueObject\PhpVersionFeature;
 use Rector\VersionBonding\Contract\MinPhpVersionInterface;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
 /**
  * @see \Rector\Tests\Php74\Rector\FuncCall\FilterVarToAddSlashesRector\FilterVarToAddSlashesRectorTest
  */
 final class FilterVarToAddSlashesRector extends AbstractRector implements MinPhpVersionInterface
 {
-    public function provideMinPhpVersion() : int
+    public function provideMinPhpVersion(): int
     {
         return PhpVersionFeature::FILTER_VAR_TO_ADD_SLASHES;
     }
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
         return new RuleDefinition('Change filter_var() with slash escaping to addslashes()', [new CodeSample(<<<'CODE_SAMPLE'
 $var= "Satya's here!";
@@ -36,14 +36,14 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [FuncCall::class];
     }
     /**
      * @param FuncCall $node
      */
-    public function refactor(Node $node) : ?Node
+    public function refactor(Node $node): ?Node
     {
         if (!$this->isName($node, 'filter_var')) {
             return null;

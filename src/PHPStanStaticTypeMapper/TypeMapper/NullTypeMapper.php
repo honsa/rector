@@ -19,21 +19,23 @@ final class NullTypeMapper implements TypeMapperInterface
 {
     /**
      * @readonly
-     * @var \Rector\Php\PhpVersionProvider
      */
-    private $phpVersionProvider;
+    private PhpVersionProvider $phpVersionProvider;
     public function __construct(PhpVersionProvider $phpVersionProvider)
     {
         $this->phpVersionProvider = $phpVersionProvider;
     }
-    public function getNodeClass() : string
+    /**
+     * @return array<class-string<Type>>
+     */
+    public function getNodeClasses(): array
     {
-        return NullType::class;
+        return [NullType::class];
     }
     /**
      * @param NullType $type
      */
-    public function mapToPHPStanPhpDocTypeNode(Type $type) : TypeNode
+    public function mapToPHPStanPhpDocTypeNode(Type $type): TypeNode
     {
         return $type->toPhpDocNode();
     }
@@ -41,7 +43,7 @@ final class NullTypeMapper implements TypeMapperInterface
      * @param TypeKind::* $typeKind
      * @param NullType $type
      */
-    public function mapToPhpParserNode(Type $type, string $typeKind) : ?Node
+    public function mapToPhpParserNode(Type $type, string $typeKind): ?Node
     {
         // can be a standalone type, only case where null makes sense
         if ($this->phpVersionProvider->isAtLeastPhpVersion(PhpVersionFeature::NULL_FALSE_TRUE_STANDALONE_TYPE) && $typeKind === TypeKind::RETURN) {

@@ -8,27 +8,34 @@ use PhpParser\Node\Expr\MethodCall;
 use PhpParser\Node\Expr\StaticCall;
 use PhpParser\Node\Identifier;
 use PhpParser\Node\Stmt\Expression;
-use Rector\Contract\PhpParser\Node\StmtsAwareInterface;
+use Rector\PhpParser\Enum\NodeGroup;
 use Rector\PHPUnit\NodeAnalyzer\TestsNodeAnalyzer;
 use Rector\PHPUnit\NodeFactory\AssertCallFactory;
 use Rector\Rector\AbstractRector;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
+use Rector\VersionBonding\Contract\ComposerPackageConstraintInterface;
+use Rector\VersionBonding\ValueObject\ComposerPackageConstraint;
 /**
  * @see \Rector\PHPUnit\Tests\PHPUnit60\Rector\MethodCall\DelegateExceptionArgumentsRector\DelegateExceptionArgumentsRectorTest
  */
-final class DelegateExceptionArgumentsRector extends AbstractRector
+final class DelegateExceptionArgumentsRector extends AbstractRector implements ComposerPackageConstraintInterface
 {
     /**
      * @readonly
-     * @var \Rector\PHPUnit\NodeFactory\AssertCallFactory
      */
-    private $assertCallFactory;
+    private AssertCallFactory $assertCallFactory;
     /**
      * @readonly
-     * @var \Rector\PHPUnit\NodeAnalyzer\TestsNodeAnalyzer
      */
-    private $testsNodeAnalyzer;
+    private TestsNodeAnalyzer $testsNodeAnalyzer;
+    /**
+     * expectExceptionMessage() and expectExceptionCode() were added in PHPUnit 5.2
+     */
+    public function provideComposerPackageConstraint(): ComposerPackageConstraint
+    {
+        return new ComposerPackageConstraint('phpunit/phpunit', '>=5.2 <8.0');
+    }
     /**
      * @var array<string, string>
      */
@@ -38,7 +45,7 @@ final class DelegateExceptionArgumentsRector extends AbstractRector
         $this->assertCallFactory = $assertCallFactory;
         $this->testsNodeAnalyzer = $testsNodeAnalyzer;
     }
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
         return new RuleDefinition('Takes `setExpectedException()` 2nd and next arguments to own methods in PHPUnit.', [new CodeSample(<<<'CODE_SAMPLE'
 use PHPUnit\Framework\TestCase;
@@ -69,14 +76,14 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
-        return [StmtsAwareInterface::class];
+        return NodeGroup::STMTS_AWARE;
     }
     /**
-     * @param StmtsAwareInterface $node
+     * @param StmtsAware $node
      */
-    public function refactor(Node $node) : ?Node
+    public function refactor(Node $node): ?Node
     {
         if ($node->stmts === null || $node->stmts === []) {
             return null;
@@ -85,7 +92,7 @@ CODE_SAMPLE
             return null;
         }
         $hasChanged = \false;
-        $oldMethodNames = \array_keys(self::OLD_TO_NEW_METHOD);
+        $oldMethodNames = array_keys(self::OLD_TO_NEW_METHOD);
         foreach ($node->stmts as $key => $stmt) {
             if (!$stmt instanceof Expression) {
                 continue;
@@ -101,12 +108,12 @@ CODE_SAMPLE
             if (isset($call->args[2])) {
                 $extraCall = $this->assertCallFactory->createCallWithName($call, 'expectExceptionCode');
                 $extraCall->args[] = $call->args[2];
-                \array_splice($node->stmts, $key + 1, 0, [new Expression($extraCall)]);
+                array_splice($node->stmts, $key + 1, 0, [new Expression($extraCall)]);
                 unset($call->args[2]);
             }
             if (isset($call->args[1])) {
                 $extraCall = $this->createFirstArgExtraMethodCall($call);
-                \array_splice($node->stmts, $key + 1, 0, [new Expression($extraCall)]);
+                array_splice($node->stmts, $key + 1, 0, [new Expression($extraCall)]);
                 unset($call->args[1]);
             }
             $hasChanged = \true;
@@ -118,8 +125,9 @@ CODE_SAMPLE
         return null;
     }
     /**
+     * @template TCall of StaticCall|MethodCall
      * @param \PhpParser\Node\Expr\StaticCall|\PhpParser\Node\Expr\MethodCall $call
-     * @return \PhpParser\Node\Expr\MethodCall|\PhpParser\Node\Expr\StaticCall
+     * @return ($call is MethodCall ? MethodCall : StaticCall)
      */
     private function createFirstArgExtraMethodCall($call)
     {

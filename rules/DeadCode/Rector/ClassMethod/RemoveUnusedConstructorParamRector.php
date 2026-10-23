@@ -3,17 +3,17 @@
 declare (strict_types=1);
 namespace Rector\DeadCode\Rector\ClassMethod;
 
+use PhpParser\Comment\Doc;
 use PhpParser\Node;
 use PhpParser\Node\Stmt\Class_;
 use PhpParser\Node\Stmt\ClassMethod;
 use PHPStan\Reflection\ClassReflection;
 use Rector\DeadCode\NodeManipulator\ClassMethodParamRemover;
-use Rector\NodeAnalyzer\ParamAnalyzer;
 use Rector\Rector\AbstractRector;
 use Rector\Reflection\ReflectionResolver;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
 use Rector\ValueObject\MethodName;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
 /**
  * @see \Rector\Tests\DeadCode\Rector\ClassMethod\RemoveUnusedConstructorParamRector\RemoveUnusedConstructorParamRectorTest
  */
@@ -21,26 +21,18 @@ final class RemoveUnusedConstructorParamRector extends AbstractRector
 {
     /**
      * @readonly
-     * @var \Rector\NodeAnalyzer\ParamAnalyzer
      */
-    private $paramAnalyzer;
+    private ReflectionResolver $reflectionResolver;
     /**
      * @readonly
-     * @var \Rector\Reflection\ReflectionResolver
      */
-    private $reflectionResolver;
-    /**
-     * @readonly
-     * @var \Rector\DeadCode\NodeManipulator\ClassMethodParamRemover
-     */
-    private $classMethodParamRemover;
-    public function __construct(ParamAnalyzer $paramAnalyzer, ReflectionResolver $reflectionResolver, ClassMethodParamRemover $classMethodParamRemover)
+    private ClassMethodParamRemover $classMethodParamRemover;
+    public function __construct(ReflectionResolver $reflectionResolver, ClassMethodParamRemover $classMethodParamRemover)
     {
-        $this->paramAnalyzer = $paramAnalyzer;
         $this->reflectionResolver = $reflectionResolver;
         $this->classMethodParamRemover = $classMethodParamRemover;
     }
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
         return new RuleDefinition('Remove unused parameter in constructor', [new CodeSample(<<<'CODE_SAMPLE'
 final class SomeClass
@@ -69,14 +61,14 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [Class_::class];
     }
     /**
      * @param Class_ $node
      */
-    public function refactor(Node $node) : ?Node
+    public function refactor(Node $node): ?Node
     {
         $constructorClassMethod = $node->getMethod(MethodName::CONSTRUCT);
         if (!$constructorClassMethod instanceof ClassMethod) {
@@ -85,10 +77,11 @@ CODE_SAMPLE
         if ($constructorClassMethod->params === []) {
             return null;
         }
-        if ($this->paramAnalyzer->hasPropertyPromotion($constructorClassMethod->params)) {
+        if ($constructorClassMethod->isAbstract()) {
             return null;
         }
-        if ($constructorClassMethod->isAbstract()) {
+        // attribute marker classes keep constructor params; read straight off the node, no reflection
+        if ($this->isAttributeClass($node) && $constructorClassMethod->getDocComment() instanceof Doc) {
             return null;
         }
         $classReflection = $this->reflectionResolver->resolveClassReflection($node);
@@ -97,6 +90,7 @@ CODE_SAMPLE
         }
         $interfaces = $classReflection->getInterfaces();
         foreach ($interfaces as $interface) {
+            // parameters are contract required → skip
             if ($interface->hasNativeMethod(MethodName::CONSTRUCT)) {
                 return null;
             }
@@ -106,5 +100,16 @@ CODE_SAMPLE
             return null;
         }
         return $node;
+    }
+    private function isAttributeClass(Class_ $class): bool
+    {
+        foreach ($class->attrGroups as $attrGroup) {
+            foreach ($attrGroup->attrs as $attr) {
+                if ($this->isName($attr->name, 'Attribute')) {
+                    return \true;
+                }
+            }
+        }
+        return \false;
     }
 }

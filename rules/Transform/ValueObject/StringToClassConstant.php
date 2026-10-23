@@ -4,23 +4,23 @@ declare (strict_types=1);
 namespace Rector\Transform\ValueObject;
 
 use Rector\Validation\RectorAssert;
+/**
+ * @api used in deprecated StringToClassConstantRector configs
+ */
 final class StringToClassConstant
 {
     /**
      * @readonly
-     * @var string
      */
-    private $string;
+    private string $string;
     /**
      * @readonly
-     * @var string
      */
-    private $class;
+    private string $class;
     /**
      * @readonly
-     * @var string
      */
-    private $constant;
+    private string $constant;
     public function __construct(string $string, string $class, string $constant)
     {
         $this->string = $string;
@@ -28,15 +28,15 @@ final class StringToClassConstant
         $this->constant = $constant;
         RectorAssert::className($class);
     }
-    public function getString() : string
+    public function getString(): string
     {
         return $this->string;
     }
-    public function getClass() : string
+    public function getClass(): string
     {
         return $this->class;
     }
-    public function getConstant() : string
+    public function getConstant(): string
     {
         return $this->constant;
     }

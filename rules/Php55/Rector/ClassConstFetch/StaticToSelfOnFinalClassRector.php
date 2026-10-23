@@ -8,16 +8,16 @@ use PhpParser\Node\Expr\ClassConstFetch;
 use PhpParser\Node\Stmt\Class_;
 use Rector\Enum\ObjectReference;
 use Rector\Rector\AbstractRector;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
 use Rector\ValueObject\PhpVersionFeature;
 use Rector\VersionBonding\Contract\MinPhpVersionInterface;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
 /**
  * @see \Rector\Tests\Php55\Rector\ClassConstFetch\StaticToSelfOnFinalClassRector\StaticToSelfOnFinalClassRectorTest
  */
 final class StaticToSelfOnFinalClassRector extends AbstractRector implements MinPhpVersionInterface
 {
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
         return new RuleDefinition('Change `static::class` to `self::class` on final class', [new CodeSample(<<<'CODE_SAMPLE'
 final class SomeClass
@@ -42,20 +42,20 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [Class_::class];
     }
     /**
      * @param Class_ $node
      */
-    public function refactor(Node $node) : ?Class_
+    public function refactor(Node $node): ?Class_
     {
         if (!$node->isFinal()) {
             return null;
         }
         $hasChanged = \false;
-        $this->traverseNodesWithCallable($node, function (Node $node) use(&$hasChanged) : ?ClassConstFetch {
+        $this->traverseNodesWithCallable($node, function (Node $node) use (&$hasChanged): ?ClassConstFetch {
             if (!$node instanceof ClassConstFetch) {
                 return null;
             }
@@ -73,7 +73,7 @@ CODE_SAMPLE
         }
         return null;
     }
-    public function provideMinPhpVersion() : int
+    public function provideMinPhpVersion(): int
     {
         return PhpVersionFeature::CLASSNAME_CONSTANT;
     }

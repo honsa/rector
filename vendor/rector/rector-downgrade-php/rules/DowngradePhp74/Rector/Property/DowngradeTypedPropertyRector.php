@@ -10,8 +10,8 @@ use PhpParser\Node\Stmt\Property;
 use Rector\NodeManipulator\PropertyDecorator;
 use Rector\PhpParser\Node\Value\ValueResolver;
 use Rector\Rector\AbstractRector;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
 /**
  * @see \Rector\Tests\DowngradePhp74\Rector\Property\DowngradeTypedPropertyRector\DowngradeTypedPropertyRectorTest
  */
@@ -19,14 +19,12 @@ final class DowngradeTypedPropertyRector extends AbstractRector
 {
     /**
      * @readonly
-     * @var \Rector\NodeManipulator\PropertyDecorator
      */
-    private $propertyDecorator;
+    private PropertyDecorator $propertyDecorator;
     /**
      * @readonly
-     * @var \Rector\PhpParser\Node\Value\ValueResolver
      */
-    private $valueResolver;
+    private ValueResolver $valueResolver;
     public function __construct(PropertyDecorator $propertyDecorator, ValueResolver $valueResolver)
     {
         $this->propertyDecorator = $propertyDecorator;
@@ -35,11 +33,11 @@ final class DowngradeTypedPropertyRector extends AbstractRector
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [Property::class];
     }
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
         return new RuleDefinition('Changes property type definition from type definitions to `@var` annotations.', [new CodeSample(<<<'CODE_SAMPLE'
 class SomeClass
@@ -61,7 +59,7 @@ CODE_SAMPLE
     /**
      * @param Property $node
      */
-    public function refactor(Node $node) : ?Node
+    public function refactor(Node $node): ?Node
     {
         if ($node->type === null) {
             return null;

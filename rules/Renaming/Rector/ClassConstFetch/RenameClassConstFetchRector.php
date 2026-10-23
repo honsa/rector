@@ -12,21 +12,21 @@ use Rector\Rector\AbstractRector;
 use Rector\Renaming\Contract\RenameClassConstFetchInterface;
 use Rector\Renaming\ValueObject\RenameClassAndConstFetch;
 use Rector\Renaming\ValueObject\RenameClassConstFetch;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\ConfiguredCodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
-use RectorPrefix202411\Webmozart\Assert\Assert;
+use Rector\RuleDoc\CodeSample\ConfiguredCodeSample;
+use Rector\RuleDoc\RuleDefinition;
+use RectorPrefix202610\Webmozart\Assert\Assert;
 /**
  * @see \Rector\Tests\Renaming\Rector\ClassConstFetch\RenameClassConstFetchRector\RenameClassConstFetchRectorTest
  */
 final class RenameClassConstFetchRector extends AbstractRector implements ConfigurableRectorInterface
 {
     /**
-     * @var RenameClassConstFetchInterface[]
+     * @var array<string, RenameClassConstFetchInterface[]>
      */
-    private $renameClassConstFetches = [];
-    public function getRuleDefinition() : RuleDefinition
+    private array $renameClassConstFetchesByOldConstant = [];
+    public function getRuleDefinition(): RuleDefinition
     {
-        return new RuleDefinition('Replaces defined class constants in their calls.', [new ConfiguredCodeSample(<<<'CODE_SAMPLE'
+        return new RuleDefinition('Replace defined class constants in their calls', [new ConfiguredCodeSample(<<<'CODE_SAMPLE'
 $value = SomeClass::OLD_CONSTANT;
 $value = SomeClass::OTHER_OLD_CONSTANT;
 CODE_SAMPLE
@@ -39,19 +39,20 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [ClassConstFetch::class];
     }
     /**
      * @param ClassConstFetch $node
      */
-    public function refactor(Node $node) : ?ClassConstFetch
+    public function refactor(Node $node): ?ClassConstFetch
     {
-        foreach ($this->renameClassConstFetches as $renameClassConstFetch) {
-            if (!$this->isName($node->name, $renameClassConstFetch->getOldConstant())) {
-                continue;
-            }
+        $constantName = $this->getName($node->name);
+        if ($constantName === null) {
+            return null;
+        }
+        foreach ($this->renameClassConstFetchesByOldConstant[strtolower($constantName)] ?? [] as $renameClassConstFetch) {
             if (!$this->isObjectType($node->class, $renameClassConstFetch->getOldObjectType())) {
                 continue;
             }
@@ -66,12 +67,16 @@ CODE_SAMPLE
     /**
      * @param mixed[] $configuration
      */
-    public function configure(array $configuration) : void
+    public function configure(array $configuration): void
     {
         Assert::allIsAOf($configuration, RenameClassConstFetchInterface::class);
-        $this->renameClassConstFetches = $configuration;
+        // bucket by lowercased old constant name, matching the case-insensitive isName() lookup
+        $this->renameClassConstFetchesByOldConstant = [];
+        foreach ($configuration as $renameClassConstFetch) {
+            $this->renameClassConstFetchesByOldConstant[strtolower($renameClassConstFetch->getOldConstant())][] = $renameClassConstFetch;
+        }
     }
-    private function createClassAndConstFetch(RenameClassAndConstFetch $renameClassAndConstFetch) : ClassConstFetch
+    private function createClassAndConstFetch(RenameClassAndConstFetch $renameClassAndConstFetch): ClassConstFetch
     {
         return new ClassConstFetch(new FullyQualified($renameClassAndConstFetch->getNewClass()), new Identifier($renameClassAndConstFetch->getNewConstant()));
     }

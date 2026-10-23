@@ -15,10 +15,10 @@ use PhpParser\Node\Stmt\Expression;
 use PhpParser\Node\Stmt\Function_;
 use Rector\PhpParser\Node\BetterNodeFinder;
 use Rector\Rector\AbstractRector;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
 use Rector\ValueObject\PhpVersionFeature;
 use Rector\VersionBonding\Contract\MinPhpVersionInterface;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
 /**
  * @see \Rector\Tests\CodingStyle\Rector\ClassMethod\FuncGetArgsToVariadicParamRector\FuncGetArgsToVariadicParamRectorTest
  */
@@ -26,16 +26,15 @@ final class FuncGetArgsToVariadicParamRector extends AbstractRector implements M
 {
     /**
      * @readonly
-     * @var \Rector\PhpParser\Node\BetterNodeFinder
      */
-    private $betterNodeFinder;
+    private BetterNodeFinder $betterNodeFinder;
     public function __construct(BetterNodeFinder $betterNodeFinder)
     {
         $this->betterNodeFinder = $betterNodeFinder;
     }
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
-        return new RuleDefinition('Refactor func_get_args() in to a variadic param', [new CodeSample(<<<'CODE_SAMPLE'
+        return new RuleDefinition('Refactor `func_get_args()` in to a variadic param', [new CodeSample(<<<'CODE_SAMPLE'
 function run()
 {
     $args = \func_get_args();
@@ -51,14 +50,14 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [ClassMethod::class, Function_::class, Closure::class];
     }
     /**
      * @param ClassMethod|Function_|Closure $node
      */
-    public function refactor(Node $node) : ?Node
+    public function refactor(Node $node): ?Node
     {
         if ($node->params !== [] || $node->stmts === null) {
             return null;
@@ -90,13 +89,14 @@ CODE_SAMPLE
         }
         return null;
     }
-    public function provideMinPhpVersion() : int
+    public function provideMinPhpVersion(): int
     {
         return PhpVersionFeature::VARIADIC_PARAM;
     }
     /**
+     * @template TFunctionLike of ClassMethod|Function_|Closure
      * @param \PhpParser\Node\Stmt\ClassMethod|\PhpParser\Node\Stmt\Function_|\PhpParser\Node\Expr\Closure $node
-     * @return \PhpParser\Node\Stmt\ClassMethod|\PhpParser\Node\Stmt\Function_|\PhpParser\Node\Expr\Closure|null
+     * @return TFunctionLike|null
      */
     private function applyVariadicParams($node, string $variableName)
     {
@@ -110,12 +110,12 @@ CODE_SAMPLE
     /**
      * @param \PhpParser\Node\Stmt\ClassMethod|\PhpParser\Node\Stmt\Function_|\PhpParser\Node\Expr\Closure $functionLike
      */
-    private function hasFunctionOrClosureInside($functionLike, Variable $variable) : bool
+    private function hasFunctionOrClosureInside($functionLike, Variable $variable): bool
     {
         if ($functionLike->stmts === null) {
             return \false;
         }
-        return (bool) $this->betterNodeFinder->findFirst($functionLike->stmts, function (Node $node) use($variable) : bool {
+        return (bool) $this->betterNodeFinder->findFirst($functionLike->stmts, function (Node $node) use ($variable): bool {
             if (!$node instanceof Closure && !$node instanceof Function_) {
                 return \false;
             }
@@ -135,7 +135,7 @@ CODE_SAMPLE
      * @return Expression<Assign>|null
      * @param \PhpParser\Node\Stmt\ClassMethod|\PhpParser\Node\Stmt\Function_|\PhpParser\Node\Expr\Closure $functionLike
      */
-    private function matchFuncGetArgsVariableAssign($functionLike) : ?Expression
+    private function matchFuncGetArgsVariableAssign($functionLike): ?Expression
     {
         /** @var Expression[] $expressions */
         $expressions = $this->betterNodeFinder->findInstancesOfInFunctionLikeScoped($functionLike, Expression::class);
@@ -154,12 +154,12 @@ CODE_SAMPLE
         }
         return null;
     }
-    private function createVariadicParam(string $variableName) : Param
+    private function createVariadicParam(string $variableName): Param
     {
         $variable = new Variable($variableName);
         return new Param($variable, null, null, \false, \true);
     }
-    private function isFuncGetArgsFuncCall(Expr $expr) : bool
+    private function isFuncGetArgsFuncCall(Expr $expr): bool
     {
         if (!$expr instanceof FuncCall) {
             return \false;

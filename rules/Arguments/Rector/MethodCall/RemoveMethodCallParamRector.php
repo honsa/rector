@@ -6,24 +6,19 @@ namespace Rector\Arguments\Rector\MethodCall;
 use PhpParser\Node;
 use PhpParser\Node\Expr\MethodCall;
 use PhpParser\Node\Expr\StaticCall;
-use Rector\Arguments\ValueObject\RemoveMethodCallParam;
-use Rector\Contract\Rector\ConfigurableRectorInterface;
+use Rector\Configuration\Deprecation\Contract\DeprecatedInterface;
+use Rector\Exception\ShouldNotHappenException;
 use Rector\Rector\AbstractRector;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\ConfiguredCodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
-use RectorPrefix202411\Webmozart\Assert\Assert;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
 /**
- * @see \Rector\Tests\Arguments\Rector\MethodCall\RemoveMethodCallParamRector\RemoveMethodCallParamRectorTest
+ * @deprecated This rule is deprecated, as too niche and generic. It can create invalid calls on unrelated objects. Use a specific rule instead.
  */
-final class RemoveMethodCallParamRector extends AbstractRector implements ConfigurableRectorInterface
+final class RemoveMethodCallParamRector extends AbstractRector implements DeprecatedInterface
 {
-    /**
-     * @var RemoveMethodCallParam[]
-     */
-    private $removeMethodCallParams = [];
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
-        return new RuleDefinition('Remove parameter of method call', [new ConfiguredCodeSample(<<<'CODE_SAMPLE'
+        return new RuleDefinition('Remove parameter of method call', [new CodeSample(<<<'CODE_SAMPLE'
 final class SomeClass
 {
     public function run(Caller $caller)
@@ -41,59 +36,20 @@ final class SomeClass
     }
 }
 CODE_SAMPLE
-, [new RemoveMethodCallParam('Caller', 'process', 1)])]);
+)]);
     }
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [MethodCall::class, StaticCall::class];
     }
     /**
      * @param MethodCall|StaticCall $node
      */
-    public function refactor(Node $node) : ?Node
+    public function refactor(Node $node): ?Node
     {
-        $hasChanged = \false;
-        if ($node->isFirstClassCallable()) {
-            return null;
-        }
-        foreach ($this->removeMethodCallParams as $removeMethodCallParam) {
-            if (!$this->isName($node->name, $removeMethodCallParam->getMethodName())) {
-                continue;
-            }
-            if (!$this->isCallerObjectType($node, $removeMethodCallParam)) {
-                continue;
-            }
-            $args = $node->getArgs();
-            if (!isset($args[$removeMethodCallParam->getParamPosition()])) {
-                continue;
-            }
-            unset($node->args[$removeMethodCallParam->getParamPosition()]);
-            $hasChanged = \true;
-        }
-        if (!$hasChanged) {
-            return null;
-        }
-        return $node;
-    }
-    /**
-     * @param mixed[] $configuration
-     */
-    public function configure(array $configuration) : void
-    {
-        Assert::allIsInstanceOf($configuration, RemoveMethodCallParam::class);
-        $this->removeMethodCallParams = $configuration;
-    }
-    /**
-     * @param \PhpParser\Node\Expr\StaticCall|\PhpParser\Node\Expr\MethodCall $call
-     */
-    private function isCallerObjectType($call, RemoveMethodCallParam $removeMethodCallParam) : bool
-    {
-        if ($call instanceof MethodCall) {
-            return $this->isObjectType($call->var, $removeMethodCallParam->getObjectType());
-        }
-        return $this->isObjectType($call->class, $removeMethodCallParam->getObjectType());
+        throw new ShouldNotHappenException(sprintf('"%s" rule is deprecated, as too niche and generic. Use a specific rule instead', self::class));
     }
 }

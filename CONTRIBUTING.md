@@ -11,7 +11,7 @@ git clone git@github.com:<your-name>/rector-src.git
 cd rector-src
 ```
 
-2. We use PHP 8.2 and composer
+2. We use PHP 8.3 and composer
 
 Install dependencies and verify your local environment:
 
@@ -26,7 +26,15 @@ Then you can start working with the code :+1:
 
 <br>
 
-Do you want to **contribute a failing test**? [This tutorial will show you how](https://getrector.com/documentation/reporting-issue-with-rector)
+Do you want to **contribute a failing test**? The fastest way to report a bug is a reproducible example:
+
+1. Open the [online demo](https://getrector.com/demo).
+2. Paste the PHP code that triggers the wrong result.
+3. Pick the rule or set that misbehaves.
+4. Run it and copy the generated share link.
+5. Paste that link into your issue, together with the expected vs. actual output.
+
+This gives us a one-click reproduction and turns straight into a failing test case.
 
 ## Preparing Pull Request
 
@@ -56,13 +64,16 @@ above commands in a docker container:
 
 ```bash
 # Build the docker image
-docker compose build
+docker compose build --pull
+
+# Install dependencies
+docker compose run --rm php composer install
 
 # Run the entire CI suite
-docker compose run php composer complete-check
+docker compose run --rm php composer complete-check
 
 # Fix the coding standards
-docker compose run php composer fix-cs
+docker compose run --rm php composer fix-cs
 ```
 
 ## TroubleShooting

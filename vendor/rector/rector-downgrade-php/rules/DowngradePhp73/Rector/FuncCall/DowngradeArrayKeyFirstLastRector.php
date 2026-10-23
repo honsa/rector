@@ -24,13 +24,13 @@ use PhpParser\Node\Stmt\If_;
 use PhpParser\Node\Stmt\Return_;
 use PhpParser\Node\Stmt\Switch_;
 use PHPStan\Analyser\Scope;
-use Rector\Contract\PhpParser\Node\StmtsAwareInterface;
 use Rector\Naming\Naming\VariableNaming;
 use Rector\NodeAnalyzer\ExprInTopStmtMatcher;
 use Rector\NodeTypeResolver\Node\AttributeKey;
+use Rector\PhpParser\Enum\NodeGroup;
 use Rector\Rector\AbstractRector;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
 /**
  * @changelog https://wiki.php.net/rfc/array_key_first_last
  *
@@ -40,20 +40,18 @@ final class DowngradeArrayKeyFirstLastRector extends AbstractRector
 {
     /**
      * @readonly
-     * @var \Rector\Naming\Naming\VariableNaming
      */
-    private $variableNaming;
+    private VariableNaming $variableNaming;
     /**
      * @readonly
-     * @var \Rector\NodeAnalyzer\ExprInTopStmtMatcher
      */
-    private $exprInTopStmtMatcher;
+    private ExprInTopStmtMatcher $exprInTopStmtMatcher;
     public function __construct(VariableNaming $variableNaming, ExprInTopStmtMatcher $exprInTopStmtMatcher)
     {
         $this->variableNaming = $variableNaming;
         $this->exprInTopStmtMatcher = $exprInTopStmtMatcher;
     }
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
         return new RuleDefinition('Downgrade array_key_first() and array_key_last() functions', [new CodeSample(<<<'CODE_SAMPLE'
 class SomeClass
@@ -79,43 +77,38 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
-        return [StmtsAwareInterface::class, Switch_::class, Return_::class, Expression::class, Echo_::class];
+        return array_merge(NodeGroup::STMTS_AWARE, [Switch_::class, Return_::class, Expression::class, Echo_::class]);
     }
     /**
-     * @param StmtsAwareInterface|Switch_|Return_|Expression|Echo_ $node
+     * @param StmtsAware|Switch_|Return_|Expression|Echo_ $node
      * @return Node[]|null
      */
-    public function refactor(Node $node) : ?array
+    public function refactor(Node $node): ?array
     {
-        $exprArrayKeyFirst = $this->exprInTopStmtMatcher->match($node, function (Node $subNode) : bool {
+        // single subtree traversal matching either name, instead of one full traversal per name
+        $funcCall = $this->exprInTopStmtMatcher->match($node, function (Node $subNode): bool {
             if (!$subNode instanceof FuncCall) {
                 return \false;
             }
-            return $this->isName($subNode, 'array_key_first');
+            return $this->isName($subNode, 'array_key_first') || $this->isName($subNode, 'array_key_last');
         });
-        if ($exprArrayKeyFirst instanceof FuncCall) {
-            return $this->refactorArrayKeyFirst($exprArrayKeyFirst, $node);
-        }
-        $exprArrayKeyLast = $this->exprInTopStmtMatcher->match($node, function (Node $subNode) : bool {
-            if (!$subNode instanceof FuncCall) {
-                return \false;
+        if ($funcCall instanceof FuncCall) {
+            if ($this->isName($funcCall, 'array_key_first')) {
+                return $this->refactorArrayKeyFirst($funcCall, $node);
             }
-            return $this->isName($subNode, 'array_key_last');
-        });
-        if ($exprArrayKeyLast instanceof FuncCall) {
-            return $this->refactorArrayKeyLast($exprArrayKeyLast, $node);
+            return $this->refactorArrayKeyLast($funcCall, $node);
         }
         return null;
     }
-    private function resolveVariableFromCallLikeScope(CallLike $callLike, ?Scope $scope) : Variable
+    private function resolveVariableFromCallLikeScope(CallLike $callLike, ?Scope $scope): Variable
     {
         /** @var MethodCall|FuncCall|StaticCall|New_|NullsafeMethodCall $callLike */
         if ($callLike instanceof New_) {
-            $variableName = (string) $this->nodeNameResolver->getName($callLike->class);
+            $variableName = (string) $this->getName($callLike->class);
         } else {
-            $variableName = (string) $this->nodeNameResolver->getName($callLike->name);
+            $variableName = (string) $this->getName($callLike->name);
         }
         if ($variableName === '') {
             $variableName = 'array';
@@ -124,9 +117,9 @@ CODE_SAMPLE
     }
     /**
      * @return Node[]|null
-     * @param \Rector\Contract\PhpParser\Node\StmtsAwareInterface|\PhpParser\Node\Stmt\Switch_|\PhpParser\Node\Stmt\Return_|\PhpParser\Node\Stmt\Expression|\PhpParser\Node\Stmt\Echo_ $stmt
+     * @param \PhpParser\Node|\PhpParser\Node\Stmt\Switch_|\PhpParser\Node\Stmt\Return_|\PhpParser\Node\Stmt\Expression|\PhpParser\Node\Stmt\Echo_ $stmt
      */
-    private function refactorArrayKeyFirst(FuncCall $funcCall, $stmt) : ?array
+    private function refactorArrayKeyFirst(FuncCall $funcCall, $stmt): ?array
     {
         $args = $funcCall->getArgs();
         if (!isset($args[0])) {
@@ -154,9 +147,9 @@ CODE_SAMPLE
     }
     /**
      * @return Node[]|null
-     * @param \Rector\Contract\PhpParser\Node\StmtsAwareInterface|\PhpParser\Node\Stmt\Switch_|\PhpParser\Node\Stmt\Return_|\PhpParser\Node\Stmt\Expression|\PhpParser\Node\Stmt\Echo_ $stmt
+     * @param \PhpParser\Node|\PhpParser\Node\Stmt\Switch_|\PhpParser\Node\Stmt\Return_|\PhpParser\Node\Stmt\Expression|\PhpParser\Node\Stmt\Echo_ $stmt
      */
-    private function refactorArrayKeyLast(FuncCall $funcCall, $stmt) : ?array
+    private function refactorArrayKeyLast(FuncCall $funcCall, $stmt): ?array
     {
         $args = $funcCall->getArgs();
         $firstArg = $args[0] ?? null;
@@ -181,8 +174,8 @@ CODE_SAMPLE
         }
         $newStmts[] = $stmt;
         $resetExpression = new Expression($this->nodeFactory->createFuncCall('reset', [$array]));
-        if ($stmt instanceof StmtsAwareInterface) {
-            $stmt->stmts = \array_merge([$resetExpression], $stmt->stmts);
+        if (property_exists($stmt, 'stmts')) {
+            $stmt->stmts = array_merge([$resetExpression], $stmt->stmts);
         } elseif (!$stmt instanceof Return_) {
             $newStmts[] = $resetExpression;
         }
@@ -190,7 +183,7 @@ CODE_SAMPLE
     }
     /**
      * @param \PhpParser\Node\Expr|\PhpParser\Node\Expr\Variable $array
-     * @param \PhpParser\Node\Stmt|\Rector\Contract\PhpParser\Node\StmtsAwareInterface $stmt
+     * @param \PhpParser\Node\Stmt|\PhpParser\Node $stmt
      * @return \PhpParser\Node\Stmt\Expression|\PhpParser\Node\Stmt\If_
      */
     private function resolvePrependNewStmt($array, FuncCall $funcCall, $stmt)
@@ -214,7 +207,7 @@ CODE_SAMPLE
             return $this->resolveCastedArray($expr->expr);
         }
         $scope = $expr->getAttribute(AttributeKey::SCOPE);
-        $variableName = $this->variableNaming->createCountedValueName((string) $this->nodeNameResolver->getName($expr->expr), $scope);
+        $variableName = $this->variableNaming->createCountedValueName((string) $this->getName($expr->expr), $scope);
         return new Variable($variableName);
     }
 }

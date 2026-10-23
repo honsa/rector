@@ -4,25 +4,25 @@ declare (strict_types=1);
 namespace Rector\Arguments\ValueObject;
 
 use PHPStan\Type\ObjectType;
-use Rector\Arguments\Contract\ReplaceArgumentDefaultValueInterface;
 use Rector\Validation\RectorAssert;
-final class ReplaceArgumentDefaultValue implements ReplaceArgumentDefaultValueInterface
+/**
+ * @deprecated Use custom rule instead, see ReplaceArgumentDefaultValueRector deprecation.
+ */
+final class ReplaceArgumentDefaultValue
 {
     /**
      * @readonly
-     * @var string
      */
-    private $class;
+    private string $class;
     /**
      * @readonly
-     * @var string
      */
-    private $method;
+    private string $method;
     /**
      * @var int<0, max>
      * @readonly
      */
-    private $position;
+    private int $position;
     /**
      * @readonly
      * @var mixed
@@ -33,10 +33,6 @@ final class ReplaceArgumentDefaultValue implements ReplaceArgumentDefaultValueIn
      * @var mixed
      */
     private $valueAfter;
-    /**
-     * @var string
-     */
-    public const ANY_VALUE_BEFORE = '*ANY_VALUE_BEFORE*';
     /**
      * @param int<0, max> $position
      * @param mixed $valueBefore
@@ -51,15 +47,15 @@ final class ReplaceArgumentDefaultValue implements ReplaceArgumentDefaultValueIn
         $this->valueAfter = $valueAfter;
         RectorAssert::className($class);
     }
-    public function getObjectType() : ObjectType
+    public function getObjectType(): ObjectType
     {
         return new ObjectType($this->class);
     }
-    public function getMethod() : string
+    public function getMethod(): string
     {
         return $this->method;
     }
-    public function getPosition() : int
+    public function getPosition(): int
     {
         return $this->position;
     }

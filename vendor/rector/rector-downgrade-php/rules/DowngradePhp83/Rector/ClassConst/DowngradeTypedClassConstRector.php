@@ -7,8 +7,8 @@ use PhpParser\Node;
 use PhpParser\Node\Stmt\ClassConst;
 use Rector\NodeManipulator\PropertyDecorator;
 use Rector\Rector\AbstractRector;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
 /**
  * @changelog https://wiki.php.net/rfc/typed_class_constants
  *
@@ -18,9 +18,8 @@ final class DowngradeTypedClassConstRector extends AbstractRector
 {
     /**
      * @readonly
-     * @var \Rector\NodeManipulator\PropertyDecorator
      */
-    private $propertyDecorator;
+    private PropertyDecorator $propertyDecorator;
     public function __construct(PropertyDecorator $propertyDecorator)
     {
         $this->propertyDecorator = $propertyDecorator;
@@ -28,11 +27,11 @@ final class DowngradeTypedClassConstRector extends AbstractRector
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [ClassConst::class];
     }
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
         return new RuleDefinition('Remove typed class constant', [new CodeSample(<<<'CODE_SAMPLE'
 final class SomeClass
@@ -54,7 +53,7 @@ CODE_SAMPLE
     /**
      * @param ClassConst $node
      */
-    public function refactor(Node $node) : ?Node
+    public function refactor(Node $node): ?Node
     {
         if (!$node->type instanceof Node) {
             return null;

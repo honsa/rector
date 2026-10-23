@@ -11,14 +11,14 @@ use PhpParser\Node\Stmt\Class_;
 use PhpParser\Node\Stmt\ClassMethod;
 use PhpParser\Node\Stmt\Return_;
 use Rector\Rector\AbstractRector;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
 /**
  * @see \Rector\Tests\Privatization\Rector\MethodCall\PrivatizeLocalGetterToPropertyRector\PrivatizeLocalGetterToPropertyRectorTest
  */
 final class PrivatizeLocalGetterToPropertyRector extends AbstractRector
 {
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
         return new RuleDefinition('Privatize getter of local property to property', [new CodeSample(<<<'CODE_SAMPLE'
 class SomeClass
@@ -57,19 +57,19 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [Class_::class];
     }
     /**
      * @param Class_ $node
      */
-    public function refactor(Node $node) : ?Node
+    public function refactor(Node $node): ?Node
     {
         $class = $node;
         $hasChanged = \false;
         $isFinal = $class->isFinal();
-        $this->traverseNodesWithCallable($node, function (Node $node) use($class, &$hasChanged, $isFinal) : ?PropertyFetch {
+        $this->traverseNodesWithCallable($node, function (Node $node) use ($class, &$hasChanged, $isFinal): ?PropertyFetch {
             if (!$node instanceof MethodCall) {
                 return null;
             }
@@ -79,7 +79,7 @@ CODE_SAMPLE
             if (!$node->var instanceof Variable) {
                 return null;
             }
-            if (!$this->nodeNameResolver->isName($node->var, 'this')) {
+            if (!$this->isName($node->var, 'this')) {
                 return null;
             }
             $methodName = $this->getName($node->name);
@@ -105,10 +105,13 @@ CODE_SAMPLE
         }
         return null;
     }
-    private function matchLocalPropertyFetchInGetterMethod(ClassMethod $classMethod) : ?PropertyFetch
+    private function matchLocalPropertyFetchInGetterMethod(ClassMethod $classMethod): ?PropertyFetch
     {
+        if ($classMethod->params !== []) {
+            return null;
+        }
         $stmts = (array) $classMethod->stmts;
-        if (\count($stmts) !== 1) {
+        if (count($stmts) !== 1) {
             return null;
         }
         $onlyStmt = $stmts[0] ?? null;

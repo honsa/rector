@@ -9,13 +9,14 @@
  * file that was distributed with this source code.
  */
 declare (strict_types=1);
-namespace RectorPrefix202411\Fidry\CpuCoreCounter\Finder;
+namespace RectorPrefix202610\Fidry\CpuCoreCounter\Finder;
 
-use RectorPrefix202411\Fidry\CpuCoreCounter\Executor\ProcessExecutor;
-use RectorPrefix202411\Fidry\CpuCoreCounter\Executor\ProcOpenExecutor;
+use RectorPrefix202610\Fidry\CpuCoreCounter\Executor\ProcessExecutor;
+use RectorPrefix202610\Fidry\CpuCoreCounter\Executor\ProcOpenExecutor;
+use function explode;
 use function filter_var;
-use function function_exists;
 use function is_int;
+use function method_exists;
 use function sprintf;
 use function trim;
 use const FILTER_VALIDATE_INT;
@@ -30,10 +31,15 @@ abstract class ProcOpenBasedFinder implements CpuCoreFinder
     {
         $this->executor = $executor ?? new ProcOpenExecutor();
     }
-    public function diagnose() : string
+    public function diagnose(): string
     {
-        if (!function_exists('proc_open')) {
-            return 'The function "proc_open" is not available.';
+        // Keep this check until getUnavailabilityReason() is declared in
+        // ProcessExecutor: implementations written before it may not have it.
+        if (method_exists($this->executor, 'getUnavailabilityReason')) {
+            $unavailabilityReason = $this->executor->getUnavailabilityReason();
+            if (null !== $unavailabilityReason) {
+                return $unavailabilityReason;
+            }
         }
         $command = $this->getCommand();
         $output = $this->executor->execute($command);
@@ -47,7 +53,7 @@ abstract class ProcOpenBasedFinder implements CpuCoreFinder
     /**
      * @return positive-int|null
      */
-    public function find() : ?int
+    public function find(): ?int
     {
         $output = $this->executor->execute($this->getCommand());
         if (null === $output) {
@@ -62,10 +68,29 @@ abstract class ProcOpenBasedFinder implements CpuCoreFinder
      *
      * @return positive-int|null
      */
-    protected function countCpuCores(string $process) : ?int
+    protected function countCpuCores(string $process): ?int
     {
         $cpuCount = filter_var($process, FILTER_VALIDATE_INT);
         return is_int($cpuCount) && $cpuCount > 0 ? $cpuCount : null;
     }
-    protected abstract function getCommand() : string;
+    /**
+     * Sums the lines that are a number, e.g. for commands that output one row
+     * per CPU socket. Other lines, such as headers, are ignored.
+     *
+     * @internal
+     *
+     * @return positive-int|null
+     */
+    protected function sumCpuCoresPerLine(string $process): ?int
+    {
+        $cpuCount = 0;
+        foreach (explode("\n", $process) as $line) {
+            $lineCpuCount = filter_var($line, FILTER_VALIDATE_INT);
+            if (is_int($lineCpuCount) && $lineCpuCount > 0) {
+                $cpuCount += $lineCpuCount;
+            }
+        }
+        return $cpuCount > 0 ? $cpuCount : null;
+    }
+    abstract protected function getCommand(): string;
 }

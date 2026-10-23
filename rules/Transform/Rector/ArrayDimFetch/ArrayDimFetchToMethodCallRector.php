@@ -4,58 +4,39 @@ declare (strict_types=1);
 namespace Rector\Transform\Rector\ArrayDimFetch;
 
 use PhpParser\Node;
-use PhpParser\Node\Arg;
 use PhpParser\Node\Expr\ArrayDimFetch;
-use PhpParser\Node\Expr\MethodCall;
-use PHPStan\Type\ObjectType;
-use Rector\Contract\Rector\ConfigurableRectorInterface;
+use PhpParser\Node\Expr\Assign;
+use PhpParser\Node\Expr\Isset_;
+use PhpParser\Node\Stmt\Unset_;
+use Rector\Configuration\Deprecation\Contract\DeprecatedInterface;
+use Rector\Exception\ShouldNotHappenException;
 use Rector\Rector\AbstractRector;
-use Rector\Transform\ValueObject\ArrayDimFetchToMethodCall;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\ConfiguredCodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
-use RectorPrefix202411\Webmozart\Assert\Assert;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
 /**
- * @see \Rector\Tests\Transform\Rector\ArrayDimFetch\ArrayDimFetchToMethodCallRector\ArrayDimFetchToMethodCallRectorTest
+ * @deprecated This rule is deprecated, as too niche and never used. It can also create invalid calls on objects without the target methods. Use a specific rule instead.
  */
-class ArrayDimFetchToMethodCallRector extends AbstractRector implements ConfigurableRectorInterface
+final class ArrayDimFetchToMethodCallRector extends AbstractRector implements DeprecatedInterface
 {
-    /**
-     * @var ArrayDimFetchToMethodCall[]
-     */
-    private $arrayDimFetchToMethodCalls;
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
-        return new RuleDefinition('Change array dim fetch to method call', [new ConfiguredCodeSample(<<<'CODE_SAMPLE'
-$app['someService'];
+        return new RuleDefinition('Change array dim fetch to method call', [new CodeSample(<<<'CODE_SAMPLE'
+$object['key'];
 CODE_SAMPLE
 , <<<'CODE_SAMPLE'
-$app->make('someService');
+$object->get('key');
 CODE_SAMPLE
-, [new ArrayDimFetchToMethodCall(new ObjectType('SomeClass'), 'make')])]);
+)]);
     }
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
-        return [ArrayDimFetch::class];
+        return [Assign::class, Isset_::class, Unset_::class, ArrayDimFetch::class];
     }
     /**
-     * @param ArrayDimFetch $node
+     * @param Assign|Isset_|Unset_|ArrayDimFetch $node
      */
-    public function refactor(Node $node) : ?MethodCall
+    public function refactor(Node $node): ?Node
     {
-        if (!$node->dim instanceof Node) {
-            return null;
-        }
-        foreach ($this->arrayDimFetchToMethodCalls as $arrayDimFetchToMethodCall) {
-            if (!$this->isObjectType($node->var, $arrayDimFetchToMethodCall->getObjectType())) {
-                continue;
-            }
-            return new MethodCall($node->var, $arrayDimFetchToMethodCall->getMethod(), [new Arg($node->dim)]);
-        }
-        return null;
-    }
-    public function configure(array $configuration) : void
-    {
-        Assert::allIsInstanceOf($configuration, ArrayDimFetchToMethodCall::class);
-        $this->arrayDimFetchToMethodCalls = $configuration;
+        throw new ShouldNotHappenException(sprintf('"%s" rule is deprecated, as too niche and never used. Use a specific rule instead', self::class));
     }
 }

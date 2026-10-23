@@ -8,11 +8,11 @@ use PhpParser\Node\Param;
 use PhpParser\Node\Stmt\ClassMethod;
 use Rector\PHPStanStaticTypeMapper\Enum\TypeKind;
 use Rector\Rector\AbstractRector;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
 use Rector\StaticTypeMapper\StaticTypeMapper;
 use Rector\Symfony\NodeAnalyzer\RouteRequiredParamNameToTypesResolver;
 use Rector\Symfony\TypeAnalyzer\ControllerAnalyzer;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
 /**
  * @see \Rector\Symfony\Tests\CodeQuality\Rector\ClassMethod\ParamTypeFromRouteRequiredRegexRector\ParamTypeFromRouteRequiredRegexRectorTest
  */
@@ -20,26 +20,23 @@ final class ParamTypeFromRouteRequiredRegexRector extends AbstractRector
 {
     /**
      * @readonly
-     * @var \Rector\Symfony\TypeAnalyzer\ControllerAnalyzer
      */
-    private $controllerAnalyzer;
+    private ControllerAnalyzer $controllerAnalyzer;
     /**
      * @readonly
-     * @var \Rector\Symfony\NodeAnalyzer\RouteRequiredParamNameToTypesResolver
      */
-    private $routeRequiredParamNameToTypesResolver;
+    private RouteRequiredParamNameToTypesResolver $routeRequiredParamNameToTypesResolver;
     /**
      * @readonly
-     * @var \Rector\StaticTypeMapper\StaticTypeMapper
      */
-    private $staticTypeMapper;
+    private StaticTypeMapper $staticTypeMapper;
     public function __construct(ControllerAnalyzer $controllerAnalyzer, RouteRequiredParamNameToTypesResolver $routeRequiredParamNameToTypesResolver, StaticTypeMapper $staticTypeMapper)
     {
         $this->controllerAnalyzer = $controllerAnalyzer;
         $this->routeRequiredParamNameToTypesResolver = $routeRequiredParamNameToTypesResolver;
         $this->staticTypeMapper = $staticTypeMapper;
     }
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
         return new RuleDefinition('Complete strict param type declaration based on route annotation', [new CodeSample(<<<'CODE_SAMPLE'
 use Symfony\Bundle\FrameworkBundle\Controller\Controller;
@@ -78,14 +75,14 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [ClassMethod::class];
     }
     /**
      * @param ClassMethod $node
      */
-    public function refactor(Node $node) : ?Node
+    public function refactor(Node $node): ?Node
     {
         if (!$node->isPublic()) {
             return null;
@@ -103,7 +100,7 @@ CODE_SAMPLE
             if (!$param instanceof Param) {
                 continue;
             }
-            if ($param->type !== null) {
+            if ($param->type instanceof Node) {
                 continue;
             }
             $param->type = $this->staticTypeMapper->mapPHPStanTypeToPhpParserNode($paramType, TypeKind::PARAM);
@@ -114,7 +111,7 @@ CODE_SAMPLE
         }
         return $node;
     }
-    private function findParamByName(ClassMethod $classMethod, string $paramName) : ?Param
+    private function findParamByName(ClassMethod $classMethod, string $paramName): ?Param
     {
         foreach ($classMethod->getParams() as $param) {
             if (!$this->isName($param, $paramName)) {

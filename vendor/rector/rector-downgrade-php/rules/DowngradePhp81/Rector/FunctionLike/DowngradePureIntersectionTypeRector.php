@@ -11,8 +11,8 @@ use PhpParser\Node\Stmt\ClassMethod;
 use PhpParser\Node\Stmt\Function_;
 use Rector\PhpDocDecorator\PhpDocFromTypeDeclarationDecorator;
 use Rector\Rector\AbstractRector;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
 /**
  * @changelog https://wiki.php.net/rfc/pure-intersection-types
  *
@@ -22,9 +22,8 @@ final class DowngradePureIntersectionTypeRector extends AbstractRector
 {
     /**
      * @readonly
-     * @var \Rector\PhpDocDecorator\PhpDocFromTypeDeclarationDecorator
      */
-    private $phpDocFromTypeDeclarationDecorator;
+    private PhpDocFromTypeDeclarationDecorator $phpDocFromTypeDeclarationDecorator;
     public function __construct(PhpDocFromTypeDeclarationDecorator $phpDocFromTypeDeclarationDecorator)
     {
         $this->phpDocFromTypeDeclarationDecorator = $phpDocFromTypeDeclarationDecorator;
@@ -32,11 +31,11 @@ final class DowngradePureIntersectionTypeRector extends AbstractRector
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [ArrowFunction::class, ClassMethod::class, Closure::class, Function_::class];
     }
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
         return new RuleDefinition('Remove the intersection type params and returns, add @param/@return tags instead', [new CodeSample(<<<'CODE_SAMPLE'
 function someFunction(): Foo&Bar
@@ -56,7 +55,7 @@ CODE_SAMPLE
     /**
      * @param ArrowFunction|ClassMethod|Closure|Function_ $node
      */
-    public function refactor(Node $node) : ?Node
+    public function refactor(Node $node): ?Node
     {
         $paramDecorated = \false;
         foreach ($node->getParams() as $param) {

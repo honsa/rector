@@ -4,8 +4,7 @@ declare (strict_types=1);
 namespace Rector\Caching\ValueObject\Storage;
 
 use FilesystemIterator;
-use RectorPrefix202411\Nette\Utils\FileSystem;
-use RectorPrefix202411\Nette\Utils\Random;
+use RectorPrefix202610\Nette\Utils\FileSystem;
 use Rector\Caching\Contract\ValueObject\Storage\CacheStorageInterface;
 use Rector\Caching\ValueObject\CacheFilePaths;
 use Rector\Caching\ValueObject\CacheItem;
@@ -18,15 +17,13 @@ final class FileCacheStorage implements CacheStorageInterface
 {
     /**
      * @readonly
-     * @var string
      */
-    private $directory;
+    private string $directory;
     /**
      * @readonly
-     * @var \Symfony\Component\Filesystem\Filesystem
      */
-    private $filesystem;
-    public function __construct(string $directory, \RectorPrefix202411\Symfony\Component\Filesystem\Filesystem $filesystem)
+    private \RectorPrefix202610\Symfony\Component\Filesystem\Filesystem $filesystem;
+    public function __construct(string $directory, \RectorPrefix202610\Symfony\Component\Filesystem\Filesystem $filesystem)
     {
         $this->directory = $directory;
         $this->filesystem = $filesystem;
@@ -42,7 +39,7 @@ final class FileCacheStorage implements CacheStorageInterface
             if (!\is_file($filePath)) {
                 return null;
             }
-            $cacheItem = (require $filePath);
+            $cacheItem = require $filePath;
             if (!$cacheItem instanceof CacheItem) {
                 return null;
             }
@@ -55,42 +52,34 @@ final class FileCacheStorage implements CacheStorageInterface
     /**
      * @param mixed $data
      */
-    public function save(string $key, string $variableKey, $data) : void
+    public function save(string $key, string $variableKey, $data): void
     {
         $cacheFilePaths = $this->getCacheFilePaths($key);
         $this->filesystem->mkdir($cacheFilePaths->getFirstDirectory());
         $this->filesystem->mkdir($cacheFilePaths->getSecondDirectory());
         $filePath = $cacheFilePaths->getFilePath();
-        $tmpPath = \sprintf('%s/%s.tmp', $this->directory, Random::generate());
         $errorBefore = \error_get_last();
         $exported = @\var_export(new CacheItem($variableKey, $data), \true);
         $errorAfter = \error_get_last();
         if ($errorAfter !== null && $errorBefore !== $errorAfter) {
             throw new CachingException(\sprintf('Error occurred while saving item %s (%s) to cache: %s', $key, $variableKey, $errorAfter['message']));
         }
-        // for performance reasons we don't use SmartFileSystem
-        FileSystem::write($tmpPath, \sprintf("<?php declare(strict_types = 1);\n\nreturn %s;", $exported), null);
-        $copySuccess = @\copy($tmpPath, $filePath);
-        @\unlink($tmpPath);
-        if ($copySuccess) {
-            return;
-        }
-        if (\DIRECTORY_SEPARATOR === '/' || !\file_exists($filePath)) {
-            throw new CachingException(\sprintf('Could not write data to cache file %s.', $filePath));
-        }
+        // atomic write via temp file + rename(), so a parallel reader never sees a partially written cache file
+        // handles the Windows rename() edge case too, see https://github.com/rectorphp/rector/issues/9876
+        FileSystem::writeAtomic($filePath, \sprintf("<?php declare(strict_types = 1);\n\nreturn %s;", $exported), null);
     }
-    public function clean(string $key) : void
+    public function clean(string $key): void
     {
         $cacheFilePaths = $this->getCacheFilePaths($key);
         $this->processRemoveCacheFilePath($cacheFilePaths);
         $this->processRemoveEmptyDirectory($cacheFilePaths->getSecondDirectory());
         $this->processRemoveEmptyDirectory($cacheFilePaths->getFirstDirectory());
     }
-    public function clear() : void
+    public function clear(): void
     {
         FileSystem::delete($this->directory);
     }
-    private function processRemoveCacheFilePath(CacheFilePaths $cacheFilePaths) : void
+    private function processRemoveCacheFilePath(CacheFilePaths $cacheFilePaths): void
     {
         $filePath = $cacheFilePaths->getFilePath();
         if (!$this->filesystem->exists($filePath)) {
@@ -98,7 +87,7 @@ final class FileCacheStorage implements CacheStorageInterface
         }
         FileSystem::delete($filePath);
     }
-    private function processRemoveEmptyDirectory(string $directory) : void
+    private function processRemoveEmptyDirectory(string $directory): void
     {
         if (!$this->filesystem->exists($directory)) {
             return;
@@ -108,18 +97,18 @@ final class FileCacheStorage implements CacheStorageInterface
         }
         FileSystem::delete($directory);
     }
-    private function isNotEmptyDirectory(string $directory) : bool
+    private function isNotEmptyDirectory(string $directory): bool
     {
         // FilesystemIterator will initially point to the first file in the folder - if there are no files in the folder, valid() will return false
         $filesystemIterator = new FilesystemIterator($directory);
         return $filesystemIterator->valid();
     }
-    private function getCacheFilePaths(string $key) : CacheFilePaths
+    private function getCacheFilePaths(string $key): CacheFilePaths
     {
-        $keyHash = \sha1($key);
-        $firstDirectory = \sprintf('%s/%s', $this->directory, \substr($keyHash, 0, 2));
-        $secondDirectory = \sprintf('%s/%s', $firstDirectory, \substr($keyHash, 2, 2));
-        $filePath = \sprintf('%s/%s.php', $secondDirectory, $keyHash);
+        $keyHash = sha1($key);
+        $firstDirectory = sprintf('%s/%s', $this->directory, substr($keyHash, 0, 2));
+        $secondDirectory = sprintf('%s/%s', $firstDirectory, (string) substr($keyHash, 2, 2));
+        $filePath = sprintf('%s/%s.php', $secondDirectory, $keyHash);
         return new CacheFilePaths($firstDirectory, $secondDirectory, $filePath);
     }
 }

@@ -3,7 +3,7 @@
 declare (strict_types=1);
 namespace Rector\StaticTypeMapper\ValueObject\Type;
 
-use PHPStan\TrinaryLogic;
+use PHPStan\Type\IsSuperTypeOfResult;
 use PHPStan\Type\ObjectType;
 use PHPStan\Type\Type;
 /**
@@ -15,7 +15,7 @@ final class ShortenedObjectType extends ObjectType
      * @var class-string
      * @readonly
      */
-    private $fullyQualifiedName;
+    private string $fullyQualifiedName;
     /**
      * @param class-string $fullyQualifiedName
      */
@@ -24,20 +24,31 @@ final class ShortenedObjectType extends ObjectType
         $this->fullyQualifiedName = $fullyQualifiedName;
         parent::__construct($shortName);
     }
-    public function isSuperTypeOf(Type $type) : TrinaryLogic
+    public function isSuperTypeOf(Type $type): IsSuperTypeOfResult
     {
         $fullyQualifiedObjectType = new ObjectType($this->fullyQualifiedName);
         return $fullyQualifiedObjectType->isSuperTypeOf($type);
     }
-    public function getShortName() : string
+    public function getShortName(): string
     {
         return $this->getClassName();
     }
     /**
      * @return class-string
      */
-    public function getFullyQualifiedName() : string
+    public function getFullyQualifiedName(): string
     {
         return $this->fullyQualifiedName;
+    }
+    public function equals(Type $type): bool
+    {
+        $isEqual = parent::equals($type);
+        if ($isEqual) {
+            return \true;
+        }
+        if ($type instanceof self || get_class($type) === ObjectType::class) {
+            return $type->getClassName() === $this->fullyQualifiedName;
+        }
+        return \false;
     }
 }

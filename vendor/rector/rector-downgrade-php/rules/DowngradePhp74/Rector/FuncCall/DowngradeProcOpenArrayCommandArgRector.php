@@ -9,14 +9,14 @@ use PhpParser\Node\Expr\FuncCall;
 use PhpParser\Node\Expr\Ternary;
 use PhpParser\Node\Scalar\String_;
 use Rector\Rector\AbstractRector;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
 /**
  * @see \Rector\Tests\DowngradePhp74\Rector\FuncCall\DowngradeProcOpenArrayCommandArgRector\DowngradeProcOpenArrayCommandArgRectorTest
  */
 final class DowngradeProcOpenArrayCommandArgRector extends AbstractRector
 {
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
         return new RuleDefinition('Change array command argument on proc_open to implode spaced string', [new CodeSample(<<<'CODE_SAMPLE'
 return proc_open($command, $descriptorspec, $pipes, null, null, ['suppress_errors' => true]);
@@ -29,14 +29,14 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [FuncCall::class];
     }
     /**
      * @param FuncCall $node
      */
-    public function refactor(Node $node) : ?FuncCall
+    public function refactor(Node $node): ?FuncCall
     {
         if (!$this->isName($node, 'proc_open')) {
             return null;
@@ -45,6 +45,11 @@ CODE_SAMPLE
             return null;
         }
         $firstArg = $node->getArgs()[0];
+        // already wrapped by this rule on a previous pass; the wrapped ternary type is string|array,
+        // so the string check below does not catch it and the rule would keep nesting the wrap
+        if ($firstArg->value instanceof Ternary && $firstArg->value->cond instanceof FuncCall && $this->isName($firstArg->value->cond, 'is_array')) {
+            return null;
+        }
         $commandType = $this->getType($firstArg->value);
         if ($commandType->isString()->yes()) {
             return null;

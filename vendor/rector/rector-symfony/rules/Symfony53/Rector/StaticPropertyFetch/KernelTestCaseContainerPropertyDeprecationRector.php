@@ -7,24 +7,29 @@ use PhpParser\Node;
 use PhpParser\Node\Expr\StaticPropertyFetch;
 use PhpParser\Node\Name;
 use Rector\Rector\AbstractRector;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
 use Rector\Symfony\NodeAnalyzer\SymfonyTestCaseAnalyzer;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
+use Rector\VersionBonding\Contract\ComposerPackageConstraintInterface;
+use Rector\VersionBonding\ValueObject\ComposerPackageConstraint;
 /**
  * @see \Rector\Symfony\Tests\Symfony53\Rector\StaticPropertyFetch\KernelTestCaseContainerPropertyDeprecationRector\KernelTestCaseContainerPropertyDeprecationRectorTest
  */
-final class KernelTestCaseContainerPropertyDeprecationRector extends AbstractRector
+final class KernelTestCaseContainerPropertyDeprecationRector extends AbstractRector implements ComposerPackageConstraintInterface
 {
     /**
      * @readonly
-     * @var \Rector\Symfony\NodeAnalyzer\SymfonyTestCaseAnalyzer
      */
-    private $symfonyTestCaseAnalyzer;
+    private SymfonyTestCaseAnalyzer $symfonyTestCaseAnalyzer;
     public function __construct(SymfonyTestCaseAnalyzer $symfonyTestCaseAnalyzer)
     {
         $this->symfonyTestCaseAnalyzer = $symfonyTestCaseAnalyzer;
     }
-    public function getRuleDefinition() : RuleDefinition
+    public function provideComposerPackageConstraint(): ComposerPackageConstraint
+    {
+        return new ComposerPackageConstraint('symfony/framework-bundle', '>=5.3');
+    }
+    public function getRuleDefinition(): RuleDefinition
     {
         return new RuleDefinition('Simplify use of assertions in WebTestCase', [new CodeSample(<<<'CODE_SAMPLE'
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
@@ -53,19 +58,19 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [StaticPropertyFetch::class];
     }
     /**
      * @param StaticPropertyFetch $node
      */
-    public function refactor(Node $node) : ?Node
+    public function refactor(Node $node): ?Node
     {
         if (!$this->symfonyTestCaseAnalyzer->isInKernelTestCase($node)) {
             return null;
         }
-        if ($this->nodeNameResolver->getName($node->name) !== 'container') {
+        if ($this->getName($node->name) !== 'container') {
             return null;
         }
         if (!$node->class instanceof Name || (string) $node->class !== 'self') {

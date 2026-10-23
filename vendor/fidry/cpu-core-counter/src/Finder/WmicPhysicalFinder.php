@@ -9,9 +9,8 @@
  * file that was distributed with this source code.
  */
 declare (strict_types=1);
-namespace RectorPrefix202411\Fidry\CpuCoreCounter\Finder;
+namespace RectorPrefix202610\Fidry\CpuCoreCounter\Finder;
 
-use function preg_match;
 /**
  * Find the number of physical CPU cores for Windows.
  *
@@ -19,21 +18,16 @@ use function preg_match;
  */
 final class WmicPhysicalFinder extends ProcOpenBasedFinder
 {
-    private const CPU_CORE_COUNT_REGEX = '/NumberOfCores[\\s\\n]+(?<count>\\d+)/';
-    protected function getCommand() : string
+    protected function getCommand(): string
     {
         return 'wmic cpu get NumberOfCores';
     }
-    public function toString() : string
+    public function toString(): string
     {
         return 'WmicPhysicalFinder';
     }
-    protected function countCpuCores(string $process) : ?int
+    protected function countCpuCores(string $process): ?int
     {
-        if (0 === preg_match(self::CPU_CORE_COUNT_REGEX, $process, $matches)) {
-            return parent::countCpuCores($process);
-        }
-        $count = $matches['count'];
-        return parent::countCpuCores($count);
+        return $this->sumCpuCoresPerLine($process);
     }
 }

@@ -8,8 +8,8 @@ use PhpParser\Node\Expr\MethodCall;
 use PhpParser\Node\Expr\StaticCall;
 use Rector\PHPUnit\NodeAnalyzer\TestsNodeAnalyzer;
 use Rector\Rector\AbstractRector;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
 /**
  * @changelog https://github.com/symfony/symfony/pull/29685/files
  *
@@ -19,14 +19,13 @@ final class UseSpecificWithMethodRector extends AbstractRector
 {
     /**
      * @readonly
-     * @var \Rector\PHPUnit\NodeAnalyzer\TestsNodeAnalyzer
      */
-    private $testsNodeAnalyzer;
+    private TestsNodeAnalyzer $testsNodeAnalyzer;
     public function __construct(TestsNodeAnalyzer $testsNodeAnalyzer)
     {
         $this->testsNodeAnalyzer = $testsNodeAnalyzer;
     }
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
         return new RuleDefinition('Changes ->with() to more specific method', [new CodeSample(<<<'CODE_SAMPLE'
 class SomeClass extends PHPUnit\Framework\TestCase
@@ -59,14 +58,14 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [MethodCall::class, StaticCall::class];
     }
     /**
      * @param MethodCall|StaticCall $node
      */
-    public function refactor(Node $node) : ?Node
+    public function refactor(Node $node): ?Node
     {
         if (!$this->testsNodeAnalyzer->isInTestClass($node)) {
             return null;
@@ -78,6 +77,7 @@ CODE_SAMPLE
         if ($node->isFirstClassCallable()) {
             return null;
         }
+        $hasChanged = \false;
         foreach ($node->getArgs() as $i => $argNode) {
             if (!$argNode->value instanceof MethodCall) {
                 continue;
@@ -87,7 +87,11 @@ CODE_SAMPLE
                 continue;
             }
             $node->args[$i] = $methodCall->getArgs()[0];
+            $hasChanged = \true;
         }
-        return $node;
+        if ($hasChanged) {
+            return $node;
+        }
+        return null;
     }
 }

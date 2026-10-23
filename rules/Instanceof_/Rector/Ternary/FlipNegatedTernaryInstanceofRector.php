@@ -9,28 +9,46 @@ use PhpParser\Node\Expr\BooleanNot;
 use PhpParser\Node\Expr\Instanceof_;
 use PhpParser\Node\Expr\Ternary;
 use Rector\Rector\AbstractRector;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
 /**
  * @see \Rector\Tests\Instanceof_\Rector\Ternary\FlipNegatedTernaryInstanceofRector\FlipNegatedTernaryInstanceofRectorTest
  */
 final class FlipNegatedTernaryInstanceofRector extends AbstractRector
 {
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
-        return new RuleDefinition('Flip negated ternary of instanceof to direct use of object', [new CodeSample('echo ! $object instanceof Product ? null : $object->getPrice();', 'echo $object instanceof Product ? $object->getPrice() : null;')]);
+        return new RuleDefinition('Flip negated ternary of `instanceof` to direct use of object', [new CodeSample(<<<'CODE_SAMPLE'
+class SomeClass
+{
+    public function resolvePrice(object $object): ?int
+    {
+        return ! $object instanceof Product ? null : $object->getPrice();
+    }
+}
+CODE_SAMPLE
+, <<<'CODE_SAMPLE'
+class SomeClass
+{
+    public function resolvePrice(object $object): ?int
+    {
+        return $object instanceof Product ? $object->getPrice() : null;
+    }
+}
+CODE_SAMPLE
+)]);
     }
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [Ternary::class];
     }
     /**
      * @param Ternary $node
      */
-    public function refactor(Node $node) : ?Node
+    public function refactor(Node $node): ?Node
     {
         if (!$node->if instanceof Expr) {
             return null;

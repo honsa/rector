@@ -14,22 +14,17 @@ final class ServiceMapProvider
 {
     /**
      * @readonly
-     * @var \Rector\Symfony\ValueObjectFactory\ServiceMapFactory
      */
-    private $serviceMapFactory;
-    /**
-     * @var \Rector\Symfony\ValueObject\ServiceMap\ServiceMap|null
-     */
-    private $serviceMap;
-    public function __construct(ServiceMapFactory $serviceMapFactory, ?ServiceMap $serviceMap = null)
+    private ServiceMapFactory $serviceMapFactory;
+    private ?ServiceMap $serviceMap = null;
+    public function __construct(ServiceMapFactory $serviceMapFactory)
     {
         $this->serviceMapFactory = $serviceMapFactory;
-        $this->serviceMap = $serviceMap;
     }
-    public function provide() : ServiceMap
+    public function provide(): ServiceMap
     {
         // avoid caching in tests
-        if (\defined('PHPUNIT_COMPOSER_INSTALL')) {
+        if (defined('PHPUNIT_COMPOSER_INSTALL')) {
             $this->serviceMap = null;
         }
         if ($this->serviceMap instanceof ServiceMap) {

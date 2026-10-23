@@ -7,14 +7,14 @@ use PhpParser\Node;
 use PhpParser\Node\Expr\BooleanNot;
 use PhpParser\Node\Expr\Cast\Bool_;
 use Rector\Rector\AbstractRector;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
 /**
  * @see \Rector\Tests\CodeQuality\Rector\BooleanNot\ReplaceMultipleBooleanNotRector\ReplaceMultipleBooleanNotRectorTest
  */
 final class ReplaceMultipleBooleanNotRector extends AbstractRector
 {
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
         return new RuleDefinition('Replace the Double not operator (!!) by type-casting to boolean', [new CodeSample(<<<'CODE_SAMPLE'
 $bool = !!$var;
@@ -27,14 +27,14 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [BooleanNot::class];
     }
     /**
      * @param BooleanNot $node
      */
-    public function refactor(Node $node) : ?Node
+    public function refactor(Node $node): ?Node
     {
         $depth = 0;
         $expr = $node->expr;

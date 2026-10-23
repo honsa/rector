@@ -17,21 +17,17 @@ final class SetGroup
      */
     public const PHP = 'php';
     /**
+     * @deprecated Use composer-based.php set instead
+     * Version-based set provider
      * @var string
      */
-    public const TWIG = 'twig';
+    public const LARAVEL = 'laravel';
     /**
+     * @deprecated Use composer-based.php set instead
+     * Version-based set provider
      * @var string
      */
-    public const PHPUNIT = 'phpunit';
-    /**
-     * @var string
-     */
-    public const DOCTRINE = 'doctrine';
-    /**
-     * @var string
-     */
-    public const SYMFONY = 'symfony';
+    public const DRUPAL = 'drupal';
     /**
      * @var string
      */

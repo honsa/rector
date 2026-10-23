@@ -10,8 +10,8 @@ use Rector\BetterPhpDocParser\PhpDocInfo\PhpDocInfoFactory;
 use Rector\Comments\NodeDocBlock\DocBlockUpdater;
 use Rector\DeadCode\PhpDoc\TagRemover\ReturnTagRemover;
 use Rector\Rector\AbstractRector;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
 /**
  * @see \Rector\Tests\DeadCode\Rector\ClassMethod\RemoveUselessReturnTagRector\RemoveUselessReturnTagRectorTest
  */
@@ -19,26 +19,23 @@ final class RemoveUselessReturnTagRector extends AbstractRector
 {
     /**
      * @readonly
-     * @var \Rector\DeadCode\PhpDoc\TagRemover\ReturnTagRemover
      */
-    private $returnTagRemover;
+    private ReturnTagRemover $returnTagRemover;
     /**
      * @readonly
-     * @var \Rector\Comments\NodeDocBlock\DocBlockUpdater
      */
-    private $docBlockUpdater;
+    private DocBlockUpdater $docBlockUpdater;
     /**
      * @readonly
-     * @var \Rector\BetterPhpDocParser\PhpDocInfo\PhpDocInfoFactory
      */
-    private $phpDocInfoFactory;
+    private PhpDocInfoFactory $phpDocInfoFactory;
     public function __construct(ReturnTagRemover $returnTagRemover, DocBlockUpdater $docBlockUpdater, PhpDocInfoFactory $phpDocInfoFactory)
     {
         $this->returnTagRemover = $returnTagRemover;
         $this->docBlockUpdater = $docBlockUpdater;
         $this->phpDocInfoFactory = $phpDocInfoFactory;
     }
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
         return new RuleDefinition('Remove @return docblock with same type as defined in PHP', [new CodeSample(<<<'CODE_SAMPLE'
 use stdClass;
@@ -68,15 +65,19 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [ClassMethod::class, Function_::class];
     }
     /**
      * @param ClassMethod|Function_ $node
      */
-    public function refactor(Node $node) : ?Node
+    public function refactor(Node $node): ?Node
     {
+        // early return if no @return tag is present
+        if (strpos((string) $node->getDocComment(), '@return') === \false) {
+            return null;
+        }
         $phpDocInfo = $this->phpDocInfoFactory->createFromNodeOrEmpty($node);
         $hasChanged = $this->returnTagRemover->removeReturnTagIfUseless($phpDocInfo, $node);
         if (!$hasChanged) {

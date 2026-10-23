@@ -6,17 +6,16 @@ namespace Rector\Php54\Rector\Break_;
 use PhpParser\Node;
 use PhpParser\Node\Expr;
 use PhpParser\Node\Expr\Variable;
-use PhpParser\Node\Scalar\LNumber;
+use PhpParser\Node\Scalar\Int_;
 use PhpParser\Node\Stmt\Break_;
 use PhpParser\Node\Stmt\Continue_;
 use PHPStan\Type\Constant\ConstantIntegerType;
-use PHPStan\Type\ConstantType;
 use Rector\PhpParser\Node\Value\ValueResolver;
 use Rector\Rector\AbstractRector;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
 use Rector\ValueObject\PhpVersionFeature;
 use Rector\VersionBonding\Contract\MinPhpVersionInterface;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
 /**
  * @see \Rector\Tests\Php54\Rector\Break_\RemoveZeroBreakContinueRector\RemoveZeroBreakContinueRectorTest
  */
@@ -24,18 +23,17 @@ final class RemoveZeroBreakContinueRector extends AbstractRector implements MinP
 {
     /**
      * @readonly
-     * @var \Rector\PhpParser\Node\Value\ValueResolver
      */
-    private $valueResolver;
+    private ValueResolver $valueResolver;
     public function __construct(ValueResolver $valueResolver)
     {
         $this->valueResolver = $valueResolver;
     }
-    public function provideMinPhpVersion() : int
+    public function provideMinPhpVersion(): int
     {
         return PhpVersionFeature::NO_ZERO_BREAK;
     }
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
         return new RuleDefinition('Remove 0 from break and continue', [new CodeSample(<<<'CODE_SAMPLE'
 class SomeClass
@@ -72,19 +70,19 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [Break_::class, Continue_::class];
     }
     /**
      * @param Break_|Continue_ $node
      */
-    public function refactor(Node $node) : ?Node
+    public function refactor(Node $node): ?Node
     {
         if (!$node->num instanceof Expr) {
             return null;
         }
-        if ($node->num instanceof LNumber) {
+        if ($node->num instanceof Int_) {
             $number = $this->valueResolver->getValue($node->num);
             if ($number > 1) {
                 return null;
@@ -101,19 +99,21 @@ CODE_SAMPLE
         return null;
     }
     /**
+     * @template TNode of Break_|Continue_
      * @param \PhpParser\Node\Stmt\Break_|\PhpParser\Node\Stmt\Continue_ $stmt
+     * @return TNode|null
      */
-    private function processVariableNum($stmt, Variable $numVariable) : ?Node
+    private function processVariableNum($stmt, Variable $numVariable)
     {
         $staticType = $this->getType($numVariable);
-        if ($staticType instanceof ConstantType) {
+        if ($staticType->isConstantValue()->yes()) {
             if ($staticType instanceof ConstantIntegerType) {
                 if ($staticType->getValue() === 0) {
                     $stmt->num = null;
                     return $stmt;
                 }
                 if ($staticType->getValue() > 0) {
-                    $stmt->num = new LNumber($staticType->getValue());
+                    $stmt->num = new Int_($staticType->getValue());
                     return $stmt;
                 }
             }

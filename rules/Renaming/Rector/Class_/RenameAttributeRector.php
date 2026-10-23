@@ -6,27 +6,28 @@ namespace Rector\Renaming\Rector\Class_;
 use PhpParser\Node;
 use PhpParser\Node\Attribute;
 use PhpParser\Node\Name\FullyQualified;
+use PhpParser\Node\Param;
 use PhpParser\Node\Stmt\Class_;
 use PhpParser\Node\Stmt\ClassMethod;
 use PhpParser\Node\Stmt\Property;
 use Rector\Contract\Rector\ConfigurableRectorInterface;
 use Rector\Rector\AbstractRector;
 use Rector\Renaming\ValueObject\RenameAttribute;
+use Rector\RuleDoc\CodeSample\ConfiguredCodeSample;
+use Rector\RuleDoc\RuleDefinition;
 use Rector\ValueObject\PhpVersionFeature;
 use Rector\VersionBonding\Contract\MinPhpVersionInterface;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\ConfiguredCodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
-use RectorPrefix202411\Webmozart\Assert\Assert;
+use RectorPrefix202610\Webmozart\Assert\Assert;
 /**
  * @see \Rector\Tests\Renaming\Rector\Class_\RenameAttributeRector\RenameAttributeRectorTest
  */
 final class RenameAttributeRector extends AbstractRector implements ConfigurableRectorInterface, MinPhpVersionInterface
 {
     /**
-     * @var RenameAttribute[]
+     * @var array<string, RenameAttribute[]>
      */
-    private $renameAttributes = [];
-    public function getRuleDefinition() : RuleDefinition
+    private array $renameAttributesByOldAttribute = [];
+    public function getRuleDefinition(): RuleDefinition
     {
         return new RuleDefinition('Rename attribute class names', [new ConfiguredCodeSample(<<<'CODE_SAMPLE'
 #[SimpleRoute()]
@@ -45,20 +46,20 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
-        return [Class_::class, ClassMethod::class, Property::class];
+        return [Class_::class, ClassMethod::class, Property::class, Param::class];
     }
     /**
-     * @param Class_|ClassMethod|Property $node
+     * @param Class_|ClassMethod|Property|Param $node
      */
-    public function refactor(Node $node) : ?Node
+    public function refactor(Node $node): ?Node
     {
         $hasChanged = \false;
         foreach ($node->attrGroups as $attrGroup) {
             foreach ($attrGroup->attrs as $attr) {
                 $newAttributeName = $this->matchNewAttributeName($attr);
-                if (!\is_string($newAttributeName)) {
+                if (!is_string($newAttributeName)) {
                     continue;
                 }
                 $attr->name = new FullyQualified($newAttributeName);
@@ -73,18 +74,26 @@ CODE_SAMPLE
     /**
      * @param mixed[] $configuration
      */
-    public function configure(array $configuration) : void
+    public function configure(array $configuration): void
     {
         Assert::allIsAOf($configuration, RenameAttribute::class);
-        $this->renameAttributes = $configuration;
+        // bucket by lowercased old attribute name (class names are case-insensitive)
+        $this->renameAttributesByOldAttribute = [];
+        foreach ($configuration as $renameAttribute) {
+            $this->renameAttributesByOldAttribute[strtolower($renameAttribute->getOldAttribute())][] = $renameAttribute;
+        }
     }
-    public function provideMinPhpVersion() : int
+    public function provideMinPhpVersion(): int
     {
         return PhpVersionFeature::ATTRIBUTES;
     }
-    private function matchNewAttributeName(Attribute $attribute) : ?string
+    private function matchNewAttributeName(Attribute $attribute): ?string
     {
-        foreach ($this->renameAttributes as $renameAttribute) {
+        $attributeName = $this->getName($attribute->name);
+        if ($attributeName === null) {
+            return null;
+        }
+        foreach ($this->renameAttributesByOldAttribute[strtolower($attributeName)] ?? [] as $renameAttribute) {
             if ($this->isName($attribute->name, $renameAttribute->getOldAttribute())) {
                 return $renameAttribute->getNewAttribute();
             }

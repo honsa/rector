@@ -4,27 +4,33 @@ declare (strict_types=1);
 namespace Rector\Doctrine\Dbal40\Rector\MethodCall;
 
 use PhpParser\Node;
-use PhpParser\Node\Expr\ArrayItem;
 use PhpParser\Node\Expr\MethodCall;
 use PhpParser\Node\Identifier;
 use PHPStan\Type\ObjectType;
+use Rector\Doctrine\Enum\DoctrineClass;
 use Rector\Rector\AbstractRector;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
+use Rector\VersionBonding\Contract\ComposerPackageConstraintInterface;
+use Rector\VersionBonding\ValueObject\ComposerPackageConstraint;
 /**
  * @see https://github.com/doctrine/dbal/blob/4.0.x/UPGRADE.md#bc-break-removed-compositeexpression-methods
  * @see \Rector\Doctrine\Tests\Dbal40\Rector\MethodCall\ChangeCompositeExpressionAddMultipleWithWithRector\ChangeCompositeExpressionAddMultipleWithWithRectorTest
  */
-final class ChangeCompositeExpressionAddMultipleWithWithRector extends AbstractRector
+final class ChangeCompositeExpressionAddMultipleWithWithRector extends AbstractRector implements ComposerPackageConstraintInterface
 {
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [MethodCall::class];
     }
-    public function getRuleDefinition() : RuleDefinition
+    public function provideComposerPackageConstraint(): ComposerPackageConstraint
+    {
+        return new ComposerPackageConstraint('doctrine/dbal', '>=4.0 <6.0');
+    }
+    public function getRuleDefinition(): RuleDefinition
     {
         return new RuleDefinition('Change CompositeExpression ->addMultiple($parts) to ->with(...$parts)', [new CodeSample(<<<'CODE_SAMPLE'
 use Doctrine\ORM\EntityRepository;
@@ -57,20 +63,20 @@ CODE_SAMPLE
     /**
      * @param MethodCall $node
      */
-    public function refactor(Node $node) : ?Node
+    public function refactor(Node $node): ?Node
     {
         if (!$this->isName($node->name, 'addMultiple')) {
-            return null;
-        }
-        if (!$this->nodeTypeResolver->isObjectType($node->var, new ObjectType('Doctrine\\DBAL\\Query\\Expression\\CompositeExpression'))) {
             return null;
         }
         if ($node->isFirstClassCallable()) {
             return null;
         }
+        if (!$this->nodeTypeResolver->isObjectType($node->var, new ObjectType(DoctrineClass::COMPOSITE_EXPRESSION))) {
+            return null;
+        }
         $node->name = new Identifier('with');
         $firstArg = $node->getArgs()[0];
-        $firstArg->value = new ArrayItem($firstArg->value, null, \false, [], \true);
+        $firstArg->unpack = \true;
         return $node;
     }
 }

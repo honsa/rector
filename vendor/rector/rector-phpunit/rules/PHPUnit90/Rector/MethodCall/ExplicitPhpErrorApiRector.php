@@ -11,36 +11,43 @@ use PhpParser\Node\Expr\StaticCall;
 use Rector\PHPUnit\NodeAnalyzer\TestsNodeAnalyzer;
 use Rector\PHPUnit\NodeFactory\AssertCallFactory;
 use Rector\Rector\AbstractRector;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
+use Rector\VersionBonding\Contract\ComposerPackageConstraintInterface;
+use Rector\VersionBonding\ValueObject\ComposerPackageConstraint;
 /**
  * @changelog https://github.com/sebastianbergmann/phpunit/blob/master/ChangeLog-9.0.md
  * @changelog https://github.com/sebastianbergmann/phpunit/commit/1ba2e3e1bb091acda3139f8a9259fa8161f3242d
  *
  * @see \Rector\PHPUnit\Tests\PHPUnit90\Rector\MethodCall\ExplicitPhpErrorApiRector\ExplicitPhpErrorApiRectorTest
  */
-final class ExplicitPhpErrorApiRector extends AbstractRector
+final class ExplicitPhpErrorApiRector extends AbstractRector implements ComposerPackageConstraintInterface
 {
     /**
      * @readonly
-     * @var \Rector\PHPUnit\NodeFactory\AssertCallFactory
      */
-    private $assertCallFactory;
+    private AssertCallFactory $assertCallFactory;
     /**
      * @readonly
-     * @var \Rector\PHPUnit\NodeAnalyzer\TestsNodeAnalyzer
      */
-    private $testsNodeAnalyzer;
+    private TestsNodeAnalyzer $testsNodeAnalyzer;
+    /**
+     * the expectDeprecation() family was added in PHPUnit 8.4 and removed in PHPUnit 10.0
+     */
+    public function provideComposerPackageConstraint(): ComposerPackageConstraint
+    {
+        return new ComposerPackageConstraint('phpunit/phpunit', '>=8.4 <10.0');
+    }
     /**
      * @var array<string, string>
      */
-    private const REPLACEMENTS = ['PHPUnit\\Framework\\TestCase\\Notice' => 'expectNotice', 'PHPUnit\\Framework\\TestCase\\Deprecated' => 'expectDeprecation', 'PHPUnit\\Framework\\TestCase\\Error' => 'expectError', 'PHPUnit\\Framework\\TestCase\\Warning' => 'expectWarning'];
+    private const REPLACEMENTS = ['PHPUnit\Framework\TestCase\Notice' => 'expectNotice', 'PHPUnit\Framework\TestCase\Deprecated' => 'expectDeprecation', 'PHPUnit\Framework\TestCase\Error' => 'expectError', 'PHPUnit\Framework\TestCase\Warning' => 'expectWarning'];
     public function __construct(AssertCallFactory $assertCallFactory, TestsNodeAnalyzer $testsNodeAnalyzer)
     {
         $this->assertCallFactory = $assertCallFactory;
         $this->testsNodeAnalyzer = $testsNodeAnalyzer;
     }
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
         return new RuleDefinition('Use explicit API for expecting PHP errors, warnings, and notices', [new CodeSample(<<<'CODE_SAMPLE'
 final class SomeTest extends \PHPUnit\Framework\TestCase
@@ -71,7 +78,7 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [MethodCall::class, StaticCall::class];
     }
@@ -93,8 +100,9 @@ CODE_SAMPLE
         return null;
     }
     /**
+     * @template TCall of MethodCall|StaticCall
      * @param \PhpParser\Node\Expr\MethodCall|\PhpParser\Node\Expr\StaticCall $node
-     * @return null|\PhpParser\Node\Expr\MethodCall|\PhpParser\Node\Expr\StaticCall
+     * @return ($node is MethodCall ? MethodCall : StaticCall)|null
      */
     private function replaceExceptionWith($node, string $exceptionClass, string $explicitMethod)
     {
@@ -113,7 +121,7 @@ CODE_SAMPLE
     /**
      * Detects "SomeClass::class"
      */
-    private function isClassConstReference(Expr $expr, string $className) : bool
+    private function isClassConstReference(Expr $expr, string $className): bool
     {
         if (!$expr instanceof ClassConstFetch) {
             return \false;

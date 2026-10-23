@@ -4,39 +4,20 @@ declare (strict_types=1);
 namespace Rector\Transform\Rector\StaticCall;
 
 use PhpParser\Node;
-use PhpParser\Node\Expr\MethodCall;
-use PhpParser\Node\Expr\New_;
-use PhpParser\Node\Expr\StaticCall;
-use PhpParser\Node\Name\FullyQualified;
 use PhpParser\Node\Stmt\Class_;
-use PHPStan\Analyser\Scope;
+use Rector\Configuration\Deprecation\Contract\DeprecatedInterface;
 use Rector\Contract\Rector\ConfigurableRectorInterface;
 use Rector\Exception\ShouldNotHappenException;
-use Rector\Rector\AbstractScopeAwareRector;
-use Rector\Transform\NodeAnalyzer\FuncCallStaticCallToMethodCallAnalyzer;
+use Rector\Rector\AbstractRector;
+use Rector\RuleDoc\CodeSample\ConfiguredCodeSample;
+use Rector\RuleDoc\RuleDefinition;
 use Rector\Transform\ValueObject\StaticCallToMethodCall;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\ConfiguredCodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
-use RectorPrefix202411\Webmozart\Assert\Assert;
 /**
- * @see \Rector\Tests\Transform\Rector\StaticCall\StaticCallToMethodCallRector\StaticCallToMethodCallRectorTest
+ * @deprecated This rule is deprecated, as passing a service through the constructor to replace a static call is risky and this generic rule is legacy. Write a custom rule for the exact project case instead.
  */
-final class StaticCallToMethodCallRector extends AbstractScopeAwareRector implements ConfigurableRectorInterface
+final class StaticCallToMethodCallRector extends AbstractRector implements ConfigurableRectorInterface, DeprecatedInterface
 {
-    /**
-     * @readonly
-     * @var \Rector\Transform\NodeAnalyzer\FuncCallStaticCallToMethodCallAnalyzer
-     */
-    private $funcCallStaticCallToMethodCallAnalyzer;
-    /**
-     * @var StaticCallToMethodCall[]
-     */
-    private $staticCallsToMethodCalls = [];
-    public function __construct(FuncCallStaticCallToMethodCallAnalyzer $funcCallStaticCallToMethodCallAnalyzer)
-    {
-        $this->funcCallStaticCallToMethodCallAnalyzer = $funcCallStaticCallToMethodCallAnalyzer;
-    }
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
         return new RuleDefinition('Change static call to service method via constructor injection', [new ConfiguredCodeSample(<<<'CODE_SAMPLE'
 use Nette\Utils\FileSystem;
@@ -70,65 +51,26 @@ class SomeClass
     }
 }
 CODE_SAMPLE
-, [new StaticCallToMethodCall('Nette\\Utils\\FileSystem', 'write', 'App\\Custom\\SmartFileSystem', 'dumpFile')])]);
+, [new StaticCallToMethodCall('Nette\Utils\FileSystem', 'write', 'App\Custom\SmartFileSystem', 'dumpFile')])]);
     }
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [Class_::class];
     }
     /**
      * @param Class_ $node
      */
-    public function refactorWithScope(Node $node, Scope $scope) : ?Node
+    public function refactor(Node $node): ?Node
     {
-        $class = $node;
-        $hasChanged = \false;
-        foreach ($node->getMethods() as $classMethod) {
-            $this->traverseNodesWithCallable($classMethod, function (Node $node) use($class, $classMethod, &$hasChanged) {
-                if (!$node instanceof StaticCall) {
-                    return null;
-                }
-                foreach ($this->staticCallsToMethodCalls as $staticCallToMethodCall) {
-                    if (!$staticCallToMethodCall->isStaticCallMatch($node)) {
-                        continue;
-                    }
-                    if ($classMethod->isStatic()) {
-                        return $this->refactorToInstanceCall($node, $staticCallToMethodCall);
-                    }
-                    $expr = $this->funcCallStaticCallToMethodCallAnalyzer->matchTypeProvidingExpr($class, $classMethod, $staticCallToMethodCall->getClassObjectType());
-                    if ($staticCallToMethodCall->getMethodName() === '*') {
-                        $methodName = $this->getName($node->name);
-                    } else {
-                        $methodName = $staticCallToMethodCall->getMethodName();
-                    }
-                    if (!\is_string($methodName)) {
-                        throw new ShouldNotHappenException();
-                    }
-                    $hasChanged = \true;
-                    return new MethodCall($expr, $methodName, $node->args);
-                }
-                return $node;
-            });
-        }
-        if ($hasChanged) {
-            return $node;
-        }
-        return null;
+        throw new ShouldNotHappenException(sprintf('"%s" rule is deprecated, as passing a service through the constructor to replace a static call is risky; write a custom rule for the exact project case instead', self::class));
     }
     /**
      * @param mixed[] $configuration
      */
-    public function configure(array $configuration) : void
+    public function configure(array $configuration): void
     {
-        Assert::allIsAOf($configuration, StaticCallToMethodCall::class);
-        $this->staticCallsToMethodCalls = $configuration;
-    }
-    private function refactorToInstanceCall(StaticCall $staticCall, StaticCallToMethodCall $staticCallToMethodCall) : MethodCall
-    {
-        $new = new New_(new FullyQualified($staticCallToMethodCall->getClassType()));
-        return new MethodCall($new, $staticCallToMethodCall->getMethodName(), $staticCall->args);
     }
 }

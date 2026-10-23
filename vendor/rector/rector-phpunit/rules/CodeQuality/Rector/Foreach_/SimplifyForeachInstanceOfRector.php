@@ -10,14 +10,14 @@ use PhpParser\Node\Expr\StaticCall;
 use PhpParser\Node\Stmt\Expression;
 use PhpParser\Node\Stmt\Foreach_;
 use Rector\Rector\AbstractRector;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
 /**
  * @see \Rector\PHPUnit\Tests\CodeQuality\Rector\Foreach_\SimplifyForeachInstanceOfRector\SimplifyForeachInstanceOfRectorTest
  */
 final class SimplifyForeachInstanceOfRector extends AbstractRector
 {
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
         return new RuleDefinition('Simplify unnecessary foreach check of instances', [new CodeSample(<<<'CODE_SAMPLE'
 foreach ($foos as $foo) {
@@ -32,16 +32,16 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [Foreach_::class];
     }
     /**
      * @param Foreach_ $node
      */
-    public function refactor(Node $node) : ?Node
+    public function refactor(Node $node): ?Node
     {
-        if (\count($node->stmts) !== 1) {
+        if (count($node->stmts) !== 1) {
             return null;
         }
         $onlyStmt = $node->stmts[0];
@@ -62,7 +62,7 @@ CODE_SAMPLE
             return null;
         }
         // skip if there is a custom message included; it might be per item
-        if (\count($expr->getArgs()) === 3) {
+        if (count($expr->getArgs()) === 3) {
             return null;
         }
         $newArgs = [$expr->getArgs()[0], new Arg($node->expr)];

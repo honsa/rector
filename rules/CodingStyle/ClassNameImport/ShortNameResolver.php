@@ -8,7 +8,6 @@ use PhpParser\Node\Identifier;
 use PhpParser\Node\Name;
 use PhpParser\Node\Stmt;
 use PhpParser\Node\Stmt\ClassLike;
-use PhpParser\Node\Stmt\Namespace_;
 use PHPStan\PhpDocParser\Ast\PhpDoc\PhpDocTagNode;
 use PHPStan\PhpDocParser\Ast\Type\IdentifierTypeNode;
 use Rector\BetterPhpDocParser\PhpDocInfo\PhpDocInfo;
@@ -19,7 +18,6 @@ use Rector\NodeTypeResolver\Node\AttributeKey;
 use Rector\PhpDocParser\NodeTraverser\SimpleCallableNodeTraverser;
 use Rector\PhpDocParser\PhpDocParser\PhpDocNodeTraverser;
 use Rector\PhpParser\Node\BetterNodeFinder;
-use Rector\PhpParser\Node\CustomNode\FileWithoutNamespace;
 use Rector\ValueObject\Application\File;
 /**
  * @see \Rector\Tests\CodingStyle\ClassNameImport\ShortNameResolver\ShortNameResolverTest
@@ -28,33 +26,36 @@ final class ShortNameResolver
 {
     /**
      * @readonly
-     * @var \Rector\PhpDocParser\NodeTraverser\SimpleCallableNodeTraverser
      */
-    private $simpleCallableNodeTraverser;
+    private SimpleCallableNodeTraverser $simpleCallableNodeTraverser;
     /**
      * @readonly
-     * @var \Rector\NodeNameResolver\NodeNameResolver
      */
-    private $nodeNameResolver;
+    private NodeNameResolver $nodeNameResolver;
     /**
      * @readonly
-     * @var \Rector\PhpParser\Node\BetterNodeFinder
      */
-    private $betterNodeFinder;
+    private BetterNodeFinder $betterNodeFinder;
     /**
      * @readonly
-     * @var \Rector\CodingStyle\NodeAnalyzer\UseImportNameMatcher
      */
-    private $useImportNameMatcher;
+    private UseImportNameMatcher $useImportNameMatcher;
     /**
      * @readonly
-     * @var \Rector\BetterPhpDocParser\PhpDocInfo\PhpDocInfoFactory
      */
-    private $phpDocInfoFactory;
+    private PhpDocInfoFactory $phpDocInfoFactory;
+    private ?File $shortNamesFile = null;
+    private int $shortNamesVersion = 0;
     /**
-     * @var array<string, string[]>
+     * @var array<string, string>
      */
-    private $shortNamesByFilePath = [];
+    private array $shortNamesToFullyQualifiedNames = [];
+    private ?File $shortClassLikeNamesFile = null;
+    private int $shortClassLikeNamesVersion = 0;
+    /**
+     * @var string[]
+     */
+    private array $shortClassLikeNames = [];
     public function __construct(SimpleCallableNodeTraverser $simpleCallableNodeTraverser, NodeNameResolver $nodeNameResolver, BetterNodeFinder $betterNodeFinder, UseImportNameMatcher $useImportNameMatcher, PhpDocInfoFactory $phpDocInfoFactory)
     {
         $this->simpleCallableNodeTraverser = $simpleCallableNodeTraverser;
@@ -66,48 +67,63 @@ final class ShortNameResolver
     /**
      * @return array<string, string>
      */
-    public function resolveFromFile(File $file) : array
+    public function resolveFromFile(File $file): array
     {
-        $filePath = $file->getFilePath();
-        if (isset($this->shortNamesByFilePath[$filePath])) {
-            return $this->shortNamesByFilePath[$filePath];
+        // re-resolve when the file stmts change, so later iterations don't read a stale map
+        if ($file === $this->shortNamesFile && $file->getNewStmtsVersion() === $this->shortNamesVersion) {
+            return $this->shortNamesToFullyQualifiedNames;
         }
-        $shortNamesToFullyQualifiedNames = $this->resolveForStmts($file->getNewStmts());
-        $this->shortNamesByFilePath[$filePath] = $shortNamesToFullyQualifiedNames;
-        return $shortNamesToFullyQualifiedNames;
+        $this->shortNamesFile = $file;
+        $this->shortNamesVersion = $file->getNewStmtsVersion();
+        $this->shortNamesToFullyQualifiedNames = $this->resolveForStmts($file->getNewStmts());
+        return $this->shortNamesToFullyQualifiedNames;
     }
     /**
      * Collects all "class <SomeClass>", "trait <SomeTrait>" and "interface <SomeInterface>"
      * @return string[]
      */
-    public function resolveShortClassLikeNames(File $file) : array
+    public function resolveShortClassLikeNames(File $file): array
     {
-        $newStmts = $file->getNewStmts();
-        /** @var Namespace_[]|FileWithoutNamespace[] $namespaces */
-        $namespaces = \array_filter($newStmts, static function (Stmt $stmt) : bool {
-            return $stmt instanceof Namespace_ || $stmt instanceof FileWithoutNamespace;
-        });
-        if (\count($namespaces) !== 1) {
-            // only handle single namespace nodes
+        // asked for every imported name, while the class-likes only change with a new version of the file stmts
+        if ($file === $this->shortClassLikeNamesFile && $file->getNewStmtsVersion() === $this->shortClassLikeNamesVersion) {
+            return $this->shortClassLikeNames;
+        }
+        $this->shortClassLikeNamesFile = $file;
+        $this->shortClassLikeNamesVersion = $file->getNewStmtsVersion();
+        $this->shortClassLikeNames = $this->findShortClassLikeNames($file);
+        return $this->shortClassLikeNames;
+    }
+    /**
+     * @return string[]
+     */
+    private function findShortClassLikeNames(File $file): array
+    {
+        $rootNode = $file->getUseImportsRootNode();
+        // nothing to resolve
+        if (!$rootNode instanceof Node) {
             return [];
         }
-        $namespace = \current($namespaces);
         /** @var ClassLike[] $classLikes */
-        $classLikes = $this->betterNodeFinder->findInstanceOf($namespace->stmts, ClassLike::class);
+        $classLikes = $this->betterNodeFinder->findInstanceOf($rootNode->stmts, ClassLike::class);
         $shortClassLikeNames = [];
         foreach ($classLikes as $classLike) {
             $shortClassLikeNames[] = $this->nodeNameResolver->getShortName($classLike);
         }
-        return \array_unique($shortClassLikeNames);
+        return array_unique($shortClassLikeNames);
     }
     /**
      * @param Stmt[] $stmts
      * @return array<string, string>
      */
-    private function resolveForStmts(array $stmts) : array
+    private function resolveForStmts(array $stmts): array
     {
         $shortNamesToFullyQualifiedNames = [];
-        $this->simpleCallableNodeTraverser->traverseNodesWithCallable($stmts, function (Node $node) use(&$shortNamesToFullyQualifiedNames) {
+        $docBlockShortNames = [];
+        // single traversal collects both PHP names and docblock short names, so the file stmts are walked once
+        $this->simpleCallableNodeTraverser->traverseNodesWithCallable($stmts, function (Node $node) use (&$shortNamesToFullyQualifiedNames, &$docBlockShortNames) {
+            foreach ($this->resolveDocBlockShortNames($node) as $docBlockShortName) {
+                $docBlockShortNames[] = $docBlockShortName;
+            }
             // class name is used!
             if ($node instanceof ClassLike && $node->name instanceof Identifier) {
                 $fullyQualifiedName = $this->nodeNameResolver->getName($node);
@@ -125,54 +141,49 @@ final class ShortNameResolver
                 return null;
             }
             // already short
-            if (\strpos($originalName->toString(), '\\') !== \false) {
+            if (strpos($originalName->toString(), '\\') !== \false) {
                 return null;
             }
             $shortNamesToFullyQualifiedNames[$originalName->toString()] = $this->nodeNameResolver->getName($node);
             return null;
         });
-        $docBlockShortNamesToFullyQualifiedNames = $this->resolveFromStmtsDocBlocks($stmts);
+        $docBlockShortNamesToFullyQualifiedNames = $this->fqnizeShortNames($docBlockShortNames, $stmts);
         /** @var array<string, string> $result */
-        $result = \array_merge($shortNamesToFullyQualifiedNames, $docBlockShortNamesToFullyQualifiedNames);
+        $result = array_merge($shortNamesToFullyQualifiedNames, $docBlockShortNamesToFullyQualifiedNames);
         return $result;
     }
     /**
-     * @param Stmt[] $stmts
-     * @return array<string, string>
+     * @return string[]
      */
-    private function resolveFromStmtsDocBlocks(array $stmts) : array
+    private function resolveDocBlockShortNames(Node $node): array
     {
+        $phpDocInfo = $this->phpDocInfoFactory->createFromNode($node);
+        if (!$phpDocInfo instanceof PhpDocInfo) {
+            return [];
+        }
         $shortNames = [];
-        $this->simpleCallableNodeTraverser->traverseNodesWithCallable($stmts, function (Node $node) use(&$shortNames) {
-            // speed up for nodes that are
-            $phpDocInfo = $this->phpDocInfoFactory->createFromNode($node);
-            if (!$phpDocInfo instanceof PhpDocInfo) {
+        $phpDocNodeTraverser = new PhpDocNodeTraverser();
+        $phpDocNodeTraverser->traverseWithCallable($phpDocInfo->getPhpDocNode(), '', static function ($node) use (&$shortNames) {
+            if ($node instanceof PhpDocTagNode) {
+                $shortName = trim($node->name, '@');
+                if (ucfirst($shortName) === $shortName) {
+                    $shortNames[] = $shortName;
+                }
                 return null;
             }
-            $phpDocNodeTraverser = new PhpDocNodeTraverser();
-            $phpDocNodeTraverser->traverseWithCallable($phpDocInfo->getPhpDocNode(), '', static function ($node) use(&$shortNames) {
-                if ($node instanceof PhpDocTagNode) {
-                    $shortName = \trim($node->name, '@');
-                    if (\ucfirst($shortName) === $shortName) {
-                        $shortNames[] = $shortName;
-                    }
-                    return null;
-                }
-                if ($node instanceof IdentifierTypeNode) {
-                    $shortNames[] = $node->name;
-                }
-                return null;
-            });
+            if ($node instanceof IdentifierTypeNode) {
+                $shortNames[] = $node->name;
+            }
             return null;
         });
-        return $this->fqnizeShortNames($shortNames, $stmts);
+        return $shortNames;
     }
     /**
      * @param string[] $shortNames
      * @param Stmt[] $stmts
      * @return array<string, string>
      */
-    private function fqnizeShortNames(array $shortNames, array $stmts) : array
+    private function fqnizeShortNames(array $shortNames, array $stmts): array
     {
         $shortNamesToFullyQualifiedNames = [];
         foreach ($shortNames as $shortName) {

@@ -8,10 +8,10 @@ use PhpParser\Node\Expr\ConstFetch;
 use PhpParser\Node\Name;
 use Rector\Contract\Rector\ConfigurableRectorInterface;
 use Rector\Rector\AbstractRector;
+use Rector\RuleDoc\CodeSample\ConfiguredCodeSample;
+use Rector\RuleDoc\RuleDefinition;
 use Rector\Validation\RectorAssert;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\ConfiguredCodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
-use RectorPrefix202411\Webmozart\Assert\Assert;
+use RectorPrefix202610\Webmozart\Assert\Assert;
 /**
  * @see \Rector\Tests\Renaming\Rector\ConstFetch\RenameConstantRector\RenameConstantRectorTest
  */
@@ -20,8 +20,8 @@ final class RenameConstantRector extends AbstractRector implements ConfigurableR
     /**
      * @var array<string, string>
      */
-    private $oldToNewConstants = [];
-    public function getRuleDefinition() : RuleDefinition
+    private array $oldToNewConstants = [];
+    public function getRuleDefinition(): RuleDefinition
     {
         return new RuleDefinition('Replace constant by new ones', [new ConfiguredCodeSample(<<<'CODE_SAMPLE'
 final class SomeClass
@@ -46,30 +46,33 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [ConstFetch::class];
     }
     /**
      * @param ConstFetch $node
      */
-    public function refactor(Node $node) : ?Node
+    public function refactor(Node $node): ?Node
     {
-        foreach ($this->oldToNewConstants as $oldConstant => $newConstant) {
-            if (!$this->isName($node->name, $oldConstant)) {
-                continue;
-            }
-            $node->name = new Name($newConstant);
-            return $node;
+        $constantName = $this->getName($node->name);
+        if ($constantName === null) {
+            return null;
         }
-        return null;
+        // constant names are case-sensitive, look the rename up directly instead of scanning the map
+        $newConstant = $this->oldToNewConstants[$constantName] ?? null;
+        if ($newConstant === null) {
+            return null;
+        }
+        $node->name = new Name($newConstant);
+        return $node;
     }
     /**
      * @param mixed[] $configuration
      */
-    public function configure(array $configuration) : void
+    public function configure(array $configuration): void
     {
-        Assert::allString(\array_keys($configuration));
+        Assert::allString(array_keys($configuration));
         Assert::allString($configuration);
         foreach ($configuration as $oldConstant => $newConstant) {
             RectorAssert::constantName($oldConstant);

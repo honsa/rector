@@ -8,14 +8,13 @@ final class SimpleStaticType extends StaticType
 {
     /**
      * @readonly
-     * @var string
      */
-    private $className;
+    private string $className;
     public function __construct(string $className)
     {
         $this->className = $className;
     }
-    public function getClassName() : string
+    public function getClassName(): string
     {
         return $this->className;
     }

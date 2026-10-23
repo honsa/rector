@@ -13,8 +13,8 @@ use PhpParser\Node\Expr\Ternary;
 use PhpParser\Node\Scalar\String_;
 use PHPStan\Type\ObjectType;
 use Rector\Rector\AbstractRector;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
 /**
  * @see \Rector\Tests\DowngradePhp80\Rector\MethodCall\DowngradeReflectionGetAttributesRector\DowngradeReflectionGetAttributesRectorTest
  */
@@ -24,7 +24,7 @@ final class DowngradeReflectionGetAttributesRector extends AbstractRector
      * @var string
      */
     private const IS_IF_TERNARY = 'is_if_ternary';
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
         return new RuleDefinition('Remove reflection getAttributes() class method code', [new CodeSample(<<<'CODE_SAMPLE'
 function run(ReflectionClass $reflectionClass)
@@ -43,15 +43,14 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [Ternary::class, MethodCall::class];
     }
     /**
      * @param Ternary|MethodCall $node
-     * @return \PhpParser\Node\Expr\Ternary|null|int
      */
-    public function refactor(Node $node)
+    public function refactor(Node $node): ?\PhpParser\Node\Expr\Ternary
     {
         if ($node instanceof Ternary) {
             if ($node->if instanceof Expr && $node->cond instanceof FuncCall && $this->isName($node->cond, 'method_exists')) {

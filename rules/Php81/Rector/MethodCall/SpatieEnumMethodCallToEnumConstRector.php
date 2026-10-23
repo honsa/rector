@@ -10,10 +10,10 @@ use PhpParser\Node\Expr\PropertyFetch;
 use PhpParser\Node\Expr\StaticCall;
 use PHPStan\Type\ObjectType;
 use Rector\Rector\AbstractRector;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
 use Rector\ValueObject\PhpVersionFeature;
 use Rector\VersionBonding\Contract\MinPhpVersionInterface;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
 /**
  * @see \Rector\Tests\Php81\Rector\MethodCall\MyCLabsMethodCallToEnumConstRector\MyCLabsMethodCallToEnumConstRectorTest
  */
@@ -22,12 +22,12 @@ final class SpatieEnumMethodCallToEnumConstRector extends AbstractRector impleme
     /**
      * @var string
      */
-    private const SPATIE_FQN = 'Spatie\\Enum\\Enum';
+    private const SPATIE_FQN = 'Spatie\Enum\Enum';
     /**
      * @var string[]
      */
     private const ENUM_METHODS = ['from', 'values', 'keys', 'isValid', 'search', 'toArray', 'assertValidValue'];
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
         return new RuleDefinition('Refactor Spatie enum method calls', [new CodeSample(<<<'CODE_SAMPLE'
 $value1 = SomeEnum::SOME_CONSTANT()->getValue();
@@ -46,14 +46,14 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [MethodCall::class, StaticCall::class];
     }
     /**
      * @param MethodCall|StaticCall $node
      */
-    public function refactor(Node $node) : ?Node
+    public function refactor(Node $node): ?Node
     {
         if ($node->name instanceof Expr) {
             return null;
@@ -72,17 +72,17 @@ CODE_SAMPLE
             return null;
         }
         $className = $this->getName($node->class);
-        if (!\is_string($className)) {
+        if (!is_string($className)) {
             return null;
         }
-        $constantName = \strtoupper($enumCaseName);
+        $constantName = strtoupper($enumCaseName);
         return $this->nodeFactory->createClassConstFetch($className, $constantName);
     }
-    public function provideMinPhpVersion() : int
+    public function provideMinPhpVersion(): int
     {
         return PhpVersionFeature::ENUM;
     }
-    private function refactorGetterToMethodCall(MethodCall $methodCall, string $property) : ?PropertyFetch
+    private function refactorGetterToMethodCall(MethodCall $methodCall, string $property): ?PropertyFetch
     {
         if (!$methodCall->var instanceof StaticCall) {
             return null;
@@ -99,31 +99,25 @@ CODE_SAMPLE
         if ($this->shouldOmitEnumCase($enumCaseName)) {
             return null;
         }
-        $upperCaseName = \strtoupper($enumCaseName);
+        $upperCaseName = strtoupper($enumCaseName);
         $classConstFetch = $this->nodeFactory->createClassConstFetch($className, $upperCaseName);
         return new PropertyFetch($classConstFetch, $property);
     }
-    private function refactorMethodCall(MethodCall $methodCall, string $methodName) : ?\PhpParser\Node\Expr\PropertyFetch
+    private function refactorMethodCall(MethodCall $methodCall, string $methodName): ?\PhpParser\Node\Expr\PropertyFetch
     {
+        if (!in_array($methodName, ['getName', 'label', 'getValue', 'value'], \true)) {
+            return null;
+        }
         if (!$this->isObjectType($methodCall->var, new ObjectType(self::SPATIE_FQN))) {
             return null;
         }
-        if ($methodName === 'getName') {
+        if (in_array($methodName, ['getName', 'label'], \true)) {
             return $this->refactorGetterToMethodCall($methodCall, 'name');
         }
-        if ($methodName === 'label') {
-            return $this->refactorGetterToMethodCall($methodCall, 'name');
-        }
-        if ($methodName === 'getValue') {
-            return $this->refactorGetterToMethodCall($methodCall, 'value');
-        }
-        if ($methodName === 'value') {
-            return $this->refactorGetterToMethodCall($methodCall, 'value');
-        }
-        return null;
+        return $this->refactorGetterToMethodCall($methodCall, 'value');
     }
-    private function shouldOmitEnumCase(string $enumCaseName) : bool
+    private function shouldOmitEnumCase(string $enumCaseName): bool
     {
-        return \in_array($enumCaseName, self::ENUM_METHODS, \true);
+        return in_array($enumCaseName, self::ENUM_METHODS, \true);
     }
 }

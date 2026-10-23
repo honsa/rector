@@ -4,9 +4,15 @@ declare (strict_types=1);
 namespace Rector\Skipper\Skipper;
 
 use PhpParser\Node;
+use PHPStan\Reflection\ReflectionProvider;
+use Rector\Configuration\Deprecation\Contract\DeprecatedInterface;
+use Rector\Configuration\Option;
+use Rector\Configuration\Parameter\SimpleParameterProvider;
 use Rector\Contract\Rector\RectorInterface;
 use Rector\ProcessAnalyzer\RectifiedAnalyzer;
-use Rector\Skipper\SkipVoter\ClassSkipVoter;
+use Rector\Skipper\Matcher\FileInfoMatcher;
+use Rector\Skipper\ValueObject\SkipMatch;
+use Rector\Testing\PHPUnit\StaticPHPUnitEnvironment;
 /**
  * @api
  * @see \Rector\Tests\Skipper\Skipper\SkipperTest
@@ -15,55 +21,154 @@ final class Skipper
 {
     /**
      * @readonly
-     * @var \Rector\ProcessAnalyzer\RectifiedAnalyzer
      */
-    private $rectifiedAnalyzer;
+    private RectifiedAnalyzer $rectifiedAnalyzer;
     /**
      * @readonly
-     * @var \Rector\Skipper\Skipper\PathSkipper
      */
-    private $pathSkipper;
+    private \Rector\Skipper\Skipper\PathSkipper $pathSkipper;
     /**
      * @readonly
-     * @var \Rector\Skipper\SkipVoter\ClassSkipVoter
      */
-    private $classSkipVoter;
-    public function __construct(RectifiedAnalyzer $rectifiedAnalyzer, \Rector\Skipper\Skipper\PathSkipper $pathSkipper, ClassSkipVoter $classSkipVoter)
+    private FileInfoMatcher $fileInfoMatcher;
+    /**
+     * @readonly
+     */
+    private ReflectionProvider $reflectionProvider;
+    /**
+     * @var null|array<class-string, string[]|null>
+     */
+    private $skippedClassesToFiles = null;
+    /**
+     * Map of skip element (rule class or global path) to the set of paths matched under it.
+     * Rule-scoped skips collect their matched paths; skip-everywhere rules and global path skips
+     * keep an empty path set, the same shape as the "->withSkip()" config.
+     *
+     * @var array<string, array<string, true>>
+     */
+    private array $usedSkips = [];
+    public function __construct(RectifiedAnalyzer $rectifiedAnalyzer, \Rector\Skipper\Skipper\PathSkipper $pathSkipper, FileInfoMatcher $fileInfoMatcher, ReflectionProvider $reflectionProvider)
     {
         $this->rectifiedAnalyzer = $rectifiedAnalyzer;
         $this->pathSkipper = $pathSkipper;
-        $this->classSkipVoter = $classSkipVoter;
+        $this->fileInfoMatcher = $fileInfoMatcher;
+        $this->reflectionProvider = $reflectionProvider;
     }
-    /**
-     * @param string|object $element
-     */
-    public function shouldSkipElement($element) : bool
+    public function shouldSkipFilePath(string $filePath): bool
     {
-        return $this->shouldSkipElementAndFilePath($element, __FILE__);
-    }
-    public function shouldSkipFilePath(string $filePath) : bool
-    {
-        return $this->pathSkipper->shouldSkip($filePath);
-    }
-    /**
-     * @param string|object $element
-     */
-    public function shouldSkipElementAndFilePath($element, string $filePath) : bool
-    {
-        if (!$this->classSkipVoter->match($element)) {
+        $matchedPath = $this->pathSkipper->matchSkippedPath($filePath);
+        if ($matchedPath === null) {
             return \false;
         }
-        return $this->classSkipVoter->shouldSkip($element, $filePath);
+        $this->markUsed($matchedPath);
+        return \true;
+    }
+    public function shouldSkipRectorAndFile(object $rector, string $filePath): bool
+    {
+        $skipMatch = $this->matchSkip($rector, $filePath);
+        if (!$skipMatch instanceof SkipMatch) {
+            return \false;
+        }
+        $this->markSkipUsed($skipMatch);
+        return \true;
+    }
+    /**
+     * Match a class/path skip without marking it used. Callers that can only tell whether the skip
+     * actually prevented a change later on must mark it used themselves via markSkipUsed().
+     * @param string|object $element
+     */
+    public function matchSkip($element, string $filePath): ?SkipMatch
+    {
+        if (!is_object($element) && !$this->reflectionProvider->hasClass($element)) {
+            return null;
+        }
+        foreach ($this->resolveSkippedClasses() as $skippedClass => $skippedFiles) {
+            if (!is_a($element, $skippedClass, \true)) {
+                continue;
+            }
+            // skip everywhere
+            if (!is_array($skippedFiles)) {
+                return new SkipMatch($skippedClass, null);
+            }
+            // the same path can be skipped under multiple rules, so the matched path is reported
+            // scoped to its rule, not tracked on its own
+            $matchedPath = $this->fileInfoMatcher->matchPattern($filePath, $skippedFiles);
+            if ($matchedPath !== null) {
+                return new SkipMatch($skippedClass, $matchedPath);
+            }
+        }
+        return null;
+    }
+    public function markSkipUsed(SkipMatch $skipMatch): void
+    {
+        $this->markUsed($skipMatch->getSkippedClass(), $skipMatch->getMatchedPath());
+    }
+    /**
+     * Skip elements (rule classes and paths) that actually matched during the run,
+     * so unused skips can be reported and removed.
+     *
+     * @return array<string, string[]>
+     */
+    public function provideUsedSkips(): array
+    {
+        $usedSkips = [];
+        foreach ($this->usedSkips as $skip => $paths) {
+            $usedSkips[$skip] = array_keys($paths);
+        }
+        return $usedSkips;
+    }
+    /**
+     * @return array<class-string, string[]|null>
+     */
+    public function resolveSkippedClasses(): array
+    {
+        // disable cache in tests
+        if (StaticPHPUnitEnvironment::isPHPUnitRun()) {
+            $this->skippedClassesToFiles = null;
+        }
+        // already cached, even only empty array
+        if ($this->skippedClassesToFiles !== null) {
+            return $this->skippedClassesToFiles;
+        }
+        $skip = SimpleParameterProvider::provideArrayParameter(Option::SKIP);
+        $this->skippedClassesToFiles = [];
+        foreach ($skip as $key => $value) {
+            // e.g. [SomeClass::class] → shift values to [SomeClass::class => null]
+            if (is_int($key)) {
+                $key = $value;
+                $value = null;
+            }
+            if (!is_string($key)) {
+                continue;
+            }
+            // this only checks for Rector rules, that are always autoloaded
+            if (!class_exists($key) && !interface_exists($key)) {
+                continue;
+            }
+            $this->skippedClassesToFiles[$key] = $value;
+        }
+        return $this->skippedClassesToFiles;
+    }
+    /**
+     * @return array<class-string<DeprecatedInterface>>
+     */
+    public function resolveDeprecatedSkippedClasses(): array
+    {
+        $skippedClassNames = array_keys($this->resolveSkippedClasses());
+        return array_filter($skippedClassNames, fn(string $class): bool => is_a($class, DeprecatedInterface::class, \true));
     }
     /**
      * @param class-string<RectorInterface> $rectorClass
-     * @param string|object $element
      */
-    public function shouldSkipCurrentNode($element, string $filePath, string $rectorClass, Node $node) : bool
+    public function shouldSkipCurrentNode(string $rectorClass, Node $node): bool
     {
-        if ($this->shouldSkipElementAndFilePath($element, $filePath)) {
-            return \true;
-        }
         return $this->rectifiedAnalyzer->hasRectified($rectorClass, $node);
+    }
+    private function markUsed(string $skip, ?string $path = null): void
+    {
+        $this->usedSkips[$skip] ??= [];
+        if ($path !== null) {
+            $this->usedSkips[$skip][$path] = \true;
+        }
     }
 }

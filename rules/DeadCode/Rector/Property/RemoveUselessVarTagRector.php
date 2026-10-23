@@ -3,13 +3,16 @@
 declare (strict_types=1);
 namespace Rector\DeadCode\Rector\Property;
 
+use PhpParser\Comment\Doc;
 use PhpParser\Node;
+use PhpParser\Node\Stmt\ClassConst;
+use PhpParser\Node\Stmt\Expression;
 use PhpParser\Node\Stmt\Property;
 use Rector\BetterPhpDocParser\PhpDocInfo\PhpDocInfoFactory;
 use Rector\DeadCode\PhpDoc\TagRemover\VarTagRemover;
 use Rector\Rector\AbstractRector;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
 /**
  * @see \Rector\Tests\DeadCode\Rector\Property\RemoveUselessVarTagRector\RemoveUselessVarTagRectorTest
  */
@@ -17,22 +20,20 @@ final class RemoveUselessVarTagRector extends AbstractRector
 {
     /**
      * @readonly
-     * @var \Rector\DeadCode\PhpDoc\TagRemover\VarTagRemover
      */
-    private $varTagRemover;
+    private VarTagRemover $varTagRemover;
     /**
      * @readonly
-     * @var \Rector\BetterPhpDocParser\PhpDocInfo\PhpDocInfoFactory
      */
-    private $phpDocInfoFactory;
+    private PhpDocInfoFactory $phpDocInfoFactory;
     public function __construct(VarTagRemover $varTagRemover, PhpDocInfoFactory $phpDocInfoFactory)
     {
         $this->varTagRemover = $varTagRemover;
         $this->phpDocInfoFactory = $phpDocInfoFactory;
     }
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
-        return new RuleDefinition('Remove unused @var annotation for properties', [new CodeSample(<<<'CODE_SAMPLE'
+        return new RuleDefinition('Remove unused `@var` annotation for properties and class constants', [new CodeSample(<<<'CODE_SAMPLE'
 final class SomeClass
 {
     /**
@@ -52,15 +53,19 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
-        return [Property::class];
+        return [Property::class, ClassConst::class, Expression::class];
     }
     /**
-     * @param Property $node
+     * @param Property|ClassConst|Expression $node
      */
-    public function refactor(Node $node) : ?Node
+    public function refactor(Node $node): ?Node
     {
+        // a @var tag can only live in a docblock; skip nodes without one
+        if (!$node->getDocComment() instanceof Doc) {
+            return null;
+        }
         $phpDocInfo = $this->phpDocInfoFactory->createFromNodeOrEmpty($node);
         $hasChanged = $this->varTagRemover->removeVarTagIfUseless($phpDocInfo, $node);
         if (!$hasChanged) {

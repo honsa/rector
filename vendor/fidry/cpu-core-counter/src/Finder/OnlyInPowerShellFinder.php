@@ -9,10 +9,15 @@
  * file that was distributed with this source code.
  */
 declare (strict_types=1);
-namespace RectorPrefix202411\Fidry\CpuCoreCounter\Finder;
+namespace RectorPrefix202610\Fidry\CpuCoreCounter\Finder;
 
-use function getenv;
+use RectorPrefix202610\Fidry\CpuCoreCounter\Env;
 use function sprintf;
+/**
+ * @deprecated Use OnlyOnOSFamilyFinder::forWindows() instead. The PSModulePath
+ *             environment variable is set system-wide on Windows and is not a
+ *             sign that commands run in PowerShell.
+ */
 final class OnlyInPowerShellFinder implements CpuCoreFinder
 {
     /**
@@ -23,21 +28,21 @@ final class OnlyInPowerShellFinder implements CpuCoreFinder
     {
         $this->decoratedFinder = $decoratedFinder;
     }
-    public function diagnose() : string
+    public function diagnose(): string
     {
-        $powerShellModulePath = getenv('PSModulePath');
+        $powerShellModulePath = Env::get('PSModulePath');
         return $this->skip() ? sprintf('Skipped; no power shell module path detected ("%s").', $powerShellModulePath) : $this->decoratedFinder->diagnose();
     }
-    public function find() : ?int
+    public function find(): ?int
     {
         return $this->skip() ? null : $this->decoratedFinder->find();
     }
-    public function toString() : string
+    public function toString(): string
     {
         return sprintf('OnlyInPowerShellFinder(%s)', $this->decoratedFinder->toString());
     }
-    private function skip() : bool
+    private function skip(): bool
     {
-        return \false === getenv('PSModulePath');
+        return \false === Env::get('PSModulePath');
     }
 }

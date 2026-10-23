@@ -10,8 +10,8 @@ use PhpParser\Node\Expr\BinaryOp\NotIdentical;
 use PhpParser\Node\Expr\BooleanNot;
 use Rector\PhpParser\Node\Value\ValueResolver;
 use Rector\Rector\AbstractRector;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
 /**
  * @see \Rector\Tests\CodeQuality\Rector\Identical\SimplifyBoolIdenticalTrueRector\SimplifyBoolIdenticalTrueRectorTest
  */
@@ -19,14 +19,13 @@ final class SimplifyBoolIdenticalTrueRector extends AbstractRector
 {
     /**
      * @readonly
-     * @var \Rector\PhpParser\Node\Value\ValueResolver
      */
-    private $valueResolver;
+    private ValueResolver $valueResolver;
     public function __construct(ValueResolver $valueResolver)
     {
         $this->valueResolver = $valueResolver;
     }
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
         return new RuleDefinition('Simplify bool value compare to true or false', [new CodeSample(<<<'CODE_SAMPLE'
 class SomeClass
@@ -55,24 +54,29 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [Identical::class, NotIdentical::class];
     }
     /**
      * @param Identical|NotIdentical $node
      */
-    public function refactor(Node $node) : ?Node
+    public function refactor(Node $node): ?Node
     {
-        if ($this->isBooleanButNotTrueAndFalse($node->left)) {
-            return $this->processBoolTypeToNotBool($node, $node->left, $node->right);
+        // the rule only applies when one side is a true/false constant;
+        // check it first to avoid the expensive native type resolution below
+        if ($this->valueResolver->isTrueOrFalse($node->right)) {
+            if ($this->isBooleanButNotTrueAndFalse($node->left)) {
+                return $this->processBoolTypeToNotBool($node, $node->left, $node->right);
+            }
+            return null;
         }
-        if ($this->isBooleanButNotTrueAndFalse($node->right)) {
+        if ($this->valueResolver->isTrueOrFalse($node->left) && $this->isBooleanButNotTrueAndFalse($node->right)) {
             return $this->processBoolTypeToNotBool($node, $node->right, $node->left);
         }
         return null;
     }
-    private function processBoolTypeToNotBool(Node $node, Expr $leftExpr, Expr $rightExpr) : ?Expr
+    private function processBoolTypeToNotBool(Node $node, Expr $leftExpr, Expr $rightExpr): ?Expr
     {
         if ($node instanceof Identical) {
             return $this->refactorIdentical($leftExpr, $rightExpr);
@@ -82,7 +86,7 @@ CODE_SAMPLE
         }
         return null;
     }
-    private function refactorIdentical(Expr $leftExpr, Expr $rightExpr) : ?Expr
+    private function refactorIdentical(Expr $leftExpr, Expr $rightExpr): ?Expr
     {
         if ($this->valueResolver->isTrue($rightExpr)) {
             return $leftExpr;
@@ -96,7 +100,7 @@ CODE_SAMPLE
         }
         return $leftExpr->expr;
     }
-    private function refactorNotIdentical(Expr $leftExpr, Expr $rightExpr) : ?Expr
+    private function refactorNotIdentical(Expr $leftExpr, Expr $rightExpr): ?Expr
     {
         if ($this->valueResolver->isFalse($rightExpr)) {
             return $leftExpr;
@@ -106,7 +110,7 @@ CODE_SAMPLE
         }
         return null;
     }
-    private function isBooleanButNotTrueAndFalse(Expr $expr) : bool
+    private function isBooleanButNotTrueAndFalse(Expr $expr): bool
     {
         if ($this->valueResolver->isTrueOrFalse($expr)) {
             return \false;

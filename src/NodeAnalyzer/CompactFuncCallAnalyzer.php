@@ -4,8 +4,9 @@ declare (strict_types=1);
 namespace Rector\NodeAnalyzer;
 
 use PhpParser\Node\Arg;
+use PhpParser\Node\ArgPlaceholder;
+use PhpParser\Node\ArrayItem;
 use PhpParser\Node\Expr\Array_;
-use PhpParser\Node\Expr\ArrayItem;
 use PhpParser\Node\Expr\FuncCall;
 use PhpParser\Node\Expr\Variable;
 use PhpParser\Node\Scalar\String_;
@@ -15,27 +16,26 @@ final class CompactFuncCallAnalyzer
 {
     /**
      * @readonly
-     * @var \Rector\NodeNameResolver\NodeNameResolver
      */
-    private $nodeNameResolver;
+    private NodeNameResolver $nodeNameResolver;
     public function __construct(NodeNameResolver $nodeNameResolver)
     {
         $this->nodeNameResolver = $nodeNameResolver;
     }
-    public function isInCompact(FuncCall $funcCall, Variable $variable) : bool
+    public function isInCompact(FuncCall $funcCall, Variable $variable): bool
     {
         if (!$this->nodeNameResolver->isName($funcCall, 'compact')) {
             return \false;
         }
-        if (!\is_string($variable->name)) {
+        if (!is_string($variable->name)) {
             return \false;
         }
         return $this->isInArgOrArrayItemNodes($funcCall->args, $variable->name);
     }
     /**
-     * @param array<int, Arg|VariadicPlaceholder|ArrayItem|null> $nodes
+     * @param array<int, Arg|ArgPlaceholder|VariadicPlaceholder|ArrayItem|null> $nodes
      */
-    private function isInArgOrArrayItemNodes(array $nodes, string $variableName) : bool
+    private function isInArgOrArrayItemNodes(array $nodes, string $variableName): bool
     {
         foreach ($nodes as $node) {
             if ($this->shouldSkip($node)) {
@@ -58,13 +58,13 @@ final class CompactFuncCallAnalyzer
         return \false;
     }
     /**
-     * @param \PhpParser\Node\Arg|\PhpParser\Node\VariadicPlaceholder|\PhpParser\Node\Expr\ArrayItem|null $node
+     * @param \PhpParser\Node\Arg|\PhpParser\Node\ArgPlaceholder|\PhpParser\Node\VariadicPlaceholder|\PhpParser\Node\ArrayItem|null $node
      */
-    private function shouldSkip($node) : bool
+    private function shouldSkip($node): bool
     {
         if ($node === null) {
             return \true;
         }
-        return $node instanceof VariadicPlaceholder;
+        return !$node instanceof Arg && !$node instanceof ArrayItem;
     }
 }

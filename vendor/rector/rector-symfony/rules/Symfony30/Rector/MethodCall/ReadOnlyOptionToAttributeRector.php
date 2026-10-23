@@ -4,43 +4,46 @@ declare (strict_types=1);
 namespace Rector\Symfony\Symfony30\Rector\MethodCall;
 
 use PhpParser\Node;
+use PhpParser\Node\ArrayItem;
 use PhpParser\Node\Expr\Array_;
-use PhpParser\Node\Expr\ArrayItem;
 use PhpParser\Node\Expr\MethodCall;
 use PhpParser\Node\Scalar\String_;
 use Rector\Rector\AbstractRector;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
 use Rector\Symfony\NodeAnalyzer\FormAddMethodCallAnalyzer;
 use Rector\Symfony\NodeAnalyzer\FormOptionsArrayMatcher;
 use Rector\Symfony\NodeManipulator\ArrayManipulator;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
+use Rector\VersionBonding\Contract\ComposerPackageConstraintInterface;
+use Rector\VersionBonding\ValueObject\ComposerPackageConstraint;
 /**
  * @see \Rector\Symfony\Tests\Symfony30\Rector\MethodCall\ReadOnlyOptionToAttributeRector\ReadOnlyOptionToAttributeRectorTest
  */
-final class ReadOnlyOptionToAttributeRector extends AbstractRector
+final class ReadOnlyOptionToAttributeRector extends AbstractRector implements ComposerPackageConstraintInterface
 {
     /**
      * @readonly
-     * @var \Rector\Symfony\NodeManipulator\ArrayManipulator
      */
-    private $arrayManipulator;
+    private ArrayManipulator $arrayManipulator;
     /**
      * @readonly
-     * @var \Rector\Symfony\NodeAnalyzer\FormAddMethodCallAnalyzer
      */
-    private $formAddMethodCallAnalyzer;
+    private FormAddMethodCallAnalyzer $formAddMethodCallAnalyzer;
     /**
      * @readonly
-     * @var \Rector\Symfony\NodeAnalyzer\FormOptionsArrayMatcher
      */
-    private $formOptionsArrayMatcher;
+    private FormOptionsArrayMatcher $formOptionsArrayMatcher;
     public function __construct(ArrayManipulator $arrayManipulator, FormAddMethodCallAnalyzer $formAddMethodCallAnalyzer, FormOptionsArrayMatcher $formOptionsArrayMatcher)
     {
         $this->arrayManipulator = $arrayManipulator;
         $this->formAddMethodCallAnalyzer = $formAddMethodCallAnalyzer;
         $this->formOptionsArrayMatcher = $formOptionsArrayMatcher;
     }
-    public function getRuleDefinition() : RuleDefinition
+    public function provideComposerPackageConstraint(): ComposerPackageConstraint
+    {
+        return new ComposerPackageConstraint('symfony/form', '>=3.0 <5.0');
+    }
+    public function getRuleDefinition(): RuleDefinition
     {
         return new RuleDefinition('Change "read_only" option in form to attribute', [new CodeSample(<<<'CODE_SAMPLE'
 use Symfony\Component\Form\FormBuilderInterface;
@@ -63,14 +66,14 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [MethodCall::class];
     }
     /**
      * @param MethodCall $node
      */
-    public function refactor(Node $node) : ?Node
+    public function refactor(Node $node): ?Node
     {
         if (!$this->formAddMethodCallAnalyzer->isMatching($node)) {
             return null;

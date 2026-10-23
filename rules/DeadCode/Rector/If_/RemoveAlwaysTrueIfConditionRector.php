@@ -8,6 +8,7 @@ use PhpParser\Node\Expr;
 use PhpParser\Node\Expr\ArrayDimFetch;
 use PhpParser\Node\Expr\Assign;
 use PhpParser\Node\Expr\BinaryOp\BooleanAnd;
+use PhpParser\Node\Expr\FuncCall;
 use PhpParser\Node\Expr\MethodCall;
 use PhpParser\Node\Expr\PropertyFetch;
 use PhpParser\Node\Expr\StaticCall;
@@ -16,16 +17,18 @@ use PhpParser\Node\Expr\Variable;
 use PhpParser\Node\Stmt;
 use PhpParser\Node\Stmt\Else_;
 use PhpParser\Node\Stmt\If_;
-use PhpParser\NodeTraverser;
-use PHPStan\Type\ArrayType;
-use PHPStan\Type\Constant\ConstantBooleanType;
+use PhpParser\NodeVisitor;
+use PHPStan\Analyser\Scope;
+use PHPStan\Reflection\ClassReflection;
 use PHPStan\Type\IntersectionType;
 use Rector\DeadCode\NodeAnalyzer\SafeLeftTypeBooleanAndOrAnalyzer;
 use Rector\NodeAnalyzer\ExprAnalyzer;
+use Rector\NodeTypeResolver\Node\AttributeKey;
 use Rector\PhpParser\Node\BetterNodeFinder;
+use Rector\PHPStan\ScopeFetcher;
 use Rector\Rector\AbstractRector;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
 /**
  * @see \Rector\Tests\DeadCode\Rector\If_\RemoveAlwaysTrueIfConditionRector\RemoveAlwaysTrueIfConditionRectorTest
  */
@@ -33,26 +36,31 @@ final class RemoveAlwaysTrueIfConditionRector extends AbstractRector
 {
     /**
      * @readonly
-     * @var \Rector\NodeAnalyzer\ExprAnalyzer
      */
-    private $exprAnalyzer;
+    private ExprAnalyzer $exprAnalyzer;
     /**
      * @readonly
-     * @var \Rector\PhpParser\Node\BetterNodeFinder
      */
-    private $betterNodeFinder;
+    private BetterNodeFinder $betterNodeFinder;
     /**
      * @readonly
-     * @var \Rector\DeadCode\NodeAnalyzer\SafeLeftTypeBooleanAndOrAnalyzer
      */
-    private $safeLeftTypeBooleanAndOrAnalyzer;
+    private SafeLeftTypeBooleanAndOrAnalyzer $safeLeftTypeBooleanAndOrAnalyzer;
+    /**
+     * Functions that depend on runtime state (autoloading, eval(), loaded extensions).
+     * PHPStan may narrow their result to a constant true, but it can change at runtime,
+     * so the condition must not be treated as always true.
+     *
+     * @var string[]
+     */
+    private const RUNTIME_STATE_FUNCTIONS = ['class_exists', 'interface_exists', 'trait_exists', 'enum_exists', 'function_exists', 'method_exists', 'property_exists', 'defined', 'extension_loaded'];
     public function __construct(ExprAnalyzer $exprAnalyzer, BetterNodeFinder $betterNodeFinder, SafeLeftTypeBooleanAndOrAnalyzer $safeLeftTypeBooleanAndOrAnalyzer)
     {
         $this->exprAnalyzer = $exprAnalyzer;
         $this->betterNodeFinder = $betterNodeFinder;
         $this->safeLeftTypeBooleanAndOrAnalyzer = $safeLeftTypeBooleanAndOrAnalyzer;
     }
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
         return new RuleDefinition('Remove if condition that is always true', [new CodeSample(<<<'CODE_SAMPLE'
 final class SomeClass
@@ -83,7 +91,7 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [If_::class];
     }
@@ -103,40 +111,55 @@ CODE_SAMPLE
         if ($node->elseifs !== []) {
             return null;
         }
-        $conditionStaticType = $this->getType($node->cond);
-        if (!$conditionStaticType instanceof ConstantBooleanType) {
-            return null;
-        }
-        if (!$conditionStaticType->getValue()) {
-            return null;
-        }
         if ($this->shouldSkipExpr($node->cond)) {
             return null;
         }
-        if ($this->shouldSkipFromVariable($node->cond)) {
+        $conditionStaticType = $this->nodeTypeResolver->getNativeType($node->cond);
+        if (!$conditionStaticType->isTrue()->yes()) {
+            return null;
+        }
+        $scope = ScopeFetcher::fetch($node);
+        if ($this->shouldSkipFromVariable($node->cond, $scope)) {
             return null;
         }
         $hasAssign = (bool) $this->betterNodeFinder->findFirstInstanceOf($node->cond, Assign::class);
         if ($hasAssign) {
             return null;
         }
+        $type = $scope->getNativeType($node->cond);
+        if (!$type->isTrue()->yes()) {
+            return null;
+        }
+        $classReflection = $scope->getClassReflection();
+        if ($classReflection instanceof ClassReflection && $classReflection->isTrait()) {
+            return null;
+        }
         if ($node->stmts === []) {
-            return NodeTraverser::REMOVE_NODE;
+            return NodeVisitor::REMOVE_NODE;
+        }
+        // keep original comments
+        if ($node->getComments() !== []) {
+            $node->stmts[0]->setAttribute(AttributeKey::COMMENTS, array_merge($node->getComments(), $node->stmts[0]->getComments()));
         }
         return $node->stmts;
     }
-    private function shouldSkipFromVariable(Expr $expr) : bool
+    private function shouldSkipFromVariable(Expr $expr, Scope $scope): bool
     {
         /** @var Variable[] $variables */
         $variables = $this->betterNodeFinder->findInstancesOf($expr, [Variable::class]);
         foreach ($variables as $variable) {
+            // maybe undefined variable is treated as null on some code paths, so the condition is not always true
+            $variableName = $this->getName($variable);
+            if (is_string($variableName) && !$scope->hasVariableType($variableName)->yes()) {
+                return \true;
+            }
             if ($this->exprAnalyzer->isNonTypedFromParam($variable)) {
                 return \true;
             }
-            $type = $this->getType($variable);
+            $type = $this->nodeTypeResolver->getNativeType($variable);
             if ($type instanceof IntersectionType) {
                 foreach ($type->getTypes() as $subType) {
-                    if ($subType instanceof ArrayType) {
+                    if ($subType->isArray()->yes()) {
                         return \true;
                     }
                 }
@@ -144,21 +167,23 @@ CODE_SAMPLE
         }
         return \false;
     }
-    private function shouldSkipExpr(Expr $expr) : bool
+    private function shouldSkipExpr(Expr $expr): bool
     {
-        return (bool) $this->betterNodeFinder->findInstancesOf($expr, [PropertyFetch::class, StaticPropertyFetch::class, ArrayDimFetch::class, MethodCall::class, StaticCall::class]);
+        return $this->betterNodeFinder->findFirst($expr, function (Node $node): bool {
+            if ($node instanceof PropertyFetch || $node instanceof StaticPropertyFetch || $node instanceof ArrayDimFetch || $node instanceof MethodCall || $node instanceof StaticCall) {
+                return \true;
+            }
+            return $node instanceof FuncCall && $this->isNames($node, self::RUNTIME_STATE_FUNCTIONS);
+        }) instanceof Node;
     }
-    private function refactorIfWithBooleanAnd(If_ $if) : ?If_
+    private function refactorIfWithBooleanAnd(If_ $if): ?If_
     {
         if (!$if->cond instanceof BooleanAnd) {
             return null;
         }
         $booleanAnd = $if->cond;
         $leftType = $this->getType($booleanAnd->left);
-        if (!$leftType instanceof ConstantBooleanType) {
-            return null;
-        }
-        if (!$leftType->getValue()) {
+        if (!$leftType->isTrue()->yes()) {
             return null;
         }
         if (!$this->safeLeftTypeBooleanAndOrAnalyzer->isSafe($booleanAnd)) {

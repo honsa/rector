@@ -11,8 +11,8 @@ use PhpParser\Node\Expr\StaticCall;
 use Rector\PHPUnit\NodeAnalyzer\IdentifierManipulator;
 use Rector\PHPUnit\NodeAnalyzer\TestsNodeAnalyzer;
 use Rector\Rector\AbstractRector;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
 /**
  * @see \Rector\PHPUnit\Tests\CodeQuality\Rector\MethodCall\AssertNotOperatorRector\AssertNotOperatorRectorTest
  */
@@ -20,14 +20,12 @@ final class AssertNotOperatorRector extends AbstractRector
 {
     /**
      * @readonly
-     * @var \Rector\PHPUnit\NodeAnalyzer\IdentifierManipulator
      */
-    private $identifierManipulator;
+    private IdentifierManipulator $identifierManipulator;
     /**
      * @readonly
-     * @var \Rector\PHPUnit\NodeAnalyzer\TestsNodeAnalyzer
      */
-    private $testsNodeAnalyzer;
+    private TestsNodeAnalyzer $testsNodeAnalyzer;
     /**
      * @var array<string, string>
      */
@@ -37,23 +35,23 @@ final class AssertNotOperatorRector extends AbstractRector
         $this->identifierManipulator = $identifierManipulator;
         $this->testsNodeAnalyzer = $testsNodeAnalyzer;
     }
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
         return new RuleDefinition('Turns not-operator comparisons to their method name alternatives in PHPUnit TestCase', [new CodeSample('$this->assertTrue(!$foo, "message");', '$this->assertFalse($foo, "message");'), new CodeSample('$this->assertFalse(!$foo, "message");', '$this->assertTrue($foo, "message");')]);
     }
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [MethodCall::class, StaticCall::class];
     }
     /**
      * @param MethodCall|StaticCall $node
      */
-    public function refactor(Node $node) : ?Node
+    public function refactor(Node $node): ?Node
     {
-        $oldMethodNames = \array_keys(self::RENAME_METHODS_MAP);
+        $oldMethodNames = array_keys(self::RENAME_METHODS_MAP);
         if (!$this->testsNodeAnalyzer->isPHPUnitMethodCallNames($node, $oldMethodNames)) {
             return null;
         }
@@ -70,7 +68,7 @@ final class AssertNotOperatorRector extends AbstractRector
         $negation = $oldArguments[0]->value;
         $expression = $negation->expr;
         unset($oldArguments[0]);
-        $node->args = \array_merge([new Arg($expression)], $oldArguments);
+        $node->args = array_merge([new Arg($expression)], $oldArguments);
         return $node;
     }
 }

@@ -10,8 +10,10 @@ use Rector\PhpParser\Node\Value\ValueResolver;
 use Rector\PHPUnit\NodeAnalyzer\TestsNodeAnalyzer;
 use Rector\PHPUnit\NodeFactory\AssertCallFactory;
 use Rector\Rector\AbstractRector;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
+use Rector\VersionBonding\Contract\ComposerPackageConstraintInterface;
+use Rector\VersionBonding\ValueObject\ComposerPackageConstraint;
 /**
  * @changelog https://github.com/sebastianbergmann/phpunit/blob/master/ChangeLog-8.0.md
  * @changelog https://github.com/sebastianbergmann/phpunit/commit/90e9e0379584bdf34220322e202617cd56d8ba65
@@ -19,30 +21,34 @@ use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
  *
  * @see \Rector\PHPUnit\Tests\PHPUnit80\Rector\MethodCall\AssertEqualsParameterToSpecificMethodsTypeRector\AssertEqualsParameterToSpecificMethodsTypeRectorTest
  */
-final class AssertEqualsParameterToSpecificMethodsTypeRector extends AbstractRector
+final class AssertEqualsParameterToSpecificMethodsTypeRector extends AbstractRector implements ComposerPackageConstraintInterface
 {
     /**
      * @readonly
-     * @var \Rector\PHPUnit\NodeFactory\AssertCallFactory
      */
-    private $assertCallFactory;
+    private AssertCallFactory $assertCallFactory;
     /**
      * @readonly
-     * @var \Rector\PHPUnit\NodeAnalyzer\TestsNodeAnalyzer
      */
-    private $testsNodeAnalyzer;
+    private TestsNodeAnalyzer $testsNodeAnalyzer;
     /**
      * @readonly
-     * @var \Rector\PhpParser\Node\Value\ValueResolver
      */
-    private $valueResolver;
+    private ValueResolver $valueResolver;
+    /**
+     * the assertEqualsWithDelta() family was added in PHPUnit 7.5
+     */
+    public function provideComposerPackageConstraint(): ComposerPackageConstraint
+    {
+        return new ComposerPackageConstraint('phpunit/phpunit', '>=7.5 <11.0');
+    }
     public function __construct(AssertCallFactory $assertCallFactory, TestsNodeAnalyzer $testsNodeAnalyzer, ValueResolver $valueResolver)
     {
         $this->assertCallFactory = $assertCallFactory;
         $this->testsNodeAnalyzer = $testsNodeAnalyzer;
         $this->valueResolver = $valueResolver;
     }
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
         return new RuleDefinition('Change assertEquals()/assertNotEquals() method parameters to new specific alternatives', [new CodeSample(<<<'CODE_SAMPLE'
 final class SomeTest extends \PHPUnit\Framework\TestCase
@@ -81,14 +87,14 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [MethodCall::class, StaticCall::class];
     }
     /**
      * @param MethodCall|StaticCall $node
      */
-    public function refactor(Node $node) : ?Node
+    public function refactor(Node $node): ?Node
     {
         if (!$this->testsNodeAnalyzer->isPHPUnitMethodCallNames($node, ['assertEquals', 'assertNotEquals'])) {
             return null;
@@ -113,8 +119,9 @@ CODE_SAMPLE
         return $this->processAssertEqualsWithDelta($node);
     }
     /**
+     * @template TCall of MethodCall|StaticCall
      * @param \PhpParser\Node\Expr\MethodCall|\PhpParser\Node\Expr\StaticCall $call
-     * @return \PhpParser\Node\Expr\StaticCall|\PhpParser\Node\Expr\MethodCall|null
+     * @return ($call is MethodCall ? MethodCall : StaticCall)|null
      */
     private function processAssertEqualsIgnoringCase($call)
     {
@@ -135,8 +142,9 @@ CODE_SAMPLE
         return $newMethodCall;
     }
     /**
+     * @template TCall of MethodCall|StaticCall
      * @param \PhpParser\Node\Expr\MethodCall|\PhpParser\Node\Expr\StaticCall $call
-     * @return \PhpParser\Node\Expr\MethodCall|\PhpParser\Node\Expr\StaticCall|null
+     * @return ($call is MethodCall ? MethodCall : StaticCall)|null
      */
     private function processAssertEqualsCanonicalizing($call)
     {
@@ -159,8 +167,9 @@ CODE_SAMPLE
         return $newMethodCall;
     }
     /**
+     * @template TCall of MethodCall|StaticCall
      * @param \PhpParser\Node\Expr\MethodCall|\PhpParser\Node\Expr\StaticCall $call
-     * @return \PhpParser\Node\Expr\MethodCall|\PhpParser\Node\Expr\StaticCall|null
+     * @return ($call is MethodCall ? MethodCall : StaticCall)|null
      */
     private function processAssertEqualsWithDelta($call)
     {

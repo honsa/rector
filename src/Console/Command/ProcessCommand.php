@@ -9,6 +9,7 @@ use Rector\Caching\Detector\ChangedFilesDetector;
 use Rector\ChangesReporting\Output\JsonOutputFormatter;
 use Rector\Configuration\ConfigInitializer;
 use Rector\Configuration\ConfigurationFactory;
+use Rector\Configuration\ConfigurationRuleFilter;
 use Rector\Configuration\Option;
 use Rector\Console\ExitCode;
 use Rector\Console\Output\OutputFormatterCollector;
@@ -16,73 +17,72 @@ use Rector\Console\ProcessConfigureDecorator;
 use Rector\Exception\ShouldNotHappenException;
 use Rector\Reporting\DeprecatedRulesReporter;
 use Rector\Reporting\MissConfigurationReporter;
+use Rector\Skipper\Skipper\Skipper;
 use Rector\StaticReflection\DynamicSourceLocatorDecorator;
 use Rector\Util\MemoryLimiter;
 use Rector\ValueObject\Configuration;
+use Rector\ValueObject\Configuration\LevelOverflow;
 use Rector\ValueObject\ProcessResult;
-use RectorPrefix202411\Symfony\Component\Console\Application;
-use RectorPrefix202411\Symfony\Component\Console\Command\Command;
-use RectorPrefix202411\Symfony\Component\Console\Input\InputInterface;
-use RectorPrefix202411\Symfony\Component\Console\Output\OutputInterface;
-use RectorPrefix202411\Symfony\Component\Console\Style\SymfonyStyle;
+use RectorPrefix202610\Symfony\Component\Console\Application;
+use RectorPrefix202610\Symfony\Component\Console\Command\Command;
+use RectorPrefix202610\Symfony\Component\Console\Input\InputInterface;
+use RectorPrefix202610\Symfony\Component\Console\Output\OutputInterface;
+use RectorPrefix202610\Symfony\Component\Console\Style\SymfonyStyle;
 final class ProcessCommand extends Command
 {
     /**
      * @readonly
-     * @var \Rector\Autoloading\AdditionalAutoloader
      */
-    private $additionalAutoloader;
+    private AdditionalAutoloader $additionalAutoloader;
     /**
      * @readonly
-     * @var \Rector\Caching\Detector\ChangedFilesDetector
      */
-    private $changedFilesDetector;
+    private ChangedFilesDetector $changedFilesDetector;
     /**
      * @readonly
-     * @var \Rector\Configuration\ConfigInitializer
      */
-    private $configInitializer;
+    private ConfigInitializer $configInitializer;
     /**
      * @readonly
-     * @var \Rector\Application\ApplicationFileProcessor
      */
-    private $applicationFileProcessor;
+    private ApplicationFileProcessor $applicationFileProcessor;
     /**
      * @readonly
-     * @var \Rector\StaticReflection\DynamicSourceLocatorDecorator
      */
-    private $dynamicSourceLocatorDecorator;
+    private DynamicSourceLocatorDecorator $dynamicSourceLocatorDecorator;
     /**
      * @readonly
-     * @var \Rector\Console\Output\OutputFormatterCollector
      */
-    private $outputFormatterCollector;
+    private OutputFormatterCollector $outputFormatterCollector;
     /**
      * @readonly
-     * @var \Symfony\Component\Console\Style\SymfonyStyle
      */
-    private $symfonyStyle;
+    private SymfonyStyle $symfonyStyle;
     /**
      * @readonly
-     * @var \Rector\Util\MemoryLimiter
      */
-    private $memoryLimiter;
+    private MemoryLimiter $memoryLimiter;
     /**
      * @readonly
-     * @var \Rector\Configuration\ConfigurationFactory
      */
-    private $configurationFactory;
+    private ConfigurationFactory $configurationFactory;
     /**
      * @readonly
-     * @var \Rector\Reporting\DeprecatedRulesReporter
      */
-    private $deprecatedRulesReporter;
+    private DeprecatedRulesReporter $deprecatedRulesReporter;
     /**
      * @readonly
-     * @var \Rector\Reporting\MissConfigurationReporter
      */
-    private $missConfigurationReporter;
-    public function __construct(AdditionalAutoloader $additionalAutoloader, ChangedFilesDetector $changedFilesDetector, ConfigInitializer $configInitializer, ApplicationFileProcessor $applicationFileProcessor, DynamicSourceLocatorDecorator $dynamicSourceLocatorDecorator, OutputFormatterCollector $outputFormatterCollector, SymfonyStyle $symfonyStyle, MemoryLimiter $memoryLimiter, ConfigurationFactory $configurationFactory, DeprecatedRulesReporter $deprecatedRulesReporter, MissConfigurationReporter $missConfigurationReporter)
+    private MissConfigurationReporter $missConfigurationReporter;
+    /**
+     * @readonly
+     */
+    private ConfigurationRuleFilter $configurationRuleFilter;
+    /**
+     * @readonly
+     */
+    private Skipper $skipper;
+    public function __construct(AdditionalAutoloader $additionalAutoloader, ChangedFilesDetector $changedFilesDetector, ConfigInitializer $configInitializer, ApplicationFileProcessor $applicationFileProcessor, DynamicSourceLocatorDecorator $dynamicSourceLocatorDecorator, OutputFormatterCollector $outputFormatterCollector, SymfonyStyle $symfonyStyle, MemoryLimiter $memoryLimiter, ConfigurationFactory $configurationFactory, DeprecatedRulesReporter $deprecatedRulesReporter, MissConfigurationReporter $missConfigurationReporter, ConfigurationRuleFilter $configurationRuleFilter, Skipper $skipper)
     {
         $this->additionalAutoloader = $additionalAutoloader;
         $this->changedFilesDetector = $changedFilesDetector;
@@ -95,61 +95,87 @@ final class ProcessCommand extends Command
         $this->configurationFactory = $configurationFactory;
         $this->deprecatedRulesReporter = $deprecatedRulesReporter;
         $this->missConfigurationReporter = $missConfigurationReporter;
+        $this->configurationRuleFilter = $configurationRuleFilter;
+        $this->skipper = $skipper;
         parent::__construct();
     }
-    protected function configure() : void
+    protected function configure(): void
     {
         $this->setName('process');
-        $this->setDescription('Upgrades or refactors source code with provided rectors');
+        $this->setAliases(['p']);
+        $this->setDescription('Upgrades or refactors source code with provided Rector rules');
         $this->setHelp(<<<'EOF'
 The <info>%command.name%</info> command will run Rector main feature:
 
-  <info>%command.full_name%</info>
+  <info>vendor/bin/rector</info>
 
 To specify a folder or a file, you can run:
 
-  <info>%command.full_name% src/Controller</info>
+  <info>vendor/bin/rector src/Controller</info>
 
 You can also dry run to see the changes that Rector will make with the <comment>--dry-run</comment> option:
 
-  <info>%command.full_name% src/Controller --dry-run</info>
+  <info>vendor/bin/rector src/Controller --dry-run</info>
 
 It's also possible to get debug via the <comment>--debug</comment> option:
 
-  <info>%command.full_name% src/Controller --dry-run --debug</info>
+  <info>vendor/bin/rector src/Controller --dry-run --debug</info>
 EOF
 );
         ProcessConfigureDecorator::decorate($this);
         parent::configure();
     }
-    protected function execute(InputInterface $input, OutputInterface $output) : int
+    protected function execute(InputInterface $input, OutputInterface $output): int
     {
         // missing config? add it :)
         if (!$this->configInitializer->areSomeRectorsLoaded()) {
-            $this->configInitializer->createConfig(\getcwd());
+            $this->configInitializer->createConfig(getcwd());
             return self::SUCCESS;
         }
         $configuration = $this->configurationFactory->createFromInput($input);
         $this->memoryLimiter->adjust($configuration);
+        $this->configurationRuleFilter->setConfiguration($configuration);
         // disable console output in case of json output formatter
         if ($configuration->getOutputFormat() === JsonOutputFormatter::NAME) {
             $this->symfonyStyle->setVerbosity(OutputInterface::VERBOSITY_QUIET);
         }
+        // "--rules-summary" is a human-only table; the JSON format carries richer per-rule data
+        if ($configuration->shouldShowRulesSummary()) {
+            $this->symfonyStyle->getErrorStyle()->warning('The "--rules-summary" option is deprecated and will be removed. Use "--output-format=json" instead, which reports every applied rule with its file and line.');
+        }
         $this->additionalAutoloader->autoloadInput($input);
-        $this->additionalAutoloader->autoloadPaths();
         $paths = $configuration->getPaths();
-        // 1. add files and directories to static locator
+        // 0. warn about too high levels
+        foreach ($configuration->getLevelOverflows() as $levelOverflow) {
+            $this->reportLevelOverflow($levelOverflow);
+        }
+        // 0. warn about skipped rules that are deprecated
+        if ($this->skipper->resolveDeprecatedSkippedClasses() !== []) {
+            $this->symfonyStyle->warning(sprintf('These rules are skipped, but are deprecated. Most likely you do not need to skip them anymore as not part of any set and remove them: %s%s', "\n\n", '* ' . implode("\n* ", $this->skipper->resolveDeprecatedSkippedClasses()) . "\n"));
+        }
+        // 1. warn about rules registered in both withRules() and sets to avoid bloated rector.php configs
+        $setAndRulesDuplicatedRegistrations = $configuration->getBothSetAndRulesDuplicatedRegistrations();
+        if ($setAndRulesDuplicatedRegistrations !== []) {
+            $this->symfonyStyle->warning(sprintf('These rules are registered in both sets and "withRules()". Remove them from "withRules()" to avoid duplications: %s* %s', "\n\n", implode(' * ', $setAndRulesDuplicatedRegistrations) . "\n"));
+        }
+        // 2. add files and directories to static locator
         $this->dynamicSourceLocatorDecorator->addPaths($paths);
-        if ($this->dynamicSourceLocatorDecorator->isPathsEmpty()) {
+        if ($this->dynamicSourceLocatorDecorator->arePathsEmpty()) {
             // read from rector.php, no paths definition needs withPaths() config
             if ($paths === []) {
-                $this->symfonyStyle->error('No paths definition in rector configuration, define paths: https://getrector.com/documentation/define-paths');
+                $this->symfonyStyle->error('Provide paths in Rector config. See ways: https://getrector.com/documentation/define-paths');
                 return ExitCode::FAILURE;
             }
             // read from cli paths arguments, eg: vendor/bin/rector process A B C which A, B, and C not exists
-            $isSingular = \count($paths) === 1;
-            $this->symfonyStyle->error(\sprintf('The following given path%s do%s not match any file%s or director%s: %s%s', $isSingular ? '' : 's', $isSingular ? 'es' : '', $isSingular ? '' : 's', $isSingular ? 'y' : 'ies', \PHP_EOL . \PHP_EOL . ' - ', \implode(\PHP_EOL . ' - ', $paths)));
+            $isSingular = count($paths) === 1;
+            $this->symfonyStyle->error(sprintf('The following given path%s do%s not match any file%s or director%s: %s%s', $isSingular ? '' : 's', $isSingular ? 'es' : '', $isSingular ? '' : 's', $isSingular ? 'y' : 'ies', "\n\n" . ' - ', implode("\n" . ' - ', $paths)));
             return ExitCode::FAILURE;
+        }
+        // autoload paths is register to DynamicSourceLocatorProvider,
+        // so check after arePathsEmpty() above
+        // check in no parallel since parallel will require register on its own process
+        if (!$configuration->isParallel()) {
+            $this->additionalAutoloader->autoloadPaths();
         }
         // MAIN PHASE
         // 2. run Rector
@@ -158,33 +184,41 @@ EOF
         // 3. reporting phaseRunning 2nd time with collectors data
         // report diffs and errors
         $outputFormat = $configuration->getOutputFormat();
+        // warn about deprecated static-analysis-oriented output formats, to be removed in next minor version
+        if (in_array($outputFormat, ['github', 'gitlab'], \true)) {
+            $this->symfonyStyle->getErrorStyle()->warning(sprintf('The "%s" output format is deprecated and will be removed in the next minor version, as Rector is not a static analysis tool.', $outputFormat));
+        }
         $outputFormatter = $this->outputFormatterCollector->getByName($outputFormat);
         $outputFormatter->report($processResult, $configuration);
+        // 4. Deprecations reporter
         $this->deprecatedRulesReporter->reportDeprecatedRules();
         $this->deprecatedRulesReporter->reportDeprecatedSkippedRules();
+        $this->deprecatedRulesReporter->reportDeprecatedCacheMetaExtensions();
+        $this->deprecatedRulesReporter->reportDeprecatedPhpSetsMethods();
+        $this->deprecatedRulesReporter->reportDeprecatedAttributesSetsArgs();
+        $this->deprecatedRulesReporter->reportDeprecatedComposerBasedArgs();
         $this->missConfigurationReporter->reportSkippedNeverRegisteredRules();
+        $this->missConfigurationReporter->reportSkippedNonRectorClasses();
+        $this->missConfigurationReporter->reportUnusedSkips($processResult);
         return $this->resolveReturnCode($processResult, $configuration);
     }
-    protected function initialize(InputInterface $input, OutputInterface $output) : void
+    protected function initialize(InputInterface $input, OutputInterface $output): void
     {
         $application = $this->getApplication();
         if (!$application instanceof Application) {
             throw new ShouldNotHappenException();
         }
         $optionDebug = (bool) $input->getOption(Option::DEBUG);
+        // clear cache
         if ($optionDebug) {
             $application->setCatchExceptions(\false);
-        }
-        // clear cache
-        $optionClearCache = (bool) $input->getOption(Option::CLEAR_CACHE);
-        if ($optionDebug || $optionClearCache) {
             $this->changedFilesDetector->clear();
         }
     }
     /**
      * @return ExitCode::*
      */
-    private function resolveReturnCode(ProcessResult $processResult, Configuration $configuration) : int
+    private function resolveReturnCode(ProcessResult $processResult, Configuration $configuration): int
     {
         // some system errors were found → fail
         if ($processResult->getSystemErrors() !== []) {
@@ -197,6 +231,14 @@ EOF
         if ($processResult->getFileDiffs() !== []) {
             return ExitCode::CHANGED_CODE;
         }
+        if ($processResult->getTotalChanged() > 0) {
+            return ExitCode::CHANGED_CODE;
+        }
         return ExitCode::SUCCESS;
+    }
+    private function reportLevelOverflow(LevelOverflow $levelOverflow): void
+    {
+        $suggestedSetMethod = \PHP_VERSION_ID >= 80000 ? sprintf('->withPreparedSets(%s: true)', $levelOverflow->getSuggestedRuleset()) : sprintf('->withSets(SetList::%s)', $levelOverflow->getSuggestedSetListConstant());
+        $this->symfonyStyle->warning(sprintf('The "->%s()" level contains only %d rules, but you set level to %d.%sYou are using the full set now! Time to switch to more efficient "%s".', $levelOverflow->getConfigurationName(), $levelOverflow->getRuleCount(), $levelOverflow->getLevel(), "\n", $suggestedSetMethod));
     }
 }

@@ -7,16 +7,16 @@ use PhpParser\Node;
 use PhpParser\Node\Expr\FuncCall;
 use PhpParser\Node\Scalar\String_;
 use Rector\Rector\AbstractRector;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
 /**
  * @see \Rector\Tests\CodeQuality\Rector\FuncCall\RemoveSoleValueSprintfRector\RemoveSoleValueSprintfRectorTest
  */
 final class RemoveSoleValueSprintfRector extends AbstractRector
 {
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
-        return new RuleDefinition('Remove sprintf() wrapper if not needed', [new CodeSample(<<<'CODE_SAMPLE'
+        return new RuleDefinition('Remove `sprintf()` wrapper if not needed', [new CodeSample(<<<'CODE_SAMPLE'
 class SomeClass
 {
     public function run()
@@ -41,14 +41,14 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [FuncCall::class];
     }
     /**
      * @param FuncCall $node
      */
-    public function refactor(Node $node) : ?Node
+    public function refactor(Node $node): ?Node
     {
         if (!$this->isName($node, 'sprintf')) {
             return null;
@@ -56,7 +56,7 @@ CODE_SAMPLE
         if ($node->isFirstClassCallable()) {
             return null;
         }
-        if (\count($node->getArgs()) !== 2) {
+        if (count($node->getArgs()) !== 2) {
             return null;
         }
         $firstArg = $node->getArgs()[0];

@@ -3,6 +3,7 @@
 declare (strict_types=1);
 namespace Rector\DeadCode\Rector\ClassMethod;
 
+use PhpParser\Comment\Doc;
 use PhpParser\Node;
 use PhpParser\Node\Stmt\ClassMethod;
 use PhpParser\Node\Stmt\Expression;
@@ -19,8 +20,8 @@ use Rector\BetterPhpDocParser\PhpDocInfo\PhpDocInfoFactory;
 use Rector\Comments\NodeDocBlock\DocBlockUpdater;
 use Rector\PhpDocParser\PhpDocParser\PhpDocNodeTraverser;
 use Rector\Rector\AbstractRector;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
 /**
  * @see \Rector\Tests\DeadCode\Rector\ClassMethod\RemoveNullTagValueNodeRector\RemoveNullTagValueNodeRectorTest
  */
@@ -28,20 +29,18 @@ final class RemoveNullTagValueNodeRector extends AbstractRector
 {
     /**
      * @readonly
-     * @var \Rector\Comments\NodeDocBlock\DocBlockUpdater
      */
-    private $docBlockUpdater;
+    private DocBlockUpdater $docBlockUpdater;
     /**
      * @readonly
-     * @var \Rector\BetterPhpDocParser\PhpDocInfo\PhpDocInfoFactory
      */
-    private $phpDocInfoFactory;
+    private PhpDocInfoFactory $phpDocInfoFactory;
     public function __construct(DocBlockUpdater $docBlockUpdater, PhpDocInfoFactory $phpDocInfoFactory)
     {
         $this->docBlockUpdater = $docBlockUpdater;
         $this->phpDocInfoFactory = $phpDocInfoFactory;
     }
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
         return new RuleDefinition('Remove @var/@param/@return null docblock', [new CodeSample(<<<'CODE_SAMPLE'
 class SomeClass
@@ -69,15 +68,19 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [ClassMethod::class, Function_::class, Expression::class, Property::class];
     }
     /**
      * @param ClassMethod|Function_|Expression|Property $node
      */
-    public function refactor(Node $node) : ?Node
+    public function refactor(Node $node): ?Node
     {
+        // null param/return/var tags can only live in a docblock; skip nodes without one
+        if (!$node->getDocComment() instanceof Doc) {
+            return null;
+        }
         if ($node instanceof Expression || $node instanceof Property) {
             return $this->processVarTagNull($node);
         }
@@ -110,33 +113,35 @@ CODE_SAMPLE
     /**
      * @param \PHPStan\PhpDocParser\Ast\PhpDoc\VarTagValueNode|\PHPStan\PhpDocParser\Ast\PhpDoc\ParamTagValueNode|\PHPStan\PhpDocParser\Ast\PhpDoc\ReturnTagValueNode $tag
      */
-    private function isNull($tag) : bool
+    private function isNull($tag): bool
     {
         return $tag->type instanceof IdentifierTypeNode && $tag->type->__toString() === 'null' && $tag->description === '';
     }
     /**
      * @param string[] $paramNames
      */
-    private function removeParamNullTag(PhpDocInfo $phpDocInfo, array $paramNames) : void
+    private function removeParamNullTag(PhpDocInfo $phpDocInfo, array $paramNames): void
     {
         $phpDocNodeTraverser = new PhpDocNodeTraverser();
-        $phpDocNodeTraverser->traverseWithCallable($phpDocInfo->getPhpDocNode(), '', static function (AstNode $astNode) use($paramNames) : ?int {
+        $phpDocNodeTraverser->traverseWithCallable($phpDocInfo->getPhpDocNode(), '', static function (AstNode $astNode) use ($paramNames): ?int {
             if (!$astNode instanceof PhpDocTagNode) {
                 return null;
             }
             if (!$astNode->value instanceof ParamTagValueNode) {
                 return null;
             }
-            if (\in_array($astNode->value->parameterName, $paramNames, \true)) {
+            if (in_array($astNode->value->parameterName, $paramNames, \true)) {
                 return PhpDocNodeTraverser::NODE_REMOVE;
             }
             return null;
         });
     }
     /**
+     * @template TNode of Expression|Property
      * @param \PhpParser\Node\Stmt\Expression|\PhpParser\Node\Stmt\Property $node
+     * @return TNode|null
      */
-    private function processVarTagNull($node) : ?Node
+    private function processVarTagNull($node)
     {
         $phpdocInfo = $this->phpDocInfoFactory->createFromNodeOrEmpty($node);
         $varTagValueNode = $phpdocInfo->getVarTagValueNode();

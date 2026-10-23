@@ -8,16 +8,16 @@ use PhpParser\Node\Expr\Assign;
 use PhpParser\Node\Expr\BinaryOp\LogicalAnd;
 use PhpParser\Node\Stmt\Expression;
 use Rector\Rector\AbstractRector;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
 /**
  * @see \Rector\Tests\CodeQuality\Rector\LogicalAnd\AndAssignsToSeparateLinesRector\AndAssignsToSeparateLinesRectorTest
  */
 final class AndAssignsToSeparateLinesRector extends AbstractRector
 {
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
-        return new RuleDefinition('Split 2 assigns ands to separate line', [new CodeSample(<<<'CODE_SAMPLE'
+        return new RuleDefinition('Split 2 assigns with "and" to separate lines', [new CodeSample(<<<'CODE_SAMPLE'
 class SomeClass
 {
     public function run()
@@ -43,7 +43,7 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [Expression::class];
     }
@@ -51,7 +51,7 @@ CODE_SAMPLE
      * @param Expression $node
      * @return Expression[]|null
      */
-    public function refactor(Node $node) : ?array
+    public function refactor(Node $node): ?array
     {
         if (!$node->expr instanceof LogicalAnd) {
             return null;

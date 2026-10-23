@@ -7,11 +7,11 @@ use PhpParser\Node;
 use PhpParser\Node\Stmt\ClassMethod;
 use Rector\Privatization\NodeManipulator\VisibilityManipulator;
 use Rector\Rector\AbstractRector;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
 use Rector\ValueObject\MethodName;
 use Rector\ValueObject\PhpVersionFeature;
 use Rector\VersionBonding\Contract\MinPhpVersionInterface;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
 /**
  * @see \Rector\Tests\Php80\Rector\ClassMethod\SetStateToStaticRector\SetStateToStaticRectorTest
  */
@@ -19,20 +19,19 @@ final class SetStateToStaticRector extends AbstractRector implements MinPhpVersi
 {
     /**
      * @readonly
-     * @var \Rector\Privatization\NodeManipulator\VisibilityManipulator
      */
-    private $visibilityManipulator;
+    private VisibilityManipulator $visibilityManipulator;
     public function __construct(VisibilityManipulator $visibilityManipulator)
     {
         $this->visibilityManipulator = $visibilityManipulator;
     }
-    public function provideMinPhpVersion() : int
+    public function provideMinPhpVersion(): int
     {
         return PhpVersionFeature::STATIC_VISIBILITY_SET_STATE;
     }
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
-        return new RuleDefinition('Adds static visibility to __set_state() methods', [new CodeSample(<<<'CODE_SAMPLE'
+        return new RuleDefinition('Add `static` visibility to `__set_state()` methods', [new CodeSample(<<<'CODE_SAMPLE'
 class SomeClass
 {
     public function __set_state($properties) {
@@ -53,14 +52,14 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [ClassMethod::class];
     }
     /**
      * @param ClassMethod $node
      */
-    public function refactor(Node $node) : ?Node
+    public function refactor(Node $node): ?Node
     {
         if ($this->shouldSkip($node)) {
             return null;
@@ -68,7 +67,7 @@ CODE_SAMPLE
         $this->visibilityManipulator->makeStatic($node);
         return $node;
     }
-    private function shouldSkip(ClassMethod $classMethod) : bool
+    private function shouldSkip(ClassMethod $classMethod): bool
     {
         if (!$this->isName($classMethod, MethodName::SET_STATE)) {
             return \true;

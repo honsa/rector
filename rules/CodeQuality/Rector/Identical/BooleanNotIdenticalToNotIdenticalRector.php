@@ -8,14 +8,14 @@ use PhpParser\Node\Expr\BinaryOp\Identical;
 use PhpParser\Node\Expr\BinaryOp\NotIdentical;
 use PhpParser\Node\Expr\BooleanNot;
 use Rector\Rector\AbstractRector;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
 /**
  * @see \Rector\Tests\CodeQuality\Rector\Identical\BooleanNotIdenticalToNotIdenticalRector\BooleanNotIdenticalToNotIdenticalRectorTest
  */
 final class BooleanNotIdenticalToNotIdenticalRector extends AbstractRector
 {
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
         return new RuleDefinition('Negated identical boolean compare to not identical compare (does not apply to non-bool values)', [new CodeSample(<<<'CODE_SAMPLE'
 class SomeClass
@@ -50,14 +50,14 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [Identical::class, BooleanNot::class];
     }
     /**
      * @param Identical|BooleanNot $node
      */
-    public function refactor(Node $node) : ?Node
+    public function refactor(Node $node): ?Node
     {
         if ($node instanceof Identical) {
             return $this->processIdentical($node);
@@ -76,19 +76,18 @@ CODE_SAMPLE
         }
         return null;
     }
-    private function processIdentical(Identical $identical) : ?NotIdentical
+    private function processIdentical(Identical $identical): ?NotIdentical
     {
-        $leftType = $this->getType($identical->left);
-        if (!$leftType->isBoolean()->yes()) {
+        // cheap structural guard first, so getType() runs only on the "!$a === $b" shape
+        if (!$identical->left instanceof BooleanNot) {
             return null;
         }
-        $rightType = $this->getType($identical->right);
-        if (!$rightType->isBoolean()->yes()) {
+        if (!$this->getType($identical->left)->isBoolean()->yes()) {
             return null;
         }
-        if ($identical->left instanceof BooleanNot) {
-            return new NotIdentical($identical->left->expr, $identical->right);
+        if (!$this->getType($identical->right)->isBoolean()->yes()) {
+            return null;
         }
-        return null;
+        return new NotIdentical($identical->left->expr, $identical->right);
     }
 }

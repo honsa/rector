@@ -10,8 +10,8 @@ use PhpParser\Node\Expr\StaticCall;
 use PhpParser\Node\Identifier;
 use Rector\PHPUnit\NodeAnalyzer\TestsNodeAnalyzer;
 use Rector\Rector\AbstractRector;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
 /**
  * @changelog https://github.com/symfony/symfony/pull/29685/files
  * @see \Rector\PHPUnit\Tests\CodeQuality\Rector\MethodCall\UseSpecificWillMethodRector\UseSpecificWillMethodRectorTest
@@ -20,9 +20,8 @@ final class UseSpecificWillMethodRector extends AbstractRector
 {
     /**
      * @readonly
-     * @var \Rector\PHPUnit\NodeAnalyzer\TestsNodeAnalyzer
      */
-    private $testsNodeAnalyzer;
+    private TestsNodeAnalyzer $testsNodeAnalyzer;
     /**
      * @var array<string, string>
      */
@@ -31,7 +30,7 @@ final class UseSpecificWillMethodRector extends AbstractRector
     {
         $this->testsNodeAnalyzer = $testsNodeAnalyzer;
     }
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
         return new RuleDefinition('Changes $mock->will() call to more specific method', [new CodeSample(<<<'CODE_SAMPLE'
 class SomeClass extends PHPUnit\Framework\TestCase
@@ -62,14 +61,14 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [MethodCall::class, StaticCall::class];
     }
     /**
      * @param MethodCall|StaticCall $node
      */
-    public function refactor(Node $node) : ?Node
+    public function refactor(Node $node): ?Node
     {
         if (!$this->testsNodeAnalyzer->isInTestClass($node)) {
             return null;
@@ -101,12 +100,13 @@ CODE_SAMPLE
         return null;
     }
     /**
+     * @template TCall of StaticCall|MethodCall
      * @param \PhpParser\Node\Expr\StaticCall|\PhpParser\Node\Expr\MethodCall $call
-     * @return null|\PhpParser\Node\Expr\MethodCall|\PhpParser\Node\Expr\StaticCall
+     * @return TCall|null
      */
     private function refactorNew(New_ $new, $call)
     {
-        if (!$this->isName($new->class, 'PHPUnit\\Framework\\MockObject\\Stub\\ReturnValueMap')) {
+        if (!$this->isName($new->class, 'PHPUnit\Framework\MockObject\Stub\ReturnValueMap')) {
             return null;
         }
         $call->name = new Identifier('willReturnMap');

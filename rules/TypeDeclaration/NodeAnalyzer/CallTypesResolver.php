@@ -4,72 +4,168 @@ declare (strict_types=1);
 namespace Rector\TypeDeclaration\NodeAnalyzer;
 
 use PhpParser\Node\Arg;
+use PhpParser\Node\ArgPlaceholder;
+use PhpParser\Node\Expr;
+use PhpParser\Node\Expr\Array_;
 use PhpParser\Node\Expr\MethodCall;
 use PhpParser\Node\Expr\StaticCall;
 use PhpParser\Node\Identifier;
+use PhpParser\Node\VariadicPlaceholder;
 use PHPStan\Reflection\ReflectionProvider;
+use PHPStan\Type\ArrayType;
+use PHPStan\Type\Constant\ConstantArrayType;
 use PHPStan\Type\MixedType;
-use PHPStan\Type\NullType;
+use PHPStan\Type\NeverType;
 use PHPStan\Type\ObjectType;
 use PHPStan\Type\ThisType;
 use PHPStan\Type\Type;
-use PHPStan\Type\TypeWithClassName;
 use PHPStan\Type\UnionType;
 use Rector\NodeTypeResolver\NodeTypeResolver;
 use Rector\NodeTypeResolver\PHPStan\Type\TypeFactory;
-use Rector\NodeTypeResolver\TypeComparator\TypeComparator;
+use Rector\StaticTypeMapper\Resolver\ClassNameFromObjectTypeResolver;
 final class CallTypesResolver
 {
     /**
      * @readonly
-     * @var \Rector\NodeTypeResolver\NodeTypeResolver
      */
-    private $nodeTypeResolver;
+    private NodeTypeResolver $nodeTypeResolver;
     /**
      * @readonly
-     * @var \Rector\NodeTypeResolver\PHPStan\Type\TypeFactory
      */
-    private $typeFactory;
+    private TypeFactory $typeFactory;
     /**
      * @readonly
-     * @var \PHPStan\Reflection\ReflectionProvider
      */
-    private $reflectionProvider;
-    /**
-     * @readonly
-     * @var \Rector\NodeTypeResolver\TypeComparator\TypeComparator
-     */
-    private $typeComparator;
-    public function __construct(NodeTypeResolver $nodeTypeResolver, TypeFactory $typeFactory, ReflectionProvider $reflectionProvider, TypeComparator $typeComparator)
+    private ReflectionProvider $reflectionProvider;
+    public function __construct(NodeTypeResolver $nodeTypeResolver, TypeFactory $typeFactory, ReflectionProvider $reflectionProvider)
     {
         $this->nodeTypeResolver = $nodeTypeResolver;
         $this->typeFactory = $typeFactory;
         $this->reflectionProvider = $reflectionProvider;
-        $this->typeComparator = $typeComparator;
     }
     /**
      * @param MethodCall[]|StaticCall[] $calls
-     * @return array<int, Type>
+     * @return array<int|string, Type>
      */
-    public function resolveStrictTypesFromCalls(array $calls) : array
+    public function resolveStrictTypesFromCalls(array $calls): array
     {
         $staticTypesByArgumentPosition = [];
         foreach ($calls as $call) {
             foreach ($call->args as $position => $arg) {
-                // there is first class callable usage, or argument unpack, or named arg
-                // simply returns array marks as unknown as can be anything and in any position
-                if (!$arg instanceof Arg || $arg->unpack || $arg->name instanceof Identifier) {
+                if ($this->shouldSkipArg($arg)) {
                     return [];
                 }
+                // must be int
+                if (!is_int($position)) {
+                    continue;
+                }
+                /** @var Arg $arg */
                 $staticTypesByArgumentPosition[$position][] = $this->resolveStrictArgValueType($arg);
             }
         }
         // unite to single type
         return $this->unionToSingleType($staticTypesByArgumentPosition);
     }
-    private function resolveStrictArgValueType(Arg $arg) : Type
+    /**
+     * @param MethodCall[]|StaticCall[] $calls
+     * @return array<int|string, Type>
+     */
+    public function resolveTypesFromCalls(array $calls): array
+    {
+        $staticTypesByArgumentPosition = [];
+        foreach ($calls as $call) {
+            foreach ($call->args as $position => $arg) {
+                if ($this->shouldSkipArg($arg)) {
+                    return [];
+                }
+                /** @var Arg $arg */
+                if ($this->isEmptyArray($arg->value)) {
+                    // skip empty array, as it doesn't add any value
+                    continue;
+                }
+                $positionOrName = $arg->name instanceof Identifier ? $arg->name->toString() : $position;
+                $staticTypesByArgumentPosition[$positionOrName][] = $this->resolveArgValueType($arg);
+            }
+        }
+        // unite to single type
+        return $this->unionToSingleType($staticTypesByArgumentPosition, \true);
+    }
+    private function resolveStrictArgValueType(Arg $arg): Type
     {
         $argValueType = $this->nodeTypeResolver->getNativeType($arg->value);
+        return $this->normalizeType($argValueType);
+    }
+    private function resolveArgValueType(Arg $arg): Type
+    {
+        $argValueType = $this->nodeTypeResolver->getType($arg->value);
+        return $this->normalizeType($argValueType);
+    }
+    private function correctSelfType(Type $argValueType): Type
+    {
+        if ($argValueType instanceof ThisType) {
+            return new ObjectType($argValueType->getClassName());
+        }
+        return $argValueType;
+    }
+    /**
+     * @param array<int|string, Type[]> $staticTypesByArgumentPosition
+     * @return array<int|string, Type>
+     */
+    private function unionToSingleType(array $staticTypesByArgumentPosition, bool $removeMixedArray = \false): array
+    {
+        $staticTypeByArgumentPosition = [];
+        foreach ($staticTypesByArgumentPosition as $position => $staticTypes) {
+            if ($removeMixedArray) {
+                $staticTypes = array_filter($staticTypes, fn(Type $type): bool => !$this->isArrayMixedMixedType($type));
+            }
+            $unionedType = $this->typeFactory->createMixedPassedOrUnionType($staticTypes);
+            $staticTypeByArgumentPosition[$position] = $this->narrowParentObjectTreeToSingleObjectChildType($unionedType);
+            if ($removeMixedArray && $staticTypeByArgumentPosition[$position] instanceof UnionType) {
+                foreach ($staticTypeByArgumentPosition[$position]->getTypes() as $subType) {
+                    if ($subType instanceof ArrayType && $this->isArrayMixedMixedType($subType)) {
+                        $staticTypeByArgumentPosition[$position] = new MixedType();
+                        continue 2;
+                    }
+                }
+            }
+        }
+        return $staticTypeByArgumentPosition;
+    }
+    private function narrowParentObjectTreeToSingleObjectChildType(Type $type): Type
+    {
+        if (!$type instanceof UnionType) {
+            return $type;
+        }
+        if (!$this->isTypeWithClassNameOnly($type)) {
+            return $type;
+        }
+        $firstUnionedType = $type->getTypes()[0];
+        foreach ($type->getTypes() as $unionedType) {
+            $className = ClassNameFromObjectTypeResolver::resolve($unionedType);
+            if ($className === null) {
+                return $type;
+            }
+            if ($unionedType->isSuperTypeOf($firstUnionedType)->yes()) {
+                return $type;
+            }
+        }
+        return $firstUnionedType;
+    }
+    private function isTypeWithClassNameOnly(UnionType $unionType): bool
+    {
+        foreach ($unionType->getTypes() as $unionedType) {
+            $className = ClassNameFromObjectTypeResolver::resolve($unionedType);
+            if ($className === null) {
+                return \false;
+            }
+        }
+        return \true;
+    }
+    /**
+     * @return \PHPStan\Type\MixedType|\PHPStan\Type\ObjectType|\PHPStan\Type\Type
+     */
+    private function normalizeType(Type $argValueType)
+    {
         // "self" in another object is not correct, this make it independent
         $argValueType = $this->correctSelfType($argValueType);
         if (!$argValueType instanceof ObjectType) {
@@ -79,66 +175,35 @@ final class CallTypesResolver
         if (!$this->reflectionProvider->hasClass($argValueType->getClassName())) {
             return new MixedType();
         }
-        $type = $this->nodeTypeResolver->getType($arg->value);
-        if (!$type->equals($argValueType) && $this->typeComparator->isSubtype($type, $argValueType)) {
-            return $type;
-        }
-        return $argValueType;
-    }
-    private function correctSelfType(Type $argValueType) : Type
-    {
-        if ($argValueType instanceof ThisType) {
-            return new ObjectType($argValueType->getClassName());
-        }
         return $argValueType;
     }
     /**
-     * @param array<int, Type[]> $staticTypesByArgumentPosition
-     * @return array<int, Type>
+     * There is first class callable usage, or argument unpack, or named expr
+     * simply returns array marks as unknown as can be anything and in any position
+     * @param \PhpParser\Node\Arg|\PhpParser\Node\ArgPlaceholder|\PhpParser\Node\VariadicPlaceholder $arg
      */
-    private function unionToSingleType(array $staticTypesByArgumentPosition) : array
+    private function shouldSkipArg($arg): bool
     {
-        $staticTypeByArgumentPosition = [];
-        foreach ($staticTypesByArgumentPosition as $position => $staticTypes) {
-            $unionedType = $this->typeFactory->createMixedPassedOrUnionType($staticTypes);
-            // narrow parents to most child type
-            $staticTypeByArgumentPosition[$position] = $this->narrowParentObjectTreeToSingleObjectChildType($unionedType);
+        if (!$arg instanceof Arg) {
+            return \true;
         }
-        if (\count($staticTypeByArgumentPosition) !== 1) {
-            return $staticTypeByArgumentPosition;
-        }
-        if (!$staticTypeByArgumentPosition[0] instanceof NullType) {
-            return $staticTypeByArgumentPosition;
-        }
-        return [new MixedType()];
+        return $arg->unpack;
     }
-    private function narrowParentObjectTreeToSingleObjectChildType(Type $type) : Type
+    private function isEmptyArray(Expr $expr): bool
     {
-        if (!$type instanceof UnionType) {
-            return $type;
+        if (!$expr instanceof Array_) {
+            return \false;
         }
-        if (!$this->isTypeWithClassNameOnly($type)) {
-            return $type;
-        }
-        /** @var TypeWithClassName $firstUnionedType */
-        $firstUnionedType = $type->getTypes()[0];
-        foreach ($type->getTypes() as $unionedType) {
-            if (!$unionedType instanceof TypeWithClassName) {
-                return $type;
-            }
-            if ($unionedType->isSuperTypeOf($firstUnionedType)->yes()) {
-                return $type;
-            }
-        }
-        return $firstUnionedType;
+        return $expr->items === [];
     }
-    private function isTypeWithClassNameOnly(UnionType $unionType) : bool
+    private function isArrayMixedMixedType(Type $type): bool
     {
-        foreach ($unionType->getTypes() as $unionedType) {
-            if (!$unionedType instanceof TypeWithClassName) {
-                return \false;
-            }
+        if (!$type instanceof ArrayType && !$type instanceof ConstantArrayType) {
+            return \false;
         }
-        return \true;
+        if (!$type->getItemType() instanceof MixedType && !$type->getItemType() instanceof NeverType) {
+            return \false;
+        }
+        return $type->getKeyType() instanceof MixedType || $type->getKeyType() instanceof NeverType;
     }
 }

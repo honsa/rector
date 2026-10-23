@@ -8,27 +8,27 @@ use PhpParser\Node\Arg;
 use PhpParser\Node\Expr\MethodCall;
 use PhpParser\Node\Scalar\String_;
 use Rector\Rector\AbstractRector;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
 use Rector\Symfony\FormHelper\FormTypeStringToTypeProvider;
 use Rector\Symfony\NodeAnalyzer\FormAddMethodCallAnalyzer;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
+use Rector\VersionBonding\Contract\ComposerPackageConstraintInterface;
+use Rector\VersionBonding\ValueObject\ComposerPackageConstraint;
 /**
  * Covers https://github.com/symfony/symfony/blob/2.8/UPGRADE-2.8.md#form
  *
  * @see \Rector\Symfony\Tests\Symfony30\Rector\MethodCall\StringFormTypeToClassRector\StringFormTypeToClassRectorTest
  */
-final class StringFormTypeToClassRector extends AbstractRector
+final class StringFormTypeToClassRector extends AbstractRector implements ComposerPackageConstraintInterface
 {
     /**
      * @readonly
-     * @var \Rector\Symfony\NodeAnalyzer\FormAddMethodCallAnalyzer
      */
-    private $formAddMethodCallAnalyzer;
+    private FormAddMethodCallAnalyzer $formAddMethodCallAnalyzer;
     /**
      * @readonly
-     * @var \Rector\Symfony\FormHelper\FormTypeStringToTypeProvider
      */
-    private $formTypeStringToTypeProvider;
+    private FormTypeStringToTypeProvider $formTypeStringToTypeProvider;
     /**
      * @var string
      */
@@ -38,7 +38,11 @@ final class StringFormTypeToClassRector extends AbstractRector
         $this->formAddMethodCallAnalyzer = $formAddMethodCallAnalyzer;
         $this->formTypeStringToTypeProvider = $formTypeStringToTypeProvider;
     }
-    public function getRuleDefinition() : RuleDefinition
+    public function provideComposerPackageConstraint(): ComposerPackageConstraint
+    {
+        return new ComposerPackageConstraint('symfony/form', '>=3.0 <5.0');
+    }
+    public function getRuleDefinition(): RuleDefinition
     {
         return new RuleDefinition(self::DESCRIPTION, [new CodeSample(<<<'CODE_SAMPLE'
 $formBuilder = new Symfony\Component\Form\FormBuilder;
@@ -53,14 +57,14 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [MethodCall::class];
     }
     /**
      * @param MethodCall $node
      */
-    public function refactor(Node $node) : ?Node
+    public function refactor(Node $node): ?Node
     {
         if (!$this->formAddMethodCallAnalyzer->isMatching($node)) {
             return null;
@@ -73,7 +77,6 @@ CODE_SAMPLE
         if (!$firstArg->value instanceof String_) {
             return null;
         }
-        /** @var String_ $stringNode */
         $stringNode = $firstArg->value;
         // not a form type string
         $formClass = $this->formTypeStringToTypeProvider->matchClassForNameWithPrefix($stringNode->value);

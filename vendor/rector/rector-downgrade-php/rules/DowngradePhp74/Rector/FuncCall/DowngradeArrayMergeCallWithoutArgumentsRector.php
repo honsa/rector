@@ -8,14 +8,14 @@ use PhpParser\Node\Arg;
 use PhpParser\Node\Expr\Array_;
 use PhpParser\Node\Expr\FuncCall;
 use Rector\Rector\AbstractRector;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
 /**
  * @see \Rector\Tests\DowngradePhp74\Rector\FuncCall\DowngradeArrayMergeCallWithoutArgumentsRector\DowngradeArrayMergeCallWithoutArgumentsRectorTest
  */
 final class DowngradeArrayMergeCallWithoutArgumentsRector extends AbstractRector
 {
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
         return new RuleDefinition('Add missing param to `array_merge` and `array_merge_recursive`', [new CodeSample(<<<'CODE_SAMPLE'
 class SomeClass
@@ -42,14 +42,14 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [FuncCall::class];
     }
     /**
      * @param FuncCall $node
      */
-    public function refactor(Node $node) : ?Node
+    public function refactor(Node $node): ?Node
     {
         if (!$this->shouldRefactor($node)) {
             return null;
@@ -57,7 +57,7 @@ CODE_SAMPLE
         $node->args = [new Arg(new Array_())];
         return $node;
     }
-    private function shouldRefactor(FuncCall $funcCall) : bool
+    private function shouldRefactor(FuncCall $funcCall): bool
     {
         if (!$this->isNames($funcCall, ['array_merge', 'array_merge_recursive'])) {
             return \false;

@@ -16,15 +16,15 @@ use PhpParser\Node\Stmt\ClassMethod;
 use PhpParser\Node\Stmt\Function_;
 use PhpParser\Node\Stmt\Namespace_;
 use PhpParser\Node\Stmt\Property;
-use PhpParser\NodeTraverser;
+use PhpParser\NodeVisitor;
 use PHPStan\Type\UnionType;
-use Rector\PhpParser\Node\CustomNode\FileWithoutNamespace;
+use Rector\PhpParser\Node\FileNode;
 use Rector\PhpParser\NodeFinder\PropertyFetchFinder;
 use Rector\Rector\AbstractRector;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
 use Rector\ValueObject\PhpVersionFeature;
 use Rector\VersionBonding\Contract\MinPhpVersionInterface;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
 /**
  * @see \Rector\Tests\Php71\Rector\Assign\AssignArrayToStringRector\AssignArrayToStringRectorTest
  */
@@ -32,18 +32,17 @@ final class AssignArrayToStringRector extends AbstractRector implements MinPhpVe
 {
     /**
      * @readonly
-     * @var \Rector\PhpParser\NodeFinder\PropertyFetchFinder
      */
-    private $propertyFetchFinder;
+    private PropertyFetchFinder $propertyFetchFinder;
     public function __construct(PropertyFetchFinder $propertyFetchFinder)
     {
         $this->propertyFetchFinder = $propertyFetchFinder;
     }
-    public function provideMinPhpVersion() : int
+    public function provideMinPhpVersion(): int
     {
         return PhpVersionFeature::NO_ASSIGN_ARRAY_TO_STRING;
     }
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
         return new RuleDefinition('String cannot be turned into array by assignment anymore', [new CodeSample(<<<'CODE_SAMPLE'
 $string = '';
@@ -58,14 +57,14 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
-        return [Namespace_::class, FileWithoutNamespace::class, Class_::class, ClassMethod::class, Function_::class, Closure::class];
+        return [Namespace_::class, FileNode::class, Class_::class, ClassMethod::class, Function_::class, Closure::class];
     }
     /**
-     * @param Namespace_|FileWithoutNamespace|Class_|ClassMethod|Function_|Closure $node
+     * @param Namespace_|FileNode|Class_|ClassMethod|Function_|Closure $node
      */
-    public function refactor(Node $node) : ?Node
+    public function refactor(Node $node): ?Node
     {
         if ($node instanceof Class_) {
             return $this->refactorClass($node);
@@ -73,10 +72,14 @@ CODE_SAMPLE
         if ($node->stmts === null) {
             return null;
         }
+        if ($node instanceof FileNode && $node->isNamespaced()) {
+            // handled in Namespace_
+            return null;
+        }
         $hasChanged = \false;
-        $this->traverseNodesWithCallable($node->stmts, function (Node $subNode) use(&$hasChanged, $node) : ?int {
+        $this->traverseNodesWithCallable($node->stmts, function (Node $subNode) use (&$hasChanged, $node): ?int {
             if ($subNode instanceof Class_ || $subNode instanceof Function_ || $subNode instanceof Closure) {
-                return NodeTraverser::DONT_TRAVERSE_CURRENT_AND_CHILDREN;
+                return NodeVisitor::DONT_TRAVERSE_CURRENT_AND_CHILDREN;
             }
             if ($subNode instanceof Assign) {
                 $assign = $this->refactorAssign($subNode, $node);
@@ -92,14 +95,14 @@ CODE_SAMPLE
         }
         return null;
     }
-    private function isEmptyString(Expr $expr) : bool
+    private function isEmptyString(Expr $expr): bool
     {
         if (!$expr instanceof String_) {
             return \false;
         }
         return $expr->value === '';
     }
-    private function refactorClass(Class_ $class) : ?Class_
+    private function refactorClass(Class_ $class): ?Class_
     {
         $hasChanged = \false;
         foreach ($class->getProperties() as $property) {
@@ -120,7 +123,7 @@ CODE_SAMPLE
         }
         return null;
     }
-    private function hasPropertyDefaultEmptyString(Property $property) : bool
+    private function hasPropertyDefaultEmptyString(Property $property): bool
     {
         $defaultExpr = $property->props[0]->default;
         if (!$defaultExpr instanceof Expr) {
@@ -130,25 +133,25 @@ CODE_SAMPLE
     }
     /**
      * @return ArrayDimFetch[]
-     * @param \PhpParser\Node\Stmt\Namespace_|\Rector\PhpParser\Node\CustomNode\FileWithoutNamespace|\PhpParser\Node\Stmt\ClassMethod|\PhpParser\Node\Stmt\Function_|\PhpParser\Node\Expr\Closure $node
+     * @param \PhpParser\Node\Stmt\Namespace_|\Rector\PhpParser\Node\FileNode|\PhpParser\Node\Stmt\ClassMethod|\PhpParser\Node\Stmt\Function_|\PhpParser\Node\Expr\Closure $node
      */
-    private function findSameNamedVariableAssigns(Variable $variable, $node) : array
+    private function findSameNamedVariableAssigns(Variable $variable, $node): array
     {
         if ($node->stmts === null) {
             return [];
         }
-        $variableName = $this->nodeNameResolver->getName($variable);
+        $variableName = $this->getName($variable);
         if ($variableName === null) {
             return [];
         }
         $assignedArrayDimFetches = [];
-        $this->traverseNodesWithCallable($node->stmts, function (Node $node) use($variable, $variableName, &$assignedArrayDimFetches) {
+        $this->traverseNodesWithCallable($node->stmts, function (Node $node) use ($variable, $variableName, &$assignedArrayDimFetches) {
             if (!$node instanceof Assign) {
                 return null;
             }
             if ($this->isReAssignedAsArray($node, $variableName, $variable)) {
                 $assignedArrayDimFetches = [];
-                return NodeTraverser::STOP_TRAVERSAL;
+                return NodeVisitor::STOP_TRAVERSAL;
             }
             if (!$node->var instanceof ArrayDimFetch) {
                 return null;
@@ -164,7 +167,7 @@ CODE_SAMPLE
         });
         return $assignedArrayDimFetches;
     }
-    private function isReAssignedAsArray(Assign $assign, string $variableName, Variable $variable) : bool
+    private function isReAssignedAsArray(Assign $assign, string $variableName, Variable $variable): bool
     {
         if ($assign->var instanceof Variable && $this->isName($assign->var, $variableName) && $assign->var->getStartTokenPos() > $variable->getStartTokenPos()) {
             $exprType = $this->nodeTypeResolver->getNativeType($assign->expr);
@@ -175,9 +178,48 @@ CODE_SAMPLE
         return \false;
     }
     /**
-     * @param \PhpParser\Node\Stmt\Namespace_|\Rector\PhpParser\Node\CustomNode\FileWithoutNamespace|\PhpParser\Node\Stmt\ClassMethod|\PhpParser\Node\Stmt\Function_|\PhpParser\Node\Expr\Closure $node
+     * The variable is filled as a string later on, so it has to stay a string here as well
+     * @param \PhpParser\Node\Stmt\Namespace_|\Rector\PhpParser\Node\FileNode|\PhpParser\Node\Stmt\ClassMethod|\PhpParser\Node\Stmt\Function_|\PhpParser\Node\Expr\Closure $node
      */
-    private function refactorAssign(Assign $assign, $node) : ?Assign
+    private function isReAssignedAsString(Variable $variable, $node): bool
+    {
+        if ($node->stmts === null) {
+            return \false;
+        }
+        $variableName = $this->getName($variable);
+        if ($variableName === null) {
+            return \false;
+        }
+        $isReAssignedAsString = \false;
+        $this->traverseNodesWithCallable($node->stmts, function (Node $node) use ($variable, $variableName, &$isReAssignedAsString): ?int {
+            if (!$node instanceof Assign) {
+                return null;
+            }
+            if (!$node->var instanceof Variable) {
+                return null;
+            }
+            if (!$this->isName($node->var, $variableName)) {
+                return null;
+            }
+            if ($node->var->getStartTokenPos() <= $variable->getStartTokenPos()) {
+                return null;
+            }
+            // an empty string assign is a candidate for the very same re-type, so it is no proof of a string
+            if ($this->isEmptyString($node->expr)) {
+                return null;
+            }
+            if (!$this->nodeTypeResolver->getNativeType($node->expr)->isString()->yes()) {
+                return null;
+            }
+            $isReAssignedAsString = \true;
+            return NodeVisitor::STOP_TRAVERSAL;
+        });
+        return $isReAssignedAsString;
+    }
+    /**
+     * @param \PhpParser\Node\Stmt\Namespace_|\Rector\PhpParser\Node\FileNode|\PhpParser\Node\Stmt\ClassMethod|\PhpParser\Node\Stmt\Function_|\PhpParser\Node\Expr\Closure $node
+     */
+    private function refactorAssign(Assign $assign, $node): ?Assign
     {
         if (!$assign->var instanceof Variable) {
             return null;
@@ -190,6 +232,9 @@ CODE_SAMPLE
             return null;
         }
         if ($type instanceof UnionType) {
+            return null;
+        }
+        if ($this->isReAssignedAsString($assign->var, $node)) {
             return null;
         }
         $variableAssignArrayDimFetches = $this->findSameNamedVariableAssigns($assign->var, $node);

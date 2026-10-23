@@ -3,15 +3,14 @@
 declare (strict_types=1);
 namespace Rector\NodeManipulator;
 
-use PhpParser\Node\FunctionLike;
+use PhpParser\Node\Stmt\ClassMethod;
 use Rector\NodeNameResolver\NodeNameResolver;
 final class FunctionLikeManipulator
 {
     /**
      * @readonly
-     * @var \Rector\NodeNameResolver\NodeNameResolver
      */
-    private $nodeNameResolver;
+    private NodeNameResolver $nodeNameResolver;
     public function __construct(NodeNameResolver $nodeNameResolver)
     {
         $this->nodeNameResolver = $nodeNameResolver;
@@ -19,10 +18,10 @@ final class FunctionLikeManipulator
     /**
      * @return string[]
      */
-    public function resolveParamNames(FunctionLike $functionLike) : array
+    public function resolveParamNames(ClassMethod $classMethod): array
     {
         $paramNames = [];
-        foreach ($functionLike->getParams() as $param) {
+        foreach ($classMethod->getParams() as $param) {
             $paramNames[] = $this->nodeNameResolver->getName($param);
         }
         return $paramNames;

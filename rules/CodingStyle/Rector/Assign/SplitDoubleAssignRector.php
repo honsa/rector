@@ -10,14 +10,14 @@ use PhpParser\Node\Expr\Assign;
 use PhpParser\Node\Expr\CallLike;
 use PhpParser\Node\Stmt\Expression;
 use Rector\Rector\AbstractRector;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
 /**
  * @see \Rector\Tests\CodingStyle\Rector\Assign\SplitDoubleAssignRector\SplitDoubleAssignRectorTest
  */
 final class SplitDoubleAssignRector extends AbstractRector
 {
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
         return new RuleDefinition('Split multiple inline assigns to each own lines default value, to prevent undefined array issues', [new CodeSample(<<<'CODE_SAMPLE'
 class SomeClass
@@ -43,7 +43,7 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [Expression::class];
     }
@@ -51,7 +51,7 @@ CODE_SAMPLE
      * @param Expression $node
      * @return Expression[]|null
      */
-    public function refactor(Node $node) : ?array
+    public function refactor(Node $node): ?array
     {
         if (!$node->expr instanceof Assign) {
             return null;
@@ -65,12 +65,13 @@ CODE_SAMPLE
         if ($collectExpressions === []) {
             return null;
         }
+        $this->mirrorComments($collectExpressions[0], $node);
         return $collectExpressions;
     }
     /**
      * @return Expression[]
      */
-    private function collectExpressions(Assign $assign, Expr $expr) : array
+    private function collectExpressions(Assign $assign, Expr $expr): array
     {
         /** @var Expression[] $expressions */
         $expressions = [];
@@ -84,15 +85,11 @@ CODE_SAMPLE
             if ($expr instanceof CallLike) {
                 $expr = $assign->var;
             }
-            if (!$assign->expr instanceof Assign) {
-                break;
-            }
-            /** @var Expr $assign */
             $assign = $assign->expr;
         }
         return $expressions;
     }
-    private function resolveLastAssignExpr(Assign $assign) : Expr
+    private function resolveLastAssignExpr(Assign $assign): Expr
     {
         if (!$assign->expr instanceof Assign) {
             return $assign->expr;

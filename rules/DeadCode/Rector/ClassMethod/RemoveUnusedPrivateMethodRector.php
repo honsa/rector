@@ -4,47 +4,52 @@ declare (strict_types=1);
 namespace Rector\DeadCode\Rector\ClassMethod;
 
 use PhpParser\Node;
+use PhpParser\Node\Expr\ClassConstFetch;
 use PhpParser\Node\Expr\MethodCall;
+use PhpParser\Node\Expr\StaticCall;
 use PhpParser\Node\Expr\Variable;
+use PhpParser\Node\Identifier;
 use PhpParser\Node\Stmt\Class_;
 use PhpParser\Node\Stmt\ClassMethod;
-use PHPStan\Analyser\Scope;
 use PHPStan\Reflection\ClassReflection;
 use Rector\DeadCode\NodeAnalyzer\IsClassMethodUsedAnalyzer;
-use Rector\NodeTypeResolver\Node\AttributeKey;
 use Rector\PhpParser\Node\BetterNodeFinder;
-use Rector\Rector\AbstractScopeAwareRector;
+use Rector\PHPStan\ScopeFetcher;
+use Rector\Rector\AbstractRector;
 use Rector\Reflection\ReflectionResolver;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
+use Rector\TypeDeclarationDocblocks\NodeFinder\DataProviderMethodsFinder;
 use Rector\ValueObject\MethodName;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
 /**
  * @see \Rector\Tests\DeadCode\Rector\ClassMethod\RemoveUnusedPrivateMethodRector\RemoveUnusedPrivateMethodRectorTest
  */
-final class RemoveUnusedPrivateMethodRector extends AbstractScopeAwareRector
+final class RemoveUnusedPrivateMethodRector extends AbstractRector
 {
     /**
      * @readonly
-     * @var \Rector\DeadCode\NodeAnalyzer\IsClassMethodUsedAnalyzer
      */
-    private $isClassMethodUsedAnalyzer;
+    private IsClassMethodUsedAnalyzer $isClassMethodUsedAnalyzer;
     /**
      * @readonly
-     * @var \Rector\Reflection\ReflectionResolver
      */
-    private $reflectionResolver;
+    private ReflectionResolver $reflectionResolver;
     /**
      * @readonly
-     * @var \Rector\PhpParser\Node\BetterNodeFinder
      */
-    private $betterNodeFinder;
-    public function __construct(IsClassMethodUsedAnalyzer $isClassMethodUsedAnalyzer, ReflectionResolver $reflectionResolver, BetterNodeFinder $betterNodeFinder)
+    private BetterNodeFinder $betterNodeFinder;
+    /**
+     * @readonly
+     */
+    private DataProviderMethodsFinder $dataProviderMethodsFinder;
+    public function __construct(IsClassMethodUsedAnalyzer $isClassMethodUsedAnalyzer, ReflectionResolver $reflectionResolver, BetterNodeFinder $betterNodeFinder, DataProviderMethodsFinder $dataProviderMethodsFinder)
     {
         $this->isClassMethodUsedAnalyzer = $isClassMethodUsedAnalyzer;
         $this->reflectionResolver = $reflectionResolver;
         $this->betterNodeFinder = $betterNodeFinder;
+        $this->dataProviderMethodsFinder = $dataProviderMethodsFinder;
     }
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
         return new RuleDefinition('Remove unused private method', [new CodeSample(<<<'CODE_SAMPLE'
 final class SomeController
@@ -74,39 +79,56 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [Class_::class];
     }
     /**
      * @param Class_ $node
      */
-    public function refactorWithScope(Node $node, Scope $scope) : ?Node
+    public function refactor(Node $node): ?Node
     {
-        $classMethods = $node->getMethods();
-        if ($classMethods === []) {
+        // unreliable to detect on anonymous class: doesn't make sense
+        if ($node->isAnonymous()) {
             return null;
         }
-        $filter = static function (ClassMethod $classMethod) : bool {
-            return $classMethod->isPrivate();
-        };
-        $privateMethods = \array_filter($classMethods, $filter);
-        if ($privateMethods === []) {
-            return null;
-        }
-        if ($this->hasDynamicMethodCallOnFetchThis($classMethods)) {
+        if (!$this->hasPrivateMethod($node)) {
             return null;
         }
         $hasChanged = \false;
         $classReflection = $this->reflectionResolver->resolveClassReflection($node);
-        foreach ($privateMethods as $privateMethod) {
-            if ($this->shouldSkip($privateMethod, $classReflection)) {
+        if (!$classReflection instanceof ClassReflection) {
+            return null;
+        }
+        $dataProviderMethodNames = $this->resolveDataProviderMethodNames($node);
+        // methods invoked via a class-string static call, e.g. self::class::sampleClass(),
+        // are not seen by the usage analyzer
+        $classStringCallMethodNames = $this->resolveClassStringStaticCallNames($node);
+        foreach ($node->stmts as $classStmtKey => $classStmt) {
+            if (!$classStmt instanceof ClassMethod) {
                 continue;
             }
-            if ($this->isClassMethodUsedAnalyzer->isClassMethodUsed($node, $privateMethod, $scope)) {
+            if (!$classStmt->isPrivate()) {
                 continue;
             }
-            unset($node->stmts[$privateMethod->getAttribute(AttributeKey::STMT_KEY)]);
+            $classMethod = $classStmt;
+            if ($this->hasDynamicMethodCallOnFetchThis($classStmt)) {
+                continue;
+            }
+            $scope = ScopeFetcher::fetch($node);
+            if ($this->shouldSkip($classStmt, $classReflection)) {
+                continue;
+            }
+            if ($this->isClassMethodUsedAnalyzer->isClassMethodUsed($node, $classStmt, $scope)) {
+                continue;
+            }
+            if ($this->isNames($classMethod, $dataProviderMethodNames)) {
+                continue;
+            }
+            if ($this->isNames($classMethod, $classStringCallMethodNames)) {
+                continue;
+            }
+            unset($node->stmts[$classStmtKey]);
             $hasChanged = \true;
         }
         if ($hasChanged) {
@@ -114,19 +136,24 @@ CODE_SAMPLE
         }
         return null;
     }
-    private function shouldSkip(ClassMethod $classMethod, ?ClassReflection $classReflection) : bool
+    private function hasPrivateMethod(Class_ $class): bool
     {
-        if (!$classReflection instanceof ClassReflection) {
-            return \true;
+        $found = \false;
+        foreach ($class->getMethods() as $classMethod) {
+            if ($classMethod->isPrivate()) {
+                $found = \true;
+                break;
+            }
         }
-        // unreliable to detect trait, interface, anonymous class: doesn't make sense
+        return $found;
+    }
+    private function shouldSkip(ClassMethod $classMethod, ClassReflection $classReflection): bool
+    {
+        // unreliable to detect trait, interface: doesn't make sense
         if ($classReflection->isTrait()) {
             return \true;
         }
         if ($classReflection->isInterface()) {
-            return \true;
-        }
-        if ($classReflection->isAnonymous()) {
             return \true;
         }
         // skip magic methods - @see https://www.php.net/manual/en/language.oop5.magic.php
@@ -136,27 +163,52 @@ CODE_SAMPLE
         return $classReflection->hasMethod(MethodName::CALL);
     }
     /**
-     * @param ClassMethod[] $classMethods
+     * Mirrors PHPStan's UnusedPrivateMethodRule fix for class-string static calls
+     * @see https://github.com/phpstan/phpstan-src/pull/5953
+     *
+     * @return string[]
      */
-    private function hasDynamicMethodCallOnFetchThis(array $classMethods) : bool
+    private function resolveClassStringStaticCallNames(Class_ $class): array
     {
-        foreach ($classMethods as $classMethod) {
-            $isFound = (bool) $this->betterNodeFinder->findFirst((array) $classMethod->getStmts(), function (Node $subNode) : bool {
-                if (!$subNode instanceof MethodCall) {
-                    return \false;
-                }
-                if (!$subNode->var instanceof Variable) {
-                    return \false;
-                }
-                if (!$this->nodeNameResolver->isName($subNode->var, 'this')) {
-                    return \false;
-                }
-                return $subNode->name instanceof Variable;
-            });
-            if ($isFound) {
-                return \true;
+        $methodNames = [];
+        /** @var StaticCall[] $staticCalls */
+        $staticCalls = $this->betterNodeFinder->findInstanceOf($class->stmts, StaticCall::class);
+        foreach ($staticCalls as $staticCall) {
+            // e.g. self::class::sampleClass() - the called class is a ::class expression
+            if (!$staticCall->class instanceof ClassConstFetch) {
+                continue;
             }
+            if (!$this->isName($staticCall->class->name, 'class')) {
+                continue;
+            }
+            if (!$staticCall->name instanceof Identifier) {
+                continue;
+            }
+            $methodNames[] = $staticCall->name->toString();
         }
-        return \false;
+        return $methodNames;
+    }
+    private function hasDynamicMethodCallOnFetchThis(ClassMethod $classMethod): bool
+    {
+        return (bool) $this->betterNodeFinder->findFirst((array) $classMethod->stmts, function (Node $subNode): bool {
+            if (!$subNode instanceof MethodCall) {
+                return \false;
+            }
+            if (!$subNode->var instanceof Variable) {
+                return \false;
+            }
+            if (!$this->isName($subNode->var, 'this')) {
+                return \false;
+            }
+            return $subNode->name instanceof Variable;
+        });
+    }
+    /**
+     * @return string[]
+     */
+    private function resolveDataProviderMethodNames(Class_ $class): array
+    {
+        $dataProviderClassMethods = $this->dataProviderMethodsFinder->findDataProviderNodesInClass($class);
+        return $this->nodeNameResolver->getNames($dataProviderClassMethods);
     }
 }

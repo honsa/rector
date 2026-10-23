@@ -10,8 +10,8 @@ use PhpParser\Node\Stmt\Function_;
 use PHPStan\Type\ObjectWithoutClassType;
 use Rector\PhpDocDecorator\PhpDocFromTypeDeclarationDecorator;
 use Rector\Rector\AbstractRector;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
 /**
  * @see \Rector\Tests\DowngradePhp72\Rector\FunctionLike\DowngradeObjectTypeDeclarationRector\DowngradeObjectTypeDeclarationRectorTest
  */
@@ -19,9 +19,8 @@ final class DowngradeObjectTypeDeclarationRector extends AbstractRector
 {
     /**
      * @readonly
-     * @var \Rector\PhpDocDecorator\PhpDocFromTypeDeclarationDecorator
      */
-    private $phpDocFromTypeDeclarationDecorator;
+    private PhpDocFromTypeDeclarationDecorator $phpDocFromTypeDeclarationDecorator;
     public function __construct(PhpDocFromTypeDeclarationDecorator $phpDocFromTypeDeclarationDecorator)
     {
         $this->phpDocFromTypeDeclarationDecorator = $phpDocFromTypeDeclarationDecorator;
@@ -29,14 +28,14 @@ final class DowngradeObjectTypeDeclarationRector extends AbstractRector
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [Function_::class, ClassMethod::class, Closure::class];
     }
     /**
      * @param Function_|ClassMethod $node
      */
-    public function refactor(Node $node) : ?Node
+    public function refactor(Node $node): ?Node
     {
         $objectWithoutClassType = new ObjectWithoutClassType();
         $hasChanged = \false;
@@ -55,7 +54,7 @@ final class DowngradeObjectTypeDeclarationRector extends AbstractRector
         }
         return $node;
     }
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
         return new RuleDefinition('Remove the "object" param and return type, add a @param and @return tags instead', [new CodeSample(<<<'CODE_SAMPLE'
 class SomeClass

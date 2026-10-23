@@ -4,37 +4,21 @@ declare (strict_types=1);
 namespace Rector\TypeDeclaration\Rector\Empty_;
 
 use PhpParser\Node;
-use PhpParser\Node\Expr\ArrayDimFetch;
 use PhpParser\Node\Expr\BooleanNot;
 use PhpParser\Node\Expr\Empty_;
-use PhpParser\Node\Expr\Instanceof_;
-use PhpParser\Node\Name;
-use PHPStan\Analyser\Scope;
-use PHPStan\Type\ObjectType;
-use PHPStan\Type\TypeCombinator;
-use PHPStan\Type\UnionType;
-use Rector\PHPStanStaticTypeMapper\Enum\TypeKind;
-use Rector\Rector\AbstractScopeAwareRector;
-use Rector\StaticTypeMapper\StaticTypeMapper;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
+use Rector\Configuration\Deprecation\Contract\DeprecatedInterface;
+use Rector\Exception\ShouldNotHappenException;
+use Rector\Rector\AbstractRector;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
 /**
- * @see \Rector\Tests\TypeDeclaration\Rector\Empty_\EmptyOnNullableObjectToInstanceOfRector\EmptyOnNullableObjectToInstanceOfRectorTest
+ * @deprecated This rule is deprecated. Use ExplicitNullableObjectInstanceRector instead, which handles nullable object checks across all condition idioms.
  */
-final class EmptyOnNullableObjectToInstanceOfRector extends AbstractScopeAwareRector
+final class EmptyOnNullableObjectToInstanceOfRector extends AbstractRector implements DeprecatedInterface
 {
-    /**
-     * @readonly
-     * @var \Rector\StaticTypeMapper\StaticTypeMapper
-     */
-    private $staticTypeMapper;
-    public function __construct(StaticTypeMapper $staticTypeMapper)
+    public function getRuleDefinition(): RuleDefinition
     {
-        $this->staticTypeMapper = $staticTypeMapper;
-    }
-    public function getRuleDefinition() : RuleDefinition
-    {
-        return new RuleDefinition('Change empty() on nullable object to instanceof check', [new CodeSample(<<<'CODE_SAMPLE'
+        return new RuleDefinition('Change `empty()` on nullable object to instanceof check', [new CodeSample(<<<'CODE_SAMPLE'
 class SomeClass
 {
     public function run(?AnotherObject $anotherObject)
@@ -65,45 +49,15 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [Empty_::class, BooleanNot::class];
     }
     /**
      * @param Empty_|BooleanNot $node
-     * @return null|\PhpParser\Node\Expr\Instanceof_|\PhpParser\Node\Expr\BooleanNot
      */
-    public function refactorWithScope(Node $node, Scope $scope)
+    public function refactor(Node $node): ?Node
     {
-        if ($node instanceof BooleanNot) {
-            if (!$node->expr instanceof Empty_) {
-                return null;
-            }
-            $isNegated = \true;
-            $empty = $node->expr;
-        } else {
-            $empty = $node;
-            $isNegated = \false;
-        }
-        if ($empty->expr instanceof ArrayDimFetch) {
-            return null;
-        }
-        $exprType = $scope->getNativeType($empty->expr);
-        if (!$exprType instanceof UnionType) {
-            return null;
-        }
-        $exprType = TypeCombinator::removeNull($exprType);
-        if (!$exprType instanceof ObjectType) {
-            return null;
-        }
-        $objectType = $this->staticTypeMapper->mapPHPStanTypeToPhpParserNode($exprType, TypeKind::RETURN);
-        if (!$objectType instanceof Name) {
-            return null;
-        }
-        $instanceof = new Instanceof_($empty->expr, $objectType);
-        if ($isNegated) {
-            return $instanceof;
-        }
-        return new BooleanNot($instanceof);
+        throw new ShouldNotHappenException(sprintf('"%s" rule is deprecated, use ExplicitNullableObjectInstanceRector instead', self::class));
     }
 }

@@ -18,28 +18,30 @@ final class FloatTypeMapper implements TypeMapperInterface
 {
     /**
      * @readonly
-     * @var \Rector\Php\PhpVersionProvider
      */
-    private $phpVersionProvider;
+    private PhpVersionProvider $phpVersionProvider;
     public function __construct(PhpVersionProvider $phpVersionProvider)
     {
         $this->phpVersionProvider = $phpVersionProvider;
     }
-    public function getNodeClass() : string
+    /**
+     * @return array<class-string<Type>>
+     */
+    public function getNodeClasses(): array
     {
-        return FloatType::class;
+        return [FloatType::class];
     }
     /**
      * @param FloatType $type
      */
-    public function mapToPHPStanPhpDocTypeNode(Type $type) : TypeNode
+    public function mapToPHPStanPhpDocTypeNode(Type $type): TypeNode
     {
         return $type->toPhpDocNode();
     }
     /**
      * @param FloatType $type
      */
-    public function mapToPhpParserNode(Type $type, string $typeKind) : ?Node
+    public function mapToPhpParserNode(Type $type, string $typeKind): ?Node
     {
         if (!$this->phpVersionProvider->isAtLeastPhpVersion(PhpVersionFeature::SCALAR_TYPES)) {
             return null;

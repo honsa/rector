@@ -16,12 +16,13 @@ use Rector\NodeTypeResolver\TypeComparator\TypeComparator;
 use Rector\Php\PhpVersionProvider;
 use Rector\PHPStanStaticTypeMapper\Enum\TypeKind;
 use Rector\Rector\AbstractRector;
+use Rector\RuleDoc\CodeSample\ConfiguredCodeSample;
+use Rector\RuleDoc\RuleDefinition;
 use Rector\StaticTypeMapper\StaticTypeMapper;
 use Rector\TypeDeclaration\ValueObject\AddParamTypeDeclaration;
 use Rector\ValueObject\PhpVersionFeature;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\ConfiguredCodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
-use RectorPrefix202411\Webmozart\Assert\Assert;
+use Rector\VendorLocker\ParentClassMethodTypeOverrideGuard;
+use RectorPrefix202610\Webmozart\Assert\Assert;
 /**
  * @see \Rector\Tests\TypeDeclaration\Rector\ClassMethod\AddParamTypeDeclarationRector\AddParamTypeDeclarationRectorTest
  */
@@ -29,34 +30,33 @@ final class AddParamTypeDeclarationRector extends AbstractRector implements Conf
 {
     /**
      * @readonly
-     * @var \Rector\NodeTypeResolver\TypeComparator\TypeComparator
      */
-    private $typeComparator;
+    private TypeComparator $typeComparator;
     /**
      * @readonly
-     * @var \Rector\Php\PhpVersionProvider
      */
-    private $phpVersionProvider;
+    private PhpVersionProvider $phpVersionProvider;
     /**
      * @readonly
-     * @var \Rector\StaticTypeMapper\StaticTypeMapper
      */
-    private $staticTypeMapper;
+    private StaticTypeMapper $staticTypeMapper;
     /**
-     * @var AddParamTypeDeclaration[]
+     * @readonly
      */
-    private $addParamTypeDeclarations = [];
+    private ParentClassMethodTypeOverrideGuard $parentClassMethodTypeOverrideGuard;
     /**
-     * @var bool
+     * @var array<string, AddParamTypeDeclaration[]>
      */
-    private $hasChanged = \false;
-    public function __construct(TypeComparator $typeComparator, PhpVersionProvider $phpVersionProvider, StaticTypeMapper $staticTypeMapper)
+    private array $addParamTypeDeclarationsByMethod = [];
+    private bool $hasChanged = \false;
+    public function __construct(TypeComparator $typeComparator, PhpVersionProvider $phpVersionProvider, StaticTypeMapper $staticTypeMapper, ParentClassMethodTypeOverrideGuard $parentClassMethodTypeOverrideGuard)
     {
         $this->typeComparator = $typeComparator;
         $this->phpVersionProvider = $phpVersionProvider;
         $this->staticTypeMapper = $staticTypeMapper;
+        $this->parentClassMethodTypeOverrideGuard = $parentClassMethodTypeOverrideGuard;
     }
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
         return new RuleDefinition('Add param types where needed', [new ConfiguredCodeSample(<<<'CODE_SAMPLE'
 class SomeClass
@@ -79,25 +79,33 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [Class_::class, Interface_::class];
     }
     /**
      * @param Class_|Interface_ $node
      */
-    public function refactor(Node $node) : ?Node
+    public function refactor(Node $node): ?Node
     {
         $this->hasChanged = \false;
+        // skip class without parents/interfaces, there is no param type to mimic
+        if ($node instanceof Class_ && !$node->extends instanceof Name && $node->implements === []) {
+            return null;
+        }
+        // skip guarded classes, where adding a param type would break child classes
+        if ($this->parentClassMethodTypeOverrideGuard->isTypeGuardedClass($node)) {
+            return null;
+        }
         foreach ($node->getMethods() as $classMethod) {
             if ($this->shouldSkip($node, $classMethod)) {
                 continue;
             }
             $methodName = $this->getName($classMethod);
-            foreach ($this->addParamTypeDeclarations as $addParamTypeDeclaration) {
-                if (!$this->nodeNameResolver->isStringName($methodName, $addParamTypeDeclaration->getMethodName())) {
-                    continue;
-                }
+            if ($methodName === null) {
+                continue;
+            }
+            foreach ($this->addParamTypeDeclarationsByMethod[strtolower($methodName)] ?? [] as $addParamTypeDeclaration) {
                 if (!$this->isObjectType($node, $addParamTypeDeclaration->getObjectType())) {
                     continue;
                 }
@@ -112,15 +120,18 @@ CODE_SAMPLE
     /**
      * @param mixed[] $configuration
      */
-    public function configure(array $configuration) : void
+    public function configure(array $configuration): void
     {
         Assert::allIsAOf($configuration, AddParamTypeDeclaration::class);
-        $this->addParamTypeDeclarations = $configuration;
+        $this->addParamTypeDeclarationsByMethod = [];
+        foreach ($configuration as $addParamTypeDeclaration) {
+            $this->addParamTypeDeclarationsByMethod[strtolower($addParamTypeDeclaration->getMethodName())][] = $addParamTypeDeclaration;
+        }
     }
     /**
      * @param \PhpParser\Node\Stmt\Class_|\PhpParser\Node\Stmt\Interface_ $classLike
      */
-    private function shouldSkip($classLike, ClassMethod $classMethod) : bool
+    private function shouldSkip($classLike, ClassMethod $classMethod): bool
     {
         // skip class methods without args
         if ($classMethod->params === []) {
@@ -132,7 +143,7 @@ CODE_SAMPLE
         }
         return !$classLike->extends instanceof Name;
     }
-    private function refactorClassMethodWithTypehintByParameterPosition(ClassMethod $classMethod, AddParamTypeDeclaration $addParamTypeDeclaration) : void
+    private function refactorClassMethodWithTypehintByParameterPosition(ClassMethod $classMethod, AddParamTypeDeclaration $addParamTypeDeclaration): void
     {
         $parameter = $classMethod->params[$addParamTypeDeclaration->getPosition()] ?? null;
         if (!$parameter instanceof Param) {
@@ -140,10 +151,10 @@ CODE_SAMPLE
         }
         $this->refactorParameter($parameter, $addParamTypeDeclaration);
     }
-    private function refactorParameter(Param $param, AddParamTypeDeclaration $addParamTypeDeclaration) : void
+    private function refactorParameter(Param $param, AddParamTypeDeclaration $addParamTypeDeclaration): void
     {
         // already set → no change
-        if ($param->type !== null) {
+        if ($param->type instanceof Node) {
             $currentParamType = $this->staticTypeMapper->mapPhpParserNodePHPStanType($param->type);
             if ($this->typeComparator->areTypesEqual($currentParamType, $addParamTypeDeclaration->getParamType())) {
                 return;

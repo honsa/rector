@@ -3,19 +3,19 @@
 declare (strict_types=1);
 namespace Rector\Arguments\ValueObject;
 
-use Rector\Arguments\Contract\ReplaceArgumentDefaultValueInterface;
-final class ReplaceFuncCallArgumentDefaultValue implements ReplaceArgumentDefaultValueInterface
+/**
+ * @api
+ */
+final class ReplaceFuncCallArgumentDefaultValue
 {
     /**
      * @readonly
-     * @var string
      */
-    private $function;
+    private string $function;
     /**
      * @readonly
-     * @var int
      */
-    private $position;
+    private int $position;
     /**
      * @readonly
      * @var mixed
@@ -37,11 +37,11 @@ final class ReplaceFuncCallArgumentDefaultValue implements ReplaceArgumentDefaul
         $this->valueBefore = $valueBefore;
         $this->valueAfter = $valueAfter;
     }
-    public function getFunction() : string
+    public function getFunction(): string
     {
         return $this->function;
     }
-    public function getPosition() : int
+    public function getPosition(): int
     {
         return $this->position;
     }

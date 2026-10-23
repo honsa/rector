@@ -3,7 +3,7 @@
 declare (strict_types=1);
 namespace Rector\PHPUnit\PHPUnit70\Rector\Class_;
 
-use RectorPrefix202411\Nette\Utils\Strings;
+use RectorPrefix202610\Nette\Utils\Strings;
 use PhpParser\Node;
 use PhpParser\Node\Identifier;
 use PhpParser\Node\Stmt\Class_;
@@ -11,37 +11,43 @@ use Rector\PHPUnit\NodeAnalyzer\TestsNodeAnalyzer;
 use Rector\PHPUnit\NodeFinder\DataProviderClassMethodFinder;
 use Rector\PHPUnit\PhpDoc\DataProviderMethodRenamer;
 use Rector\Rector\AbstractRector;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
+use Rector\VersionBonding\Contract\ComposerPackageConstraintInterface;
+use Rector\VersionBonding\ValueObject\ComposerPackageConstraint;
 /**
  * @changelog https://stackoverflow.com/a/46693675/1348344
  *
  * @see \Rector\PHPUnit\Tests\PHPUnit70\Rector\Class_\RemoveDataProviderTestPrefixRector\RemoveDataProviderTestPrefixRectorTest
  */
-final class RemoveDataProviderTestPrefixRector extends AbstractRector
+final class RemoveDataProviderTestPrefixRector extends AbstractRector implements ComposerPackageConstraintInterface
 {
     /**
      * @readonly
-     * @var \Rector\PHPUnit\NodeAnalyzer\TestsNodeAnalyzer
      */
-    private $testsNodeAnalyzer;
+    private TestsNodeAnalyzer $testsNodeAnalyzer;
     /**
      * @readonly
-     * @var \Rector\PHPUnit\NodeFinder\DataProviderClassMethodFinder
      */
-    private $dataProviderClassMethodFinder;
+    private DataProviderClassMethodFinder $dataProviderClassMethodFinder;
     /**
      * @readonly
-     * @var \Rector\PHPUnit\PhpDoc\DataProviderMethodRenamer
      */
-    private $dataProviderMethodRenamer;
+    private DataProviderMethodRenamer $dataProviderMethodRenamer;
+    /**
+     * inherited from the PHPUnit 7.0 set
+     */
+    public function provideComposerPackageConstraint(): ComposerPackageConstraint
+    {
+        return new ComposerPackageConstraint('phpunit/phpunit', '>=7.0');
+    }
     public function __construct(TestsNodeAnalyzer $testsNodeAnalyzer, DataProviderClassMethodFinder $dataProviderClassMethodFinder, DataProviderMethodRenamer $dataProviderMethodRenamer)
     {
         $this->testsNodeAnalyzer = $testsNodeAnalyzer;
         $this->dataProviderClassMethodFinder = $dataProviderClassMethodFinder;
         $this->dataProviderMethodRenamer = $dataProviderMethodRenamer;
     }
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
         return new RuleDefinition('Data provider methods cannot start with "test" prefix', [new CodeSample(<<<'CODE_SAMPLE'
 class SomeClass extends PHPUnit\Framework\TestCase
@@ -82,14 +88,14 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [Class_::class];
     }
     /**
      * @param Class_ $node
      */
-    public function refactor(Node $node) : ?Node
+    public function refactor(Node $node): ?Node
     {
         if (!$this->testsNodeAnalyzer->isInTestClass($node)) {
             return null;
@@ -98,11 +104,11 @@ CODE_SAMPLE
         $dataProviderClassMethods = $this->dataProviderClassMethodFinder->find($node);
         foreach ($dataProviderClassMethods as $dataProviderClassMethod) {
             $dataProviderClassMethodName = $dataProviderClassMethod->name->toString();
-            if (\strncmp($dataProviderClassMethodName, 'test', \strlen('test')) !== 0) {
+            if (strncmp($dataProviderClassMethodName, 'test', strlen('test')) !== 0) {
                 continue;
             }
             $shortMethodName = Strings::substring($dataProviderClassMethodName, 4);
-            $shortMethodName = \lcfirst($shortMethodName);
+            $shortMethodName = lcfirst($shortMethodName);
             $dataProviderClassMethod->name = new Identifier($shortMethodName);
             $hasChanged = \true;
         }

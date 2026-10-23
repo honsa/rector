@@ -3,7 +3,6 @@
 declare (strict_types=1);
 namespace Rector\PHPStanStaticTypeMapper\TypeMapper;
 
-use PhpParser\Node;
 use PhpParser\Node\Name;
 use PHPStan\PhpDocParser\Ast\Type\TypeNode;
 use PHPStan\Type\StaticType;
@@ -24,28 +23,30 @@ final class StaticTypeMapper implements TypeMapperInterface
 {
     /**
      * @readonly
-     * @var \Rector\Php\PhpVersionProvider
      */
-    private $phpVersionProvider;
+    private PhpVersionProvider $phpVersionProvider;
     public function __construct(PhpVersionProvider $phpVersionProvider)
     {
         $this->phpVersionProvider = $phpVersionProvider;
     }
-    public function getNodeClass() : string
+    /**
+     * @return array<class-string<Type>>
+     */
+    public function getNodeClasses(): array
     {
-        return StaticType::class;
+        return [StaticType::class];
     }
     /**
      * @param StaticType $type
      */
-    public function mapToPHPStanPhpDocTypeNode(Type $type) : TypeNode
+    public function mapToPHPStanPhpDocTypeNode(Type $type): TypeNode
     {
         return $type->toPhpDocNode();
     }
     /**
      * @param SimpleStaticType|StaticType $type
      */
-    public function mapToPhpParserNode(Type $type, string $typeKind) : ?Node
+    public function mapToPhpParserNode(Type $type, string $typeKind): Name
     {
         if ($type instanceof SelfStaticType) {
             return new Name(ObjectReference::SELF);

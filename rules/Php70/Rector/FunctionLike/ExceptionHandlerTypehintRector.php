@@ -9,24 +9,24 @@ use PhpParser\Node\NullableType;
 use PhpParser\Node\Stmt\ClassMethod;
 use PhpParser\Node\Stmt\Function_;
 use Rector\Rector\AbstractRector;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
 use Rector\Util\StringUtils;
 use Rector\ValueObject\PhpVersionFeature;
 use Rector\VersionBonding\Contract\MinPhpVersionInterface;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
 /**
  * @see \Rector\Tests\Php70\Rector\FunctionLike\ExceptionHandlerTypehintRector\ExceptionHandlerTypehintRectorTest
  */
 final class ExceptionHandlerTypehintRector extends AbstractRector implements MinPhpVersionInterface
 {
     /**
-     * @var string
      * @see https://regex101.com/r/VBFXCR/1
+     * @var string
      */
     private const HANDLE_INSENSITIVE_REGEX = '#handle#i';
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
-        return new RuleDefinition('Change typehint from `Exception` to `Throwable`.', [new CodeSample(<<<'CODE_SAMPLE'
+        return new RuleDefinition('Change typehint from `Exception` to `Throwable`', [new CodeSample(<<<'CODE_SAMPLE'
 function handler(Exception $exception) { ... }
 set_exception_handler('handler');
 CODE_SAMPLE
@@ -39,17 +39,17 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [Function_::class, ClassMethod::class];
     }
     /**
      * @param Function_|ClassMethod $node
      */
-    public function refactor(Node $node) : ?Node
+    public function refactor(Node $node): ?Node
     {
         // exception handle has 1 param exactly
-        if (\count($node->params) !== 1) {
+        if (count($node->params) !== 1) {
             return null;
         }
         $paramNode = $node->params[0];
@@ -72,7 +72,7 @@ CODE_SAMPLE
         }
         return $node;
     }
-    public function provideMinPhpVersion() : int
+    public function provideMinPhpVersion(): int
     {
         return PhpVersionFeature::THROWABLE_TYPE;
     }

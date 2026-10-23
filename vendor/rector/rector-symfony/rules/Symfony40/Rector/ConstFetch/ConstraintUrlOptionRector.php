@@ -4,52 +4,57 @@ declare (strict_types=1);
 namespace Rector\Symfony\Symfony40\Rector\ConstFetch;
 
 use PhpParser\Node;
+use PhpParser\Node\ArrayItem;
 use PhpParser\Node\Expr;
 use PhpParser\Node\Expr\Array_;
-use PhpParser\Node\Expr\ArrayItem;
 use PhpParser\Node\Expr\New_;
 use PHPStan\Type\ObjectType;
 use Rector\PhpParser\Node\Value\ValueResolver;
 use Rector\Rector\AbstractRector;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
+use Rector\VersionBonding\Contract\ComposerPackageConstraintInterface;
+use Rector\VersionBonding\ValueObject\ComposerPackageConstraint;
 /**
  * Ref: https://github.com/symfony/symfony/blob/master/UPGRADE-4.0.md#validator
  *
  * @see \Rector\Symfony\Tests\Symfony40\Rector\ConstFetch\ConstraintUrlOptionRector\ConstraintUrlOptionRectorTest
  */
-final class ConstraintUrlOptionRector extends AbstractRector
+final class ConstraintUrlOptionRector extends AbstractRector implements ComposerPackageConstraintInterface
 {
     /**
      * @readonly
-     * @var \Rector\PhpParser\Node\Value\ValueResolver
      */
-    private $valueResolver;
+    private ValueResolver $valueResolver;
     /**
      * @var string
      */
-    private const URL_CONSTRAINT_CLASS = 'Symfony\\Component\\Validator\\Constraints\\Url';
+    private const URL_CONSTRAINT_CLASS = 'Symfony\Component\Validator\Constraints\Url';
     public function __construct(ValueResolver $valueResolver)
     {
         $this->valueResolver = $valueResolver;
     }
-    public function getRuleDefinition() : RuleDefinition
+    public function provideComposerPackageConstraint(): ComposerPackageConstraint
+    {
+        return new ComposerPackageConstraint('symfony/validator', '>=4.0 <7.0');
+    }
+    public function getRuleDefinition(): RuleDefinition
     {
         return new RuleDefinition('Turns true value to `Url::CHECK_DNS_TYPE_ANY` in Validator in Symfony.', [new CodeSample('$constraint = new Url(["checkDNS" => true]);', '$constraint = new Url(["checkDNS" => Url::CHECK_DNS_TYPE_ANY]);')]);
     }
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [New_::class];
     }
     /**
      * @param New_ $node
      */
-    public function refactor(Node $node) : ?New_
+    public function refactor(Node $node): ?New_
     {
-        if (!$this->isObjectType($node, new ObjectType('Symfony\\Component\\Validator\\Constraints\\Url'))) {
+        if (!$this->isObjectType($node, new ObjectType('Symfony\Component\Validator\Constraints\Url'))) {
             return null;
         }
         foreach ($node->getArgs() as $arg) {
@@ -72,7 +77,7 @@ final class ConstraintUrlOptionRector extends AbstractRector
         }
         return null;
     }
-    private function isCheckDNSKey(ArrayItem $arrayItem) : bool
+    private function isCheckDNSKey(ArrayItem $arrayItem): bool
     {
         if (!$arrayItem->key instanceof Expr) {
             return \false;

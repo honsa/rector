@@ -9,12 +9,15 @@
  * file that was distributed with this source code.
  */
 declare (strict_types=1);
-namespace RectorPrefix202411\Fidry\CpuCoreCounter\Executor;
+namespace RectorPrefix202610\Fidry\CpuCoreCounter\Executor;
 
+/**
+ * @method string|null getUnavailabilityReason() The reason why the executor cannot be used, or null if it can. Not implementing it is deprecated: it will be added to this interface in the next major version.
+ */
 interface ProcessExecutor
 {
     /**
      * @return array{string, string}|null STDOUT & STDERR tuple
      */
-    public function execute(string $command) : ?array;
+    public function execute(string $command): ?array;
 }

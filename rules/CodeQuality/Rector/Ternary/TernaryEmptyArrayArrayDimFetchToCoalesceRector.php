@@ -10,14 +10,14 @@ use PhpParser\Node\Expr\BooleanNot;
 use PhpParser\Node\Expr\Empty_;
 use PhpParser\Node\Expr\Ternary;
 use Rector\Rector\AbstractRector;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
 /**
  * @see \Rector\Tests\CodeQuality\Rector\Ternary\TernaryEmptyArrayArrayDimFetchToCoalesceRector\TernaryEmptyArrayArrayDimFetchToCoalesceRectorTest
  */
 final class TernaryEmptyArrayArrayDimFetchToCoalesceRector extends AbstractRector
 {
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
         return new RuleDefinition('Change ternary empty on array property with array dim fetch to coalesce operator', [new CodeSample(<<<'CODE_SAMPLE'
 final class SomeClass
@@ -46,14 +46,14 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [Ternary::class];
     }
     /**
      * @param Ternary $node
      */
-    public function refactor(Node $node) : ?Node
+    public function refactor(Node $node): ?Node
     {
         if (!$node->cond instanceof BooleanNot) {
             return null;
@@ -65,12 +65,12 @@ CODE_SAMPLE
         if (!$node->if instanceof ArrayDimFetch) {
             return null;
         }
-        $emptyExprType = $this->getType($negagedExpr->expr);
-        if (!$emptyExprType->isArray()->yes()) {
-            return null;
-        }
         $dimFetchVar = $node->if->var;
         if (!$this->nodeComparator->areNodesEqual($negagedExpr->expr, $dimFetchVar)) {
+            return null;
+        }
+        $emptyExprType = $this->getType($negagedExpr->expr);
+        if (!$emptyExprType->isArray()->yes()) {
             return null;
         }
         return new Coalesce($node->if, $node->else);

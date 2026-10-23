@@ -12,32 +12,42 @@ use PhpParser\Node\Scalar\String_;
 use PHPStan\Type\ObjectType;
 use Rector\PHPUnit\NodeAnalyzer\TestsNodeAnalyzer;
 use Rector\Rector\AbstractRector;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
+use Rector\Symfony\DataProvider\ServiceMapProvider;
 use Rector\Symfony\NodeAnalyzer\ServiceTypeMethodCallResolver;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
+use Rector\VersionBonding\Contract\ComposerPackageConstraintInterface;
+use Rector\VersionBonding\ValueObject\ComposerPackageConstraint;
 /**
  * @see \Rector\Symfony\Tests\Symfony34\Rector\Closure\ContainerGetNameToTypeInTestsRector\ContainerGetNameToTypeInTestsRectorTest
  */
-final class ContainerGetNameToTypeInTestsRector extends AbstractRector
+final class ContainerGetNameToTypeInTestsRector extends AbstractRector implements ComposerPackageConstraintInterface
 {
     /**
      * @readonly
-     * @var \Rector\PHPUnit\NodeAnalyzer\TestsNodeAnalyzer
      */
-    private $testsNodeAnalyzer;
+    private TestsNodeAnalyzer $testsNodeAnalyzer;
     /**
      * @readonly
-     * @var \Rector\Symfony\NodeAnalyzer\ServiceTypeMethodCallResolver
      */
-    private $serviceTypeMethodCallResolver;
-    public function __construct(TestsNodeAnalyzer $testsNodeAnalyzer, ServiceTypeMethodCallResolver $serviceTypeMethodCallResolver)
+    private ServiceTypeMethodCallResolver $serviceTypeMethodCallResolver;
+    /**
+     * @readonly
+     */
+    private ServiceMapProvider $serviceMapProvider;
+    public function __construct(TestsNodeAnalyzer $testsNodeAnalyzer, ServiceTypeMethodCallResolver $serviceTypeMethodCallResolver, ServiceMapProvider $serviceMapProvider)
     {
         $this->testsNodeAnalyzer = $testsNodeAnalyzer;
         $this->serviceTypeMethodCallResolver = $serviceTypeMethodCallResolver;
+        $this->serviceMapProvider = $serviceMapProvider;
     }
-    public function getRuleDefinition() : RuleDefinition
+    public function provideComposerPackageConstraint(): ComposerPackageConstraint
     {
-        return new RuleDefinition('Change $container->get("some_name") to bare type, useful since Symfony 3.4', [new CodeSample(<<<'CODE_SAMPLE'
+        return new ComposerPackageConstraint('symfony/dependency-injection', '>=3.4');
+    }
+    public function getRuleDefinition(): RuleDefinition
+    {
+        return new RuleDefinition('Change $container->get("some_name") in tests to bare type, useful since Symfony 3.4', [new CodeSample(<<<'CODE_SAMPLE'
 use PHPUnit\Framework\TestCase;
 
 final class SomeTest extends TestCase
@@ -66,19 +76,19 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [MethodCall::class];
     }
     /**
      * @param MethodCall $node
      */
-    public function refactor(Node $node) : ?Node
+    public function refactor(Node $node): ?Node
     {
         if (!$this->isName($node->name, 'get')) {
             return null;
         }
-        if (!$this->isObjectType($node->var, new ObjectType('Symfony\\Component\\DependencyInjection\\ContainerInterface'))) {
+        if (!$this->isObjectType($node->var, new ObjectType('Symfony\Component\DependencyInjection\ContainerInterface'))) {
             return null;
         }
         if (!$this->testsNodeAnalyzer->isInTestClass($node)) {
@@ -93,7 +103,13 @@ CODE_SAMPLE
         if (!$serviceType instanceof ObjectType) {
             return null;
         }
-        $classConstFetch = new ClassConstFetch(new FullyQualified($serviceType->getClassName()), 'class');
+        // only replace when the resolved class is itself a registered service id (real service or alias),
+        // otherwise the named service maps to a class that has no matching FQCN service and the call breaks
+        $className = $serviceType->getClassName();
+        if (!$this->serviceMapProvider->provide()->hasService($className)) {
+            return null;
+        }
+        $classConstFetch = new ClassConstFetch(new FullyQualified($className), 'class');
         $node->args[0] = new Arg($classConstFetch);
         return $node;
     }

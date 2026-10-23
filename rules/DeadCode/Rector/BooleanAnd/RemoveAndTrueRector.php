@@ -8,8 +8,8 @@ use PhpParser\Node\Expr;
 use PhpParser\Node\Expr\BinaryOp\BooleanAnd;
 use Rector\PhpParser\Node\Value\ValueResolver;
 use Rector\Rector\AbstractRector;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
 /**
  * @see \Rector\Tests\DeadCode\Rector\BooleanAnd\RemoveAndTrueRector\RemoveAndTrueRectorTest
  */
@@ -17,16 +17,15 @@ final class RemoveAndTrueRector extends AbstractRector
 {
     /**
      * @readonly
-     * @var \Rector\PhpParser\Node\Value\ValueResolver
      */
-    private $valueResolver;
+    private ValueResolver $valueResolver;
     public function __construct(ValueResolver $valueResolver)
     {
         $this->valueResolver = $valueResolver;
     }
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
-        return new RuleDefinition('Remove and true that has no added value', [new CodeSample(<<<'CODE_SAMPLE'
+        return new RuleDefinition('Remove `and true` that has no added value', [new CodeSample(<<<'CODE_SAMPLE'
 class SomeClass
 {
     public function run()
@@ -49,14 +48,14 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [BooleanAnd::class];
     }
     /**
      * @param BooleanAnd $node
      */
-    public function refactor(Node $node) : ?Node
+    public function refactor(Node $node): ?Node
     {
         if ($this->isTrueOrBooleanAndTrues($node->left)) {
             return $node->right;
@@ -66,7 +65,7 @@ CODE_SAMPLE
         }
         return null;
     }
-    private function isTrueOrBooleanAndTrues(Expr $expr) : bool
+    private function isTrueOrBooleanAndTrues(Expr $expr): bool
     {
         if ($this->valueResolver->isTrue($expr)) {
             return \true;

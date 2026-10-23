@@ -8,20 +8,29 @@ use PhpParser\Node\Expr\MethodCall;
 use PhpParser\Node\Expr\Variable;
 use PHPStan\Type\ObjectType;
 use Rector\Rector\AbstractRector;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
+use Rector\VersionBonding\Contract\ComposerPackageConstraintInterface;
+use Rector\VersionBonding\ValueObject\ComposerPackageConstraint;
 /**
  * @changelog https://github.com/lmc-eu/steward/pull/187/files#diff-c7e8c65e59b8b4ff8b54325814d4ba55L80
  *
  * @see \Rector\PHPUnit\Tests\PHPUnit60\Rector\MethodCall\GetMockBuilderGetMockToCreateMockRector\GetMockBuilderGetMockToCreateMockRectorTest
  */
-final class GetMockBuilderGetMockToCreateMockRector extends AbstractRector
+final class GetMockBuilderGetMockToCreateMockRector extends AbstractRector implements ComposerPackageConstraintInterface
 {
+    /**
+     * createMock() was added in PHPUnit 5.4
+     */
+    public function provideComposerPackageConstraint(): ComposerPackageConstraint
+    {
+        return new ComposerPackageConstraint('phpunit/phpunit', '>=5.4');
+    }
     /**
      * @var string[]
      */
     private const USELESS_METHOD_NAMES = ['disableOriginalConstructor', 'disableOriginalClone', 'disableArgumentCloning', 'disallowMockingUnknownTypes'];
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
         return new RuleDefinition('Remove getMockBuilder() to createMock()', [new CodeSample(<<<'CODE_SAMPLE'
 use PHPUnit\Framework\TestCase;
@@ -52,14 +61,14 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [MethodCall::class];
     }
     /**
      * @param MethodCall $node
      */
-    public function refactor(Node $node) : ?Node
+    public function refactor(Node $node): ?Node
     {
         if (!$this->isName($node->name, 'getMock')) {
             return null;
@@ -79,18 +88,18 @@ CODE_SAMPLE
         if (!$this->isLocalScopeCaller($currentMethodCall)) {
             return null;
         }
-        // must be be test case class
-        if (!$this->isObjectType($currentMethodCall->var, new ObjectType('PHPUnit\\Framework\\TestCase'))) {
+        if (!$this->isName($currentMethodCall->name, 'getMockBuilder')) {
             return null;
         }
-        if (!$this->isName($currentMethodCall->name, 'getMockBuilder')) {
+        // must be be test case class
+        if (!$this->isObjectType($currentMethodCall->var, new ObjectType('PHPUnit\Framework\TestCase'))) {
             return null;
         }
         $args = $currentMethodCall->args;
         $thisVariable = $currentMethodCall->var;
         return new MethodCall($thisVariable, 'createMock', $args);
     }
-    private function isLocalScopeCaller(MethodCall $currentMethodCall) : bool
+    private function isLocalScopeCaller(MethodCall $currentMethodCall): bool
     {
         if (!$currentMethodCall->var instanceof Variable) {
             return \false;

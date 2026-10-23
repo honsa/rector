@@ -10,10 +10,10 @@ use PhpParser\Node\Scalar\String_;
 use PhpParser\Node\Stmt\Expression;
 use Rector\PhpParser\Parser\SimplePhpParser;
 use Rector\Rector\AbstractRector;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
 use Rector\ValueObject\PhpVersionFeature;
 use Rector\VersionBonding\Contract\MinPhpVersionInterface;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
 /**
  * @see \Rector\Tests\Php72\Rector\FuncCall\StringsAssertNakedRector\StringsAssertNakedRectorTest
  */
@@ -21,18 +21,17 @@ final class StringsAssertNakedRector extends AbstractRector implements MinPhpVer
 {
     /**
      * @readonly
-     * @var \Rector\PhpParser\Parser\SimplePhpParser
      */
-    private $simplePhpParser;
+    private SimplePhpParser $simplePhpParser;
     public function __construct(SimplePhpParser $simplePhpParser)
     {
         $this->simplePhpParser = $simplePhpParser;
     }
-    public function provideMinPhpVersion() : int
+    public function provideMinPhpVersion(): int
     {
         return PhpVersionFeature::STRING_IN_ASSERT_ARG;
     }
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
         return new RuleDefinition('String asserts must be passed directly to assert()', [new CodeSample(<<<'CODE_SAMPLE'
 function nakedAssert()
@@ -53,14 +52,14 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [FuncCall::class];
     }
     /**
      * @param FuncCall $node
      */
-    public function refactor(Node $node) : ?Node
+    public function refactor(Node $node): ?Node
     {
         if (!$this->isName($node, 'assert')) {
             return null;

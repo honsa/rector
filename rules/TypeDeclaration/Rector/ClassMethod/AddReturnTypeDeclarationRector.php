@@ -6,21 +6,25 @@ namespace Rector\TypeDeclaration\Rector\ClassMethod;
 use PhpParser\Node;
 use PhpParser\Node\Stmt\Class_;
 use PhpParser\Node\Stmt\ClassMethod;
+use PHPStan\Reflection\ClassReflection;
 use PHPStan\Type\ArrayType;
 use PHPStan\Type\MixedType;
 use PHPStan\Type\ObjectType;
+use PHPStan\Type\StaticType;
 use PHPStan\Type\Type;
 use Rector\Contract\Rector\ConfigurableRectorInterface;
 use Rector\Php\PhpVersionProvider;
 use Rector\PHPStanStaticTypeMapper\Enum\TypeKind;
 use Rector\Rector\AbstractRector;
+use Rector\Reflection\ReflectionResolver;
+use Rector\RuleDoc\CodeSample\ConfiguredCodeSample;
+use Rector\RuleDoc\RuleDefinition;
 use Rector\StaticTypeMapper\StaticTypeMapper;
+use Rector\StaticTypeMapper\ValueObject\Type\SimpleStaticType;
 use Rector\TypeDeclaration\ValueObject\AddReturnTypeDeclaration;
 use Rector\ValueObject\PhpVersionFeature;
 use Rector\VendorLocker\ParentClassMethodTypeOverrideGuard;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\ConfiguredCodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
-use RectorPrefix202411\Webmozart\Assert\Assert;
+use RectorPrefix202610\Webmozart\Assert\Assert;
 /**
  * @see \Rector\Tests\TypeDeclaration\Rector\ClassMethod\AddReturnTypeDeclarationRector\AddReturnTypeDeclarationRectorTest
  */
@@ -28,36 +32,35 @@ final class AddReturnTypeDeclarationRector extends AbstractRector implements Con
 {
     /**
      * @readonly
-     * @var \Rector\Php\PhpVersionProvider
      */
-    private $phpVersionProvider;
+    private PhpVersionProvider $phpVersionProvider;
     /**
      * @readonly
-     * @var \Rector\VendorLocker\ParentClassMethodTypeOverrideGuard
      */
-    private $parentClassMethodTypeOverrideGuard;
+    private ParentClassMethodTypeOverrideGuard $parentClassMethodTypeOverrideGuard;
     /**
      * @readonly
-     * @var \Rector\StaticTypeMapper\StaticTypeMapper
      */
-    private $staticTypeMapper;
+    private StaticTypeMapper $staticTypeMapper;
     /**
-     * @var AddReturnTypeDeclaration[]
+     * @readonly
      */
-    private $methodReturnTypes = [];
+    private ReflectionResolver $reflectionResolver;
     /**
-     * @var bool
+     * @var array<string, AddReturnTypeDeclaration[]>
      */
-    private $hasChanged = \false;
-    public function __construct(PhpVersionProvider $phpVersionProvider, ParentClassMethodTypeOverrideGuard $parentClassMethodTypeOverrideGuard, StaticTypeMapper $staticTypeMapper)
+    private array $methodReturnTypesByMethod = [];
+    private bool $hasChanged = \false;
+    public function __construct(PhpVersionProvider $phpVersionProvider, ParentClassMethodTypeOverrideGuard $parentClassMethodTypeOverrideGuard, StaticTypeMapper $staticTypeMapper, ReflectionResolver $reflectionResolver)
     {
         $this->phpVersionProvider = $phpVersionProvider;
         $this->parentClassMethodTypeOverrideGuard = $parentClassMethodTypeOverrideGuard;
         $this->staticTypeMapper = $staticTypeMapper;
+        $this->reflectionResolver = $reflectionResolver;
     }
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
-        return new RuleDefinition('Changes defined return typehint of method and class.', [new ConfiguredCodeSample(<<<'CODE_SAMPLE'
+        return new RuleDefinition('Change defined return typehint of method and class', [new ConfiguredCodeSample(<<<'CODE_SAMPLE'
 class SomeClass
 {
     public function getData()
@@ -78,23 +81,28 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [Class_::class];
     }
     /**
      * @param Class_ $node
      */
-    public function refactor(Node $node) : ?Node
+    public function refactor(Node $node): ?Node
     {
         $this->hasChanged = \false;
-        foreach ($this->methodReturnTypes as $methodReturnType) {
-            $objectType = $methodReturnType->getObjectType();
-            if (!$this->isObjectType($node, $objectType)) {
+        // skip guarded classes, where adding a return type would break child classes
+        if ($this->parentClassMethodTypeOverrideGuard->isTypeGuardedClass($node)) {
+            return null;
+        }
+        foreach ($node->getMethods() as $classMethod) {
+            $methodName = $this->getName($classMethod);
+            if ($methodName === null) {
                 continue;
             }
-            foreach ($node->getMethods() as $classMethod) {
-                if (!$this->isName($classMethod, $methodReturnType->getMethod())) {
+            foreach ($this->methodReturnTypesByMethod[strtolower($methodName)] ?? [] as $methodReturnType) {
+                $objectType = $methodReturnType->getObjectType();
+                if (!$this->isObjectType($node, $objectType)) {
                     continue;
                 }
                 $this->processClassMethodNodeWithTypehints($classMethod, $node, $methodReturnType->getReturnType(), $objectType);
@@ -108,15 +116,18 @@ CODE_SAMPLE
     /**
      * @param mixed[] $configuration
      */
-    public function configure(array $configuration) : void
+    public function configure(array $configuration): void
     {
         Assert::allIsAOf($configuration, AddReturnTypeDeclaration::class);
-        $this->methodReturnTypes = $configuration;
+        $this->methodReturnTypesByMethod = [];
+        foreach ($configuration as $methodReturnType) {
+            $this->methodReturnTypesByMethod[strtolower($methodReturnType->getMethod())][] = $methodReturnType;
+        }
     }
-    private function processClassMethodNodeWithTypehints(ClassMethod $classMethod, Class_ $class, Type $newType, ObjectType $objectType) : void
+    private function processClassMethodNodeWithTypehints(ClassMethod $classMethod, Class_ $class, Type $newType, ObjectType $objectType): void
     {
         if ($newType instanceof MixedType) {
-            $className = (string) $this->nodeNameResolver->getName($class);
+            $className = (string) $this->getName($class);
             $currentObjectType = new ObjectType($className);
             if (!$objectType->equals($currentObjectType) && $classMethod->returnType instanceof Node) {
                 return;
@@ -126,6 +137,13 @@ CODE_SAMPLE
         if ($newType instanceof MixedType && !$this->phpVersionProvider->isAtLeastPhpVersion(PhpVersionFeature::MIXED_TYPE)) {
             $classMethod->returnType = null;
             return;
+        }
+        if ($classMethod->returnType instanceof Node && $newType instanceof SimpleStaticType) {
+            $classReflection = $this->reflectionResolver->resolveClassReflection($classMethod);
+            if (!$classReflection instanceof ClassReflection) {
+                return;
+            }
+            $newType = new StaticType($classReflection);
         }
         // already set and sub type or equal → no change
         if ($this->parentClassMethodTypeOverrideGuard->shouldSkipReturnTypeChange($classMethod, $newType)) {

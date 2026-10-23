@@ -5,6 +5,7 @@ namespace Rector\Removing\Rector\ClassMethod;
 
 use PhpParser\Node;
 use PhpParser\Node\Arg;
+use PhpParser\Node\ArgPlaceholder;
 use PhpParser\Node\Expr\MethodCall;
 use PhpParser\Node\Expr\StaticCall;
 use PhpParser\Node\Stmt\ClassMethod;
@@ -13,9 +14,9 @@ use Rector\Contract\Rector\ConfigurableRectorInterface;
 use Rector\PhpParser\Node\Value\ValueResolver;
 use Rector\Rector\AbstractRector;
 use Rector\Removing\ValueObject\ArgumentRemover;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\ConfiguredCodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
-use RectorPrefix202411\Webmozart\Assert\Assert;
+use Rector\RuleDoc\CodeSample\ConfiguredCodeSample;
+use Rector\RuleDoc\RuleDefinition;
+use RectorPrefix202610\Webmozart\Assert\Assert;
 /**
  * @see \Rector\Tests\Removing\Rector\ClassMethod\ArgumentRemoverRector\ArgumentRemoverRectorTest
  */
@@ -23,24 +24,20 @@ final class ArgumentRemoverRector extends AbstractRector implements Configurable
 {
     /**
      * @readonly
-     * @var \Rector\PhpParser\Node\Value\ValueResolver
      */
-    private $valueResolver;
+    private ValueResolver $valueResolver;
     /**
-     * @var ArgumentRemover[]
+     * @var array<string, ArgumentRemover[]>
      */
-    private $removedArguments = [];
-    /**
-     * @var bool
-     */
-    private $hasChanged = \false;
+    private array $removedArgumentsByMethod = [];
+    private bool $hasChanged = \false;
     public function __construct(ValueResolver $valueResolver)
     {
         $this->valueResolver = $valueResolver;
     }
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
-        return new RuleDefinition('Removes defined arguments in defined methods and their calls.', [new ConfiguredCodeSample(<<<'CODE_SAMPLE'
+        return new RuleDefinition('Remove defined arguments in defined methods and their calls', [new ConfiguredCodeSample(<<<'CODE_SAMPLE'
 $someObject = new SomeClass;
 $someObject->someMethod(true);
 CODE_SAMPLE
@@ -53,7 +50,7 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [MethodCall::class, StaticCall::class, ClassMethod::class];
     }
@@ -64,10 +61,11 @@ CODE_SAMPLE
     public function refactor(Node $node)
     {
         $this->hasChanged = \false;
-        foreach ($this->removedArguments as $removedArgument) {
-            if (!$this->isName($node->name, $removedArgument->getMethod())) {
-                continue;
-            }
+        $methodName = $this->getName($node->name);
+        if ($methodName === null) {
+            return null;
+        }
+        foreach ($this->removedArgumentsByMethod[strtolower($methodName)] ?? [] as $removedArgument) {
             if (!$this->nodeTypeResolver->isMethodStaticCallOrClassMethodObjectType($node, $removedArgument->getObjectType())) {
                 continue;
             }
@@ -81,15 +79,18 @@ CODE_SAMPLE
     /**
      * @param mixed[] $configuration
      */
-    public function configure(array $configuration) : void
+    public function configure(array $configuration): void
     {
         Assert::allIsAOf($configuration, ArgumentRemover::class);
-        $this->removedArguments = $configuration;
+        $this->removedArgumentsByMethod = [];
+        foreach ($configuration as $removedArgument) {
+            $this->removedArgumentsByMethod[strtolower($removedArgument->getMethod())][] = $removedArgument;
+        }
     }
     /**
      * @param \PhpParser\Node\Stmt\ClassMethod|\PhpParser\Node\Expr\StaticCall|\PhpParser\Node\Expr\MethodCall $node
      */
-    private function processPosition($node, ArgumentRemover $argumentRemover) : void
+    private function processPosition($node, ArgumentRemover $argumentRemover): void
     {
         if ($argumentRemover->getValue() === null) {
             if ($node instanceof MethodCall || $node instanceof StaticCall) {
@@ -119,7 +120,7 @@ CODE_SAMPLE
     /**
      * @param \PhpParser\Node\Stmt\ClassMethod|\PhpParser\Node\Expr\StaticCall|\PhpParser\Node\Expr\MethodCall $node
      */
-    private function removeByName($node, int $position, string $name) : void
+    private function removeByName($node, int $position, string $name): void
     {
         if ($node instanceof MethodCall || $node instanceof StaticCall) {
             if (isset($node->args[$position]) && $this->isName($node->args[$position], $name)) {
@@ -127,21 +128,21 @@ CODE_SAMPLE
             }
             return;
         }
-        if (!(isset($node->params[$position]) && $this->isName($node->params[$position], $name))) {
+        if (!isset($node->params[$position]) || !$this->isName($node->params[$position], $name)) {
             return;
         }
         unset($node->params[$position]);
     }
     /**
      * @param mixed[] $values
-     * @param \PhpParser\Node\Arg|\PhpParser\Node\VariadicPlaceholder $arg
+     * @param \PhpParser\Node\Arg|\PhpParser\Node\ArgPlaceholder|\PhpParser\Node\VariadicPlaceholder $arg
      */
-    private function isArgumentValueMatch($arg, array $values) : bool
+    private function isArgumentValueMatch($arg, array $values): bool
     {
         if (!$arg instanceof Arg) {
             return \false;
         }
         $nodeValue = $this->valueResolver->getValue($arg->value);
-        return \in_array($nodeValue, $values, \true);
+        return in_array($nodeValue, $values, \true);
     }
 }

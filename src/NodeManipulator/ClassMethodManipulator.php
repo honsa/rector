@@ -13,37 +13,36 @@ final class ClassMethodManipulator
 {
     /**
      * @readonly
-     * @var \Rector\NodeNameResolver\NodeNameResolver
      */
-    private $nodeNameResolver;
+    private NodeNameResolver $nodeNameResolver;
     /**
      * @readonly
-     * @var \Rector\Reflection\ReflectionResolver
      */
-    private $reflectionResolver;
+    private ReflectionResolver $reflectionResolver;
     public function __construct(NodeNameResolver $nodeNameResolver, ReflectionResolver $reflectionResolver)
     {
         $this->nodeNameResolver = $nodeNameResolver;
         $this->reflectionResolver = $reflectionResolver;
     }
-    public function isNamedConstructor(ClassMethod $classMethod) : bool
+    public function isNamedConstructor(ClassMethod $classMethod): bool
     {
         if (!$this->nodeNameResolver->isName($classMethod, MethodName::CONSTRUCT)) {
+            return \false;
+        }
+        // visibility is local to the node; only the protected case needs the class final keyword
+        if ($classMethod->isPrivate()) {
+            return \true;
+        }
+        if (!$classMethod->isProtected()) {
             return \false;
         }
         $classReflection = $this->reflectionResolver->resolveClassReflection($classMethod);
         if (!$classReflection instanceof ClassReflection) {
             return \false;
         }
-        if ($classMethod->isPrivate()) {
-            return \true;
-        }
-        if ($classReflection->isFinalByKeyword()) {
-            return \false;
-        }
-        return $classMethod->isProtected();
+        return !$classReflection->isFinalByKeyword();
     }
-    public function hasParentMethodOrInterfaceMethod(Class_ $class, string $methodName) : bool
+    public function hasParentMethodOrInterfaceMethod(Class_ $class, string $methodName): bool
     {
         $classReflection = $this->reflectionResolver->resolveClassReflection($class);
         if (!$classReflection instanceof ClassReflection) {
@@ -57,11 +56,13 @@ final class ClassMethodManipulator
                 return \true;
             }
         }
-        foreach ($classReflection->getInterfaces() as $interfaceReflection) {
-            if ($interfaceReflection->hasMethod($methodName)) {
-                return \true;
+        $found = \false;
+        foreach ($classReflection->getInterfaces() as $classReflection) {
+            if ($classReflection->hasMethod($methodName)) {
+                $found = \true;
+                break;
             }
         }
-        return \false;
+        return $found;
     }
 }

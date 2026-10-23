@@ -5,54 +5,17 @@ namespace Rector\Naming\Rector\Class_;
 
 use PhpParser\Node;
 use PhpParser\Node\Stmt\Class_;
-use PhpParser\Node\Stmt\ClassLike;
-use PhpParser\Node\Stmt\Interface_;
-use PhpParser\Node\Stmt\Property;
-use Rector\Naming\ExpectedNameResolver\MatchPropertyTypeExpectedNameResolver;
-use Rector\Naming\PropertyRenamer\MatchTypePropertyRenamer;
-use Rector\Naming\PropertyRenamer\PropertyPromotionRenamer;
-use Rector\Naming\ValueObject\PropertyRename;
-use Rector\Naming\ValueObjectFactory\PropertyRenameFactory;
+use Rector\Configuration\Deprecation\Contract\DeprecatedInterface;
+use Rector\Exception\ShouldNotHappenException;
 use Rector\Rector\AbstractRector;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
 /**
- * @see \Rector\Tests\Naming\Rector\Class_\RenamePropertyToMatchTypeRector\RenamePropertyToMatchTypeRectorTest
+ * @deprecated This rule is deprecated, as renaming properties to match their type is risky - it can conflict with existing names and remove custom naming that carries more context than the type alone.
  */
-final class RenamePropertyToMatchTypeRector extends AbstractRector
+final class RenamePropertyToMatchTypeRector extends AbstractRector implements DeprecatedInterface
 {
-    /**
-     * @readonly
-     * @var \Rector\Naming\PropertyRenamer\MatchTypePropertyRenamer
-     */
-    private $matchTypePropertyRenamer;
-    /**
-     * @readonly
-     * @var \Rector\Naming\ValueObjectFactory\PropertyRenameFactory
-     */
-    private $propertyRenameFactory;
-    /**
-     * @readonly
-     * @var \Rector\Naming\ExpectedNameResolver\MatchPropertyTypeExpectedNameResolver
-     */
-    private $matchPropertyTypeExpectedNameResolver;
-    /**
-     * @readonly
-     * @var \Rector\Naming\PropertyRenamer\PropertyPromotionRenamer
-     */
-    private $propertyPromotionRenamer;
-    /**
-     * @var bool
-     */
-    private $hasChanged = \false;
-    public function __construct(MatchTypePropertyRenamer $matchTypePropertyRenamer, PropertyRenameFactory $propertyRenameFactory, MatchPropertyTypeExpectedNameResolver $matchPropertyTypeExpectedNameResolver, PropertyPromotionRenamer $propertyPromotionRenamer)
-    {
-        $this->matchTypePropertyRenamer = $matchTypePropertyRenamer;
-        $this->propertyRenameFactory = $propertyRenameFactory;
-        $this->matchPropertyTypeExpectedNameResolver = $matchPropertyTypeExpectedNameResolver;
-        $this->propertyPromotionRenamer = $propertyPromotionRenamer;
-    }
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
         return new RuleDefinition('Rename property and method param to match its type', [new CodeSample(<<<'CODE_SAMPLE'
 class SomeClass
@@ -87,42 +50,15 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
-        return [Class_::class, Interface_::class];
+        return [Class_::class];
     }
     /**
-     * @param Class_|Interface_ $node
+     * @param Class_ $node
      */
-    public function refactor(Node $node) : ?Node
+    public function refactor(Node $node): ?Node
     {
-        $this->hasChanged = \false;
-        $this->refactorClassProperties($node);
-        $hasPromotedPropertyChanged = $this->propertyPromotionRenamer->renamePropertyPromotion($node);
-        if ($this->hasChanged) {
-            return $node;
-        }
-        if ($hasPromotedPropertyChanged) {
-            return $node;
-        }
-        return null;
-    }
-    private function refactorClassProperties(ClassLike $classLike) : void
-    {
-        foreach ($classLike->getProperties() as $property) {
-            $expectedPropertyName = $this->matchPropertyTypeExpectedNameResolver->resolve($property, $classLike);
-            if ($expectedPropertyName === null) {
-                continue;
-            }
-            $propertyRename = $this->propertyRenameFactory->createFromExpectedName($classLike, $property, $expectedPropertyName);
-            if (!$propertyRename instanceof PropertyRename) {
-                continue;
-            }
-            $renameProperty = $this->matchTypePropertyRenamer->rename($propertyRename);
-            if (!$renameProperty instanceof Property) {
-                continue;
-            }
-            $this->hasChanged = \true;
-        }
+        throw new ShouldNotHappenException(sprintf('"%s" rule is deprecated, as it is risky and can conflict with existing names or remove custom naming with more context', self::class));
     }
 }

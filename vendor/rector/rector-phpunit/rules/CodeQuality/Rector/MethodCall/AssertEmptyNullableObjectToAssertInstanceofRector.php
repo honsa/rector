@@ -9,13 +9,14 @@ use PhpParser\Node\Expr\ClassConstFetch;
 use PhpParser\Node\Expr\MethodCall;
 use PhpParser\Node\Identifier;
 use PhpParser\Node\Name\FullyQualified;
+use PHPStan\Reflection\ClassReflection;
 use PHPStan\Type\ObjectType;
 use PHPStan\Type\TypeCombinator;
 use PHPStan\Type\UnionType;
 use Rector\PHPUnit\NodeAnalyzer\TestsNodeAnalyzer;
 use Rector\Rector\AbstractRector;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
 /**
  * @see \Rector\PHPUnit\Tests\CodeQuality\Rector\MethodCall\AssertEmptyNullableObjectToAssertInstanceofRector\AssertEmptyNullableObjectToAssertInstanceofRectorTest
  */
@@ -23,16 +24,15 @@ final class AssertEmptyNullableObjectToAssertInstanceofRector extends AbstractRe
 {
     /**
      * @readonly
-     * @var \Rector\PHPUnit\NodeAnalyzer\TestsNodeAnalyzer
      */
-    private $testsNodeAnalyzer;
+    private TestsNodeAnalyzer $testsNodeAnalyzer;
     public function __construct(TestsNodeAnalyzer $testsNodeAnalyzer)
     {
         $this->testsNodeAnalyzer = $testsNodeAnalyzer;
     }
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
-        return new RuleDefinition('Change assertNotEmpty() on an object to more clear assertInstanceof()', [new CodeSample(<<<'CODE_SAMPLE'
+        return new RuleDefinition('Change assertNotEmpty() and assertNotNull() on an object to more clear assertInstanceof()', [new CodeSample(<<<'CODE_SAMPLE'
 use PHPUnit\Framework\TestCase;
 
 class SomeClass extends TestCase
@@ -63,19 +63,19 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [MethodCall::class];
     }
     /**
      * @param MethodCall $node
      */
-    public function refactor(Node $node) : ?Node
+    public function refactor(Node $node): ?Node
     {
         if (!$this->testsNodeAnalyzer->isInTestClass($node)) {
             return null;
         }
-        if (!$this->isNames($node->name, ['assertNotEmpty', 'assertEmpty'])) {
+        if (!$this->isNames($node->name, ['assertNotEmpty', 'assertNotNull'])) {
             return null;
         }
         if ($node->isFirstClassCallable()) {
@@ -93,11 +93,18 @@ CODE_SAMPLE
         if (!$pureType instanceof ObjectType) {
             return null;
         }
-        $methodName = $this->isName($node->name, 'assertEmpty') ? 'assertNotInstanceOf' : 'assertInstanceOf';
-        $node->name = new Identifier($methodName);
+        // anonymous class has no writable class name, PHPStan uses an internal AnonymousClass<hash> name
+        if ($pureType->getClassReflection() instanceof ClassReflection && $pureType->getClassReflection()->isAnonymous()) {
+            return null;
+        }
+        $node->name = new Identifier('assertInstanceOf');
         $fullyQualified = new FullyQualified($pureType->getClassName());
+        $customMessageArg = $node->getArgs()[1] ?? null;
         $node->args[0] = new Arg(new ClassConstFetch($fullyQualified, 'class'));
         $node->args[1] = $firstArg;
+        if ($customMessageArg instanceof Arg) {
+            $node->args[] = $customMessageArg;
+        }
         return $node;
     }
 }

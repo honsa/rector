@@ -6,42 +6,37 @@ namespace Rector\Transform\Rector\ConstFetch;
 use PhpParser\Node;
 use PhpParser\Node\Expr\ClassConstFetch;
 use PhpParser\Node\Expr\ConstFetch;
+use Rector\Configuration\Deprecation\Contract\DeprecatedInterface;
 use Rector\Contract\Rector\ConfigurableRectorInterface;
+use Rector\Exception\ShouldNotHappenException;
 use Rector\Rector\AbstractRector;
+use Rector\RuleDoc\CodeSample\ConfiguredCodeSample;
+use Rector\RuleDoc\RuleDefinition;
 use Rector\Transform\ValueObject\ConstFetchToClassConstFetch;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\ConfiguredCodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
-use RectorPrefix202411\Webmozart\Assert\Assert;
 /**
- * @see Rector\Tests\Transform\Rector\ConstFetch\ConstFetchToClassConstFetchRector\ConstFetchToClassConstFetchTest
+ * @deprecated This rule is deprecated, as too niche and never used. A global const name can be reused across unrelated contexts and does not map cleanly to a single class constant. Use a custom rule scoped to your exact case instead.
  */
-final class ConstFetchToClassConstFetchRector extends AbstractRector implements ConfigurableRectorInterface
+final class ConstFetchToClassConstFetchRector extends AbstractRector implements ConfigurableRectorInterface, DeprecatedInterface
 {
-    /**
-     * @var ConstFetchToClassConstFetch[]
-     */
-    private $constFetchToClassConsts = [];
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
         return new RuleDefinition('Change const fetch to class const fetch', [new ConfiguredCodeSample('$x = CONTEXT_COURSE', '$x = course::LEVEL', [new ConstFetchToClassConstFetch('CONTEXT_COURSE', 'course', 'LEVEL')])]);
     }
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [ConstFetch::class];
     }
-    public function refactor(Node $node) : ?ClassConstFetch
+    /**
+     * @param ConstFetch $node
+     */
+    public function refactor(Node $node): ?ClassConstFetch
     {
-        foreach ($this->constFetchToClassConsts as $constFetchToClassConst) {
-            if (!$this->isName($node, $constFetchToClassConst->getOldConstName())) {
-                continue;
-            }
-            return $this->nodeFactory->createClassConstFetch($constFetchToClassConst->getNewClassName(), $constFetchToClassConst->getNewConstName());
-        }
-        return null;
+        throw new ShouldNotHappenException(sprintf('"%s" rule is deprecated, as too niche and never used; use a custom rule scoped to your exact case instead', self::class));
     }
-    public function configure(array $configuration) : void
+    /**
+     * @param mixed[] $configuration
+     */
+    public function configure(array $configuration): void
     {
-        Assert::allIsAOf($configuration, ConstFetchToClassConstFetch::class);
-        $this->constFetchToClassConsts = $configuration;
     }
 }

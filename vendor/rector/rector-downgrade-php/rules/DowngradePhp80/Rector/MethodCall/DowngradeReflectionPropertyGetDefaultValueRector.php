@@ -9,14 +9,14 @@ use PhpParser\Node\Expr\BinaryOp\Coalesce;
 use PhpParser\Node\Expr\MethodCall;
 use PHPStan\Type\ObjectType;
 use Rector\Rector\AbstractRector;
-use Symplify\RuleDocGenerator\ValueObject\CodeSample\CodeSample;
-use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
+use Rector\RuleDoc\CodeSample\CodeSample;
+use Rector\RuleDoc\RuleDefinition;
 /**
  * @see \Rector\Tests\DowngradePhp80\Rector\MethodCall\DowngradeReflectionPropertyGetDefaultValueRector\DowngradeReflectionPropertyGetDefaultValueRectorTest
  */
 final class DowngradeReflectionPropertyGetDefaultValueRector extends AbstractRector
 {
-    public function getRuleDefinition() : RuleDefinition
+    public function getRuleDefinition(): RuleDefinition
     {
         return new RuleDefinition('Downgrade ReflectionProperty->getDefaultValue()', [new CodeSample(<<<'CODE_SAMPLE'
 class SomeClass
@@ -41,16 +41,16 @@ CODE_SAMPLE
     /**
      * @return array<class-string<Node>>
      */
-    public function getNodeTypes() : array
+    public function getNodeTypes(): array
     {
         return [MethodCall::class];
     }
     /**
      * @param MethodCall $node
      */
-    public function refactor(Node $node) : ?Node
+    public function refactor(Node $node): ?Node
     {
-        if (!$this->nodeNameResolver->isName($node->name, 'getDefaultValue')) {
+        if (!$this->isName($node->name, 'getDefaultValue')) {
             return null;
         }
         $objectType = $this->nodeTypeResolver->getType($node->var);
